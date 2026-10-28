@@ -20,6 +20,7 @@ import { FileDropZoneDirective } from '../../../../common/file-drop-zone.directi
 import { UiStyleService } from '@core/services/ui-style.service';
 import { SessionProfileSwitcherComponent } from '../session-profile-switcher/session-profile-switcher.component';
 import { SidebarFoldersService } from '../services/sidebar-folders.service';
+import { applyManualToggle, applyParkTransitions, isExpanded, parseIdSet } from './workspace-expand-state';
 import { SidebarFolder } from '../services/sidebar-folder-api.service';
 import { environment } from '@environment/environment';
 import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
@@ -1368,6 +1369,10 @@ export class SessionSidebarComponent {
   /** Track expanded/collapsed state per workspace (signal so computeds re-run on toggle) */
   private expandedMap = signal<Map<string, boolean>>(this.loadExpandedFromStorage());
 
+  /** Workspaces closed by the auto-collapse (not by the user): the only ones a wake may reopen. */
+  private static readonly WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY = 'promptops_workspace_autocollapsed';
+  private autoCollapsed = new Set<string>(this.loadAutoCollapsedFromStorage());
+
   /**
    * Sessions grouped by workspace — deliberately does NOT read expandedMap,
    * so the auto-collapse effect below can write expandedMap without looping.
@@ -1478,13 +1483,19 @@ export class SessionSidebarComponent {
       }
       if (collapse.length === 0 && expand.length === 0) return;
 
-      // Not persisted: the saved state stays the one chosen by hand, so a
-      // restart does not inherit the automatic collapses.
+      // A manual choice wins: a wake only reopens what a park closed.
+      // Persisted, so coming back to the view or restarting never reopens workspaces.
       untracked(() => {
-        const next = new Map(this.expandedMap());
-        for (const id of collapse) next.set(id, false);
-        for (const id of expand) next.set(id, true);
-        this.expandedMap.set(next);
+        const next = applyParkTransitions(
+          { expanded: this.expandedMap(), auto: this.autoCollapsed },
+          collapse,
+          expand,
+        );
+        if (!next.changed) return;
+        this.autoCollapsed = next.auto;
+        this.expandedMap.set(next.expanded);
+        this.saveExpandedToStorage(next.expanded);
+        this.saveAutoCollapsedToStorage(next.auto);
       });
     });
   }
@@ -1513,15 +1524,31 @@ export class SessionSidebarComponent {
   }
 
   toggleWorkspace(wsId: string): void {
-    const current = this.expandedMap();
-    const next = new Map(current);
-    next.set(wsId, !(current.get(wsId) ?? true));
-    this.expandedMap.set(next);
-    this.saveExpandedToStorage(next);
+    const next = applyManualToggle({ expanded: this.expandedMap(), auto: this.autoCollapsed }, wsId);
+    this.autoCollapsed = next.auto;
+    this.expandedMap.set(next.expanded);
+    this.saveExpandedToStorage(next.expanded);
+    this.saveAutoCollapsedToStorage(next.auto);
   }
 
   isWorkspaceExpanded(wsId: string): boolean {
-    return this.expandedMap().get(wsId) ?? true;
+    return isExpanded(this.expandedMap(), wsId);
+  }
+
+  private loadAutoCollapsedFromStorage(): Set<string> {
+    try {
+      return parseIdSet(localStorage.getItem(SessionSidebarComponent.WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY));
+    } catch {
+      return new Set();
+    }
+  }
+
+  private saveAutoCollapsedToStorage(ids: Set<string>): void {
+    try {
+      localStorage.setItem(SessionSidebarComponent.WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY, JSON.stringify([...ids]));
+    } catch {
+      /* localStorage may be unavailable (private mode, quota) — fail silently */
+    }
   }
 
   private loadExpandedFromStorage(): Map<string, boolean> {

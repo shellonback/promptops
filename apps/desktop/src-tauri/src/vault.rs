@@ -73,7 +73,7 @@ impl VaultKey {
 
     pub fn generate() -> Result<Self, VaultError> {
         let mut bytes = [0u8; 32];
-        getrandom::getrandom(&mut bytes).map_err(|e| VaultError::Random(e.to_string()))?;
+        getrandom::fill(&mut bytes).map_err(|e| VaultError::Random(e.to_string()))?;
         Ok(Self(bytes))
     }
 
@@ -155,7 +155,7 @@ pub fn seal(
     plaintext: &[u8],
 ) -> Result<Envelope, VaultError> {
     let mut nonce = [0u8; NONCE_LEN];
-    getrandom::getrandom(&mut nonce).map_err(|e| VaultError::Random(e.to_string()))?;
+    getrandom::fill(&mut nonce).map_err(|e| VaultError::Random(e.to_string()))?;
     seal_with_nonce(key, kind, id, plaintext, nonce)
 }
 

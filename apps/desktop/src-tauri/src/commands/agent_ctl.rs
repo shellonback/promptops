@@ -1347,7 +1347,8 @@ fn key_bytes(name: &str) -> Option<&'static str> {
 /// visible part. Returns the last `lines` lines, trailing empty lines trimmed.
 fn render_screen(raw: &[u8], cols: u16, rows: u16, with_scrollback: bool, lines: usize) -> String {
     let (cols, rows) = (cols.max(20), rows.max(5));
-    let mut parser = vt100::Parser::new(rows, cols, READ_SCROLLBACK);
+    let nz = |n: u16| std::num::NonZeroU16::new(n).unwrap_or(std::num::NonZeroU16::MIN);
+    let mut parser = vt100::Parser::new(nz(rows), nz(cols), READ_SCROLLBACK);
     parser.process(raw);
 
     let mut out: Vec<String> = Vec::new();

@@ -243,7 +243,7 @@ fn header(params: KdfParams, salt: &[u8; SALT_LEN], nonce: &[u8; NONCE_LEN]) -> 
 
 fn random<const N: usize>() -> Result<[u8; N], BackupError> {
     let mut out = [0u8; N];
-    getrandom::getrandom(&mut out).map_err(|e| BackupError::Io(e.to_string()))?;
+    getrandom::fill(&mut out).map_err(|e| BackupError::Io(e.to_string()))?;
     Ok(out)
 }
 

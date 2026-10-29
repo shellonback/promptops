@@ -736,7 +736,9 @@ async fn mysql_schema_columns(url: &str, sql: &str) -> HashMap<String, Vec<Strin
     let Ok(pool) = connect_mysql(url).await else {
         return out;
     };
-    let rows = sqlx::query(sql).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let Ok(rows) = rows else { return out };
     let total = rows.len() as i64;
@@ -750,7 +752,9 @@ async fn pgsql_schema_columns(url: &str, sql: &str) -> HashMap<String, Vec<Strin
     let Ok(pool) = connect_pgsql(url).await else {
         return out;
     };
-    let rows = sqlx::query(sql).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.to_owned()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let Ok(rows) = rows else { return out };
     let total = rows.len() as i64;
@@ -785,7 +789,10 @@ async fn sqlite_schema_columns(
             "SELECT name || ':' || type AS c FROM pragma_table_info('{}')",
             t.replace('\'', "''")
         );
-        if let Ok(rows) = sqlx::query(&sql).fetch_all(&pool).await {
+        if let Ok(rows) = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+            .fetch_all(&pool)
+            .await
+        {
             let total = rows.len() as i64;
             let cols: Vec<String> = sqlite_rows_to_result(&rows, total)
                 .rows
@@ -1050,7 +1057,9 @@ async fn run_raw_query(config: &DbConfig, cwd: &str, query: &str) -> Result<Quer
 
 async fn raw_mysql(url: &str, query: &str) -> Result<QueryResult, String> {
     let pool = connect_mysql(url).await?;
-    let rows = sqlx::query(query).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.to_owned()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let rows = rows.map_err(|e| e.to_string())?;
     let total = rows.len() as i64;
@@ -1059,7 +1068,9 @@ async fn raw_mysql(url: &str, query: &str) -> Result<QueryResult, String> {
 
 async fn raw_pgsql(url: &str, query: &str) -> Result<QueryResult, String> {
     let pool = connect_pgsql(url).await?;
-    let rows = sqlx::query(query).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.to_owned()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let rows = rows.map_err(|e| e.to_string())?;
     let total = rows.len() as i64;
@@ -1068,7 +1079,9 @@ async fn raw_pgsql(url: &str, query: &str) -> Result<QueryResult, String> {
 
 async fn raw_sqlite(url: &str, query: &str) -> Result<QueryResult, String> {
     let pool = connect_sqlite(url).await?;
-    let rows = sqlx::query(query).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(query.to_owned()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let rows = rows.map_err(|e| e.to_string())?;
     let total = rows.len() as i64;
@@ -2042,7 +2055,7 @@ async fn query_mysql(
     let pool = connect_mysql(&mysql_url(config)).await?;
 
     let count_sql = format!("SELECT COUNT(*) as cnt FROM `{table}`{where_c}");
-    let mut count_q = sqlx::query(&count_sql);
+    let mut count_q = sqlx::query(sqlx::AssertSqlSafe(count_sql.clone()));
     for b in &binds {
         count_q = count_q.bind(b);
     }
@@ -2056,7 +2069,7 @@ async fn query_mysql(
     };
 
     let sql = format!("SELECT * FROM `{table}`{where_c}{order_c} LIMIT {limit} OFFSET {offset}");
-    let mut rows_q = sqlx::query(&sql);
+    let mut rows_q = sqlx::query(sqlx::AssertSqlSafe(sql.clone()));
     for b in &binds {
         rows_q = rows_q.bind(b);
     }
@@ -2081,7 +2094,9 @@ async fn query_pgsql(
     let pool = connect_pgsql(&pgsql_url(config)).await?;
 
     let count_sql = format!("SELECT COUNT(*) FROM \"{table}\"{where_c}");
-    let count_row = sqlx::query(&count_sql).fetch_one(&pool).await;
+    let count_row = sqlx::query(sqlx::AssertSqlSafe(count_sql.clone()))
+        .fetch_one(&pool)
+        .await;
     let total = match count_row {
         Ok(r) => pgsql_first_column_i64(&r).unwrap_or(0),
         Err(e) => {
@@ -2091,7 +2106,9 @@ async fn query_pgsql(
     };
 
     let sql = format!("SELECT * FROM \"{table}\"{where_c}{order_c} LIMIT {limit} OFFSET {offset}");
-    let rows = sqlx::query(&sql).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let rows = rows.map_err(|e| e.to_string())?;
     Ok(pgsql_rows_to_result(&rows, total))
@@ -2116,7 +2133,9 @@ async fn query_sqlite(
     let pool = connect_sqlite(&sqlite_url(&db_path)).await?;
 
     let count_sql = format!("SELECT COUNT(*) FROM \"{table}\"{where_c}");
-    let count_row = sqlx::query(&count_sql).fetch_one(&pool).await;
+    let count_row = sqlx::query(sqlx::AssertSqlSafe(count_sql.clone()))
+        .fetch_one(&pool)
+        .await;
     let total = match count_row {
         Ok(r) => sqlite_first_column_i64(&r).unwrap_or(0),
         Err(e) => {
@@ -2126,7 +2145,9 @@ async fn query_sqlite(
     };
 
     let sql = format!("SELECT * FROM \"{table}\"{where_c} {order_c} LIMIT {limit} OFFSET {offset}");
-    let rows = sqlx::query(&sql).fetch_all(&pool).await;
+    let rows = sqlx::query(sqlx::AssertSqlSafe(sql.clone()))
+        .fetch_all(&pool)
+        .await;
     pool.close().await;
     let rows = rows.map_err(|e| e.to_string())?;
     Ok(sqlite_rows_to_result(&rows, total))

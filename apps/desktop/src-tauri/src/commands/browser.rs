@@ -168,7 +168,7 @@ fn chrome_process_running() -> bool {
     use sysinfo::System;
     let sys = System::new_all();
     sys.processes().values().any(|p| {
-        let n = p.name().to_lowercase();
+        let n = p.name().to_string_lossy().to_lowercase();
         (n.contains("google chrome")
             || n == "chrome"
             || n == "chrome.exe"
@@ -400,7 +400,7 @@ pub async fn browser_mirror_start(
     ];
     for m in setup {
         write
-            .send(Message::Text(m))
+            .send(Message::Text(m.into()))
             .await
             .map_err(|e| e.to_string())?;
     }
@@ -410,7 +410,7 @@ pub async fn browser_mirror_start(
             tokio::select! {
                 out = rx.recv() => match out {
                     Some(text) => {
-                        if write.send(Message::Text(text)).await.is_err() {
+                        if write.send(Message::Text(text.into())).await.is_err() {
                             break "send failed".to_string();
                         }
                     }
@@ -443,7 +443,7 @@ pub async fn browser_mirror_start(
                                 "Page.screencastFrameAck",
                                 json!({ "sessionId": session_id }),
                             );
-                            if write.send(Message::Text(ack)).await.is_err() { break "ack failed".to_string(); }
+                            if write.send(Message::Text(ack.into())).await.is_err() { break "ack failed".to_string(); }
                         }
                         Some("Page.frameNavigated") => {
                             let f = &v["params"]["frame"];
@@ -826,8 +826,10 @@ fn kill_agent_chrome(profile: &std::path::Path) -> bool {
     let mut killed = false;
     for p in sys.processes().values() {
         let cmd = p.cmd();
-        let is_browser =
-            cmd.iter().any(|a| a == &marker) && !cmd.iter().any(|a| a.starts_with("--type="));
+        let is_browser = cmd.iter().any(|a| a.to_string_lossy() == marker)
+            && !cmd
+                .iter()
+                .any(|a| a.to_string_lossy().starts_with("--type="));
         if is_browser {
             killed |= p.kill();
         }
@@ -1251,7 +1253,7 @@ fn agent_chrome_pids(profile: &std::path::Path) -> Vec<u32> {
     let sys = System::new_all();
     sys.processes()
         .iter()
-        .filter(|(_, p)| p.cmd().iter().any(|a| a == &marker))
+        .filter(|(_, p)| p.cmd().iter().any(|a| a.to_string_lossy() == marker))
         .map(|(pid, _)| pid.as_u32())
         .collect()
 }

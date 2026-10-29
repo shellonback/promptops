@@ -25,31 +25,31 @@ tauri-plugin-autostart = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-global-shortcut = "2"
 serde = { version = "1", features = ["derive"] }
-base64 = "0.22"
+base64 = "0.23"
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.30", features = ["native-tls"] }
 futures-util = "0.3"
-parking_lot = "0.12"
+parking_lot = "0.13"
 uuid = { version = "1", features = ["v4"] }
 anyhow = "1"
 regex = "1"
 # Renders the PTY buffer for `promptops ctl agent read` (agent_ctl.rs).
-vt100 = "0.16"
+vt100 = "0.18"
 # Native terminal (same author as WezTerm)
-portable-pty = "0.8"
+portable-pty = "0.9"
 # fs domain
-notify = "6"
+notify = "8"
 trash = "5"
 # shell/clipboard domain
 arboard = "3"
 image = "0.25"
 # ssh domain
 # ring instead of the default aws-lc-rs: no CMake/NASM needed to build on Windows.
-russh = { version = "0.60", default-features = false, features = ["flate2", "ring", "rsa"] }
+russh = { version = "0.64", default-features = false, features = ["flate2", "ring", "rsa"] }
 async-trait = "0.1"
 # db explorer domain
-sqlx = { version = "0.8", default-features = false, features = [
+sqlx = { version = "0.9", default-features = false, features = [
   "runtime-tokio",
   "mysql",
   "postgres",
@@ -62,19 +62,19 @@ sqlx = { version = "0.8", default-features = false, features = [
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 bigdecimal = "0.4"
 # system_info domain (hardware scan / memory diagnostics)
-sysinfo = "0.30"
+sysinfo = "0.39"
 # HTTP client for the services you choose (AI providers with your keys,
 # Whisper model download, plugin catalog); there is no PromptOps backend.
-reqwest = { version = "0.12", features = ["json", "blocking"] }
+reqwest = { version = "0.13", features = ["json", "blocking"] }
 # Plugin runtime: SHA-256 check of the bundle (already in the lock as a transitive dependency)
-sha2 = "0.10"
+sha2 = "0.11"
 # Plugin runtime: encrypted secrets on disk (AES-256-GCM), key in the system keychain.
 # aes-gcm and getrandom are already in the lock as transitive dependencies.
 aes-gcm = "0.10"
-getrandom = "0.2"
+getrandom = "0.4"
 # Encrypted backups (local_backup.rs): Argon2id derives the key from the
 # passphrase. Already in the lock as a transitive dependency; MIT OR Apache-2.0.
-argon2 = "0.5"
+argon2 = "0.6"
 
 # PTY raw-mode gate before paste (tcgetattr on the master, see subagent.rs)
 [target.'cfg(unix)'.dependencies]

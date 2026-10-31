@@ -1491,7 +1491,8 @@
       "Reason KillRing": "przewijanie kill ring w powłoce",
       "Reason RevertLine": "przywróć wiersz w powłoce",
       "Reason LastArgument": "wstaw ostatni argument w powłoce",
-      "Restored": "Przywrócono domyślne skróty."
+      "Restored": "Przywrócono domyślne skróty.",
+      "NextWaiting": "Następny agent czekający na dane"
     },
     "FLOOR_PLAN": {
       "Title": "Plan piętra",
@@ -2064,7 +2065,14 @@
     "Copy": "Kopiuj",
     "Paste": "Wklej",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Szukaj w wyjściu",
+    "No results": "Brak wyników",
+    "Previous match": "Poprzednie dopasowanie",
+    "Next match": "Następne dopasowanie",
+    "Close search": "Zamknij wyszukiwanie",
+    "Scroll to bottom": "Przewiń na dół",
+    "New output": "Nowe wiersze: {{count}}"
   },
   "SETTINGS": {
     "Notifications Title": "Powiadomienia",

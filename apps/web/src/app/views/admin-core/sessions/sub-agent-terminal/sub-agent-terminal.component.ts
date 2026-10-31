@@ -37,6 +37,9 @@ import { TerminalCommandGuard } from '../services/terminal-command-guard';
 import { createTerminalLinkHandler, joinWrappedUrl, openTerminalLink } from '@core/helper/terminal-link-handler';
 import { decideTerminalClipboardAction } from '@core/helper/terminal-clipboard';
 import { decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
+import { buildTerminalOptions, watchTerminalAppearance } from '@core/helper/terminal-appearance';
+import { createTerminalWriteBatcher, TerminalWriteBatcher } from '@core/helper/terminal-write-batcher';
+import { TerminalAssistComponent } from '../terminal-assist/terminal-assist.component';
 
 /**
  * Terminal component for a sub-agent.
@@ -46,9 +49,11 @@ import { decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
 @Component({
   selector: 'app-sub-agent-terminal',
   standalone: true,
-  imports: [TranslateModule],
+  imports: [TranslateModule, TerminalAssistComponent],
   template: `
     <div #terminalContainer class="terminal-container" (contextmenu)="onContextMenu($event)"></div>
+    <!-- ↓ new output + find in output. -->
+    <app-terminal-assist #assist />
     <!-- Spawn overlay: while the provider TUI is still booting the prompt is not
          yet injected and the terminal is interactive — this black veil blocks
          input so the user can't type into the boot screen and clobber the paste. -->
@@ -86,7 +91,7 @@ import { decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
       position: relative;
       width: 100%;
       height: 100%;
-      background: #0c0e16;
+      background: #10121a;
     }
     .spawn-overlay {
       position: absolute;
@@ -131,7 +136,7 @@ import { decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
       padding: 8px 4px 6px 10px;
       background:
         radial-gradient(120% 90% at 50% 0%, rgba(168, 85, 247, 0.05) 0%, transparent 55%),
-        #0c0e16;
+        #10121a;
     }
     /* xterm DOM is created at runtime → needs ::ng-deep to pierce scoping */
     :host ::ng-deep .xterm-viewport {
@@ -192,6 +197,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
   /** Emits a file path (no `:line` suffix) when the user clicks a CLI file link. */
   @Output() openFileRequest = new EventEmitter<string>();
   @ViewChild('terminalContainer', { static: true }) containerRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('assist', { static: true }) assist!: TerminalAssistComponent;
 
   private subAgentService = inject(SubAgentService);
   private translate = inject(TranslateService);
@@ -371,6 +377,14 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
   /** False until xterm is opened on the container: before then fit/focus
    *  would operate on a nonexistent renderer. */
   private attached = false;
+  /** Live output coalesced per frame (see terminal-write-batcher). */
+  private writeBatcher: TerminalWriteBatcher | null = null;
+  /** Font/size/line height applied live from settings. */
+  private unwatchAppearance: (() => void) | null = null;
+  /** The terminal font was already re-measured after document.fonts.ready. */
+  private fontMeasured = false;
+  /** Grid + DPR of the last settled repaint (skips no-op ones). */
+  private lastSettledKey = '';
   private unsubOutput: (() => void) | null = null;
   /** Tracks whether xterm was opened while its container had 0 dimensions */
   private needsVisibilityRefresh = false;
@@ -407,39 +421,15 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
   ngOnInit(): void {
     // Terminal performance toggles (default on) — see app settings.
     const perf = readTerminalPerfPrefs();
+    // Same user preferences, palette and scrollback as the main terminal:
+    // it used to be pinned to 13px / line height 1.0 with another palette.
     this.xterm = new Terminal({
+      ...buildTerminalOptions(),
       // Clicks on OSC 8 links (full URLs) → browser; Option+drag
       // selects even when the TUI captures the mouse (Claude fullscreen).
       linkHandler: createTerminalLinkHandler((uri) => { this.hoveredLink = uri; }),
       macOptionClickForcesSelection: true,
       cursorBlink: perf.cursorBlink,
-      fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-      theme: {
-        background: '#0c0e16',
-        foreground: '#b3b1ad',
-        cursor: '#c084fc',
-        cursorAccent: '#0c0e16',
-        selectionBackground: 'rgba(168, 85, 247, 0.30)',
-        black: '#0c0e16',
-        red: '#ff7b72',
-        green: '#3fb950',
-        yellow: '#d29922',
-        blue: '#58a6ff',
-        magenta: '#bc8cff',
-        cyan: '#39c5cf',
-        white: '#b3b1ad',
-        brightBlack: '#484f58',
-        brightRed: '#ffa198',
-        brightGreen: '#56d364',
-        brightYellow: '#e3b341',
-        brightBlue: '#79c0ff',
-        brightMagenta: '#d2a8ff',
-        brightCyan: '#56d4dd',
-        brightWhite: '#f0f6fc',
-      },
-      scrollback: 3000,
-      allowProposedApi: true,
     });
 
     this.fitAddon = new FitAddon();
@@ -507,6 +497,15 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
       }, true);
     }
     if (perf.gpu) attachWebglRenderer(this.xterm);
+    this.assist?.attach(this.xterm);
+    this.unwatchAppearance = watchTerminalAppearance(this.xterm, () => {
+      this.fontMeasured = false;
+      this.refit();
+    });
+    this.writeBatcher = createTerminalWriteBatcher(this.xterm, {
+      element: () => el,
+      runOutside: (fn) => this.zone.runOutsideAngular(fn),
+    });
     this.fitAddon.fit();
     // Lock input immediately if the pane opens mid-boot (effect may not have run yet).
     this.xterm.options.disableStdin = this.isSpawning();
@@ -551,6 +550,12 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
         this.escapePressed.emit();
         return false;
       }
+      if (TerminalAssistComponent.isSearchShortcut(ev, (window as any).promptops?.platform)) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        this.assist?.openSearch();
+        return false;
+      }
       // Tauri: plain Cmd+C/V too (native WKWebView breaks lines at visual
       // wraps and pastes multi-line as separate submits).
       const metaClipboard = this.sessionService.isTauri;
@@ -588,8 +593,8 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     // renderer initializes with 0×0 and needs a full refresh once visible.
     this.needsVisibilityRefresh = el.offsetWidth === 0 || el.offsetHeight === 0;
 
-    // Always scroll to bottom when terminal gains focus (switch, click, shortcut)
-    this.xterm.textarea?.addEventListener('focus', () => this.xterm.scrollToBottom());
+    // No jump to the bottom on focus: clicking to copy or read must not lose
+    // the user's place. Typing (scrollOnUserInput) or the ↓ button go back down.
 
     // Subscribe BEFORE fetching the replay, queueing live chunks.
     // Same shape as session-terminal: the bytes arriving between the buffer
@@ -599,7 +604,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     // duplicate anything.
     let replayDone = false;
     const queuedOutput: string[] = [];
-    const xtermEarly = this.xterm;
+    const batcher = this.writeBatcher!;
     this.unsubOutput = this.subAgentService.onSubAgentOutput((event) => {
       if (event.subAgentId !== this.subAgentId) return;
       this.sniffModelAnnouncement(event.data);
@@ -607,7 +612,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
         queuedOutput.push(event.data);
         return;
       }
-      xtermEarly.write(event.data);
+      batcher.write(event.data);
     });
 
     // Replay existing buffer — retry once after a delay if empty (sub-agent
@@ -626,7 +631,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     if (this.disposed) return;
 
     replayDone = true;
-    for (const chunk of queuedOutput) this.xterm.write(chunk);
+    for (const chunk of queuedOutput) batcher.write(chunk);
     queuedOutput.length = 0;
 
     // Retry buffer load after 3s if initial was empty (covers restore timing)
@@ -699,6 +704,8 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
       // Manual resize in progress: no fit on every frame, realign when the gesture ends.
       if (isPaneResizing()) { this.scheduleSettledRepaint(); return; }
 
+      // Queued output was produced at the previous grid.
+      this.writeBatcher?.flush();
       this.fitAddon.fit();
 
       // When transitioning from hidden (0 dimensions) to visible,
@@ -749,6 +756,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
         if (el.offsetWidth === 0 || el.offsetHeight === 0) return;
         const ff = this.xterm.options.fontFamily;
         if (ff) this.xterm.options.fontFamily = ff;
+        this.fontMeasured = true;
         this.fitAddon?.fit();
         this.xterm.refresh(0, this.xterm.rows - 1);
         this.schedulePtyResize();
@@ -773,8 +781,14 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
       if (this.disposed || this.replayInFlight || !xterm || !this.fitAddon || !el) return;
       if (el.offsetWidth === 0 || el.offsetHeight === 0) return;
       this.fitAddon.fit();
-      clearTextureAtlasShared(xterm);
-      xterm.refresh(0, xterm.rows - 1);
+      // The atlas is shared: clearing it redraws the glyphs of EVERY pane.
+      // Only when the grid or the DPR actually changed since the last repaint.
+      const key = `${xterm.cols}x${xterm.rows}@${window.devicePixelRatio}`;
+      if (key !== this.lastSettledKey) {
+        this.lastSettledKey = key;
+        clearTextureAtlasShared(xterm);
+        xterm.refresh(0, xterm.rows - 1);
+      }
       this.schedulePtyResize();
     }, 180);
   }
@@ -834,9 +848,14 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     if (!xterm || !fit || !el) return;
     if (el.offsetWidth === 0 || el.offsetHeight === 0) return;
     fit.fit();
-    const ff = xterm.options.fontFamily;
-    if (ff) xterm.options.fontFamily = ff;
-    fit.fit();
+    // Re-measure the cell only until the real font has been measured: doing
+    // it on every refit changed the cell for one frame (the jump after a switch).
+    if (!this.fontMeasured) {
+      const ff = xterm.options.fontFamily;
+      if (ff) xterm.options.fontFamily = ff;
+      fit.fit();
+      if (document.fonts?.status === 'loaded') this.fontMeasured = true;
+    }
     xterm.refresh(0, xterm.rows - 1);
     this.schedulePtyResize();
   }
@@ -851,6 +870,8 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
    * the container.
    */
   private writeReplay(buffer: string): void {
+    // The 3 s retry can land after live output already queued: keep it first.
+    this.writeBatcher?.flush();
     const known = this.dimsRegistry.get(`sa:${this.subAgentId}`);
     this.replayInFlight = true;
     if (this.ptyResizeTimer !== null) {
@@ -910,6 +931,7 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     const rows = this.xterm.rows;
     if (cols < 2 || rows < 3) return;
     this.tuiRepaintDone = true;
+    this.writeBatcher?.flush();
 
     // Step down one row, PTY in lockstep (bypasses the debounce on purpose).
     this.xterm.resize(cols, rows - 1);
@@ -977,6 +999,11 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
       this.ptyResizeTimer = null;
     }
     this.unsubOutput?.();
+    this.writeBatcher?.dispose();
+    this.writeBatcher = null;
+    this.unwatchAppearance?.();
+    this.unwatchAppearance = null;
+    this.assist?.detach();
     this.fileLinkProvider?.dispose();
     this.fileLinkProvider = null;
     this.bangRunner?.dispose();

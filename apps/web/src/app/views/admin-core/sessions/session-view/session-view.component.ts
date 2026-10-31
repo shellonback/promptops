@@ -7899,6 +7899,18 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Alt/⌥ + A = next agent waiting for input (cycles, after the active one)
+    if (action === 'nextWaiting') {
+      handled();
+      const waiting = agents.filter(a => a.status === 'waiting_input');
+      if (waiting.length === 0) return;
+      const currentIdx = agents.findIndex(a => a.id === this.activeSubAgentTab());
+      const target = waiting.find(a => agents.indexOf(a) > currentIdx) ?? waiting[0];
+      this.subAgentsExpanded.set(true);
+      this.switchSubAgentTab(target.id);
+      return;
+    }
+
     // Alt/⌥ + L = lock/unlock focused sub-agent
     if (action === 'lockAgent') {
       const focused = this.focusedPaneId();

@@ -1491,7 +1491,8 @@
       "Reason KillRing": "cycle the kill ring in the shell",
       "Reason RevertLine": "revert the line in the shell",
       "Reason LastArgument": "insert the last argument in the shell",
-      "Restored": "Shortcuts restored to defaults."
+      "Restored": "Shortcuts restored to defaults.",
+      "NextWaiting": "Next agent waiting for input"
     },
     "FLOOR_PLAN": {
       "Title": "Floor plan",
@@ -2064,7 +2065,14 @@
     "Copy": "Copy",
     "Paste": "Paste",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Find in output",
+    "No results": "No results",
+    "Previous match": "Previous match",
+    "Next match": "Next match",
+    "Close search": "Close search",
+    "Scroll to bottom": "Scroll to bottom",
+    "New output": "{{count}} new lines"
   },
   "SETTINGS": {
     "Notifications Title": "Notifications",

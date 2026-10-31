@@ -1491,7 +1491,8 @@
       "Reason KillRing": "在 shell 中循环 kill ring",
       "Reason RevertLine": "在 shell 中还原当前行",
       "Reason LastArgument": "在 shell 中插入上一个参数",
-      "Restored": "快捷键已恢复为默认值。"
+      "Restored": "快捷键已恢复为默认值。",
+      "NextWaiting": "下一个等待输入的智能体"
     },
     "FLOOR_PLAN": {
       "Title": "平面图",
@@ -2064,7 +2065,14 @@
     "Copy": "复制",
     "Paste": "粘贴",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "在输出中查找",
+    "No results": "无结果",
+    "Previous match": "上一个匹配",
+    "Next match": "下一个匹配",
+    "Close search": "关闭搜索",
+    "Scroll to bottom": "滚动到底部",
+    "New output": "{{count}} 行新输出"
   },
   "SETTINGS": {
     "Notifications Title": "通知",

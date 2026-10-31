@@ -1491,7 +1491,8 @@
       "Reason KillRing": "percorrer o kill ring no shell",
       "Reason RevertLine": "reverter a linha no shell",
       "Reason LastArgument": "inserir o último argumento no shell",
-      "Restored": "Atalhos restaurados para o padrão."
+      "Restored": "Atalhos restaurados para o padrão.",
+      "NextWaiting": "Próximo agente aguardando entrada"
     },
     "FLOOR_PLAN": {
       "Title": "Planta baixa",
@@ -2064,7 +2065,14 @@
     "Copy": "Copiar",
     "Paste": "Colar",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Pesquisar na saída",
+    "No results": "Sem resultados",
+    "Previous match": "Resultado anterior",
+    "Next match": "Próximo resultado",
+    "Close search": "Fechar pesquisa",
+    "Scroll to bottom": "Ir para o fim",
+    "New output": "{{count}} linhas novas"
   },
   "SETTINGS": {
     "Notifications Title": "Notificações",

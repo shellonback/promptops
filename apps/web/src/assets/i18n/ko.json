@@ -1491,7 +1491,8 @@
       "Reason KillRing": "셸에서 kill ring 순환",
       "Reason RevertLine": "셸에서 줄 되돌리기",
       "Reason LastArgument": "셸에서 마지막 인수 삽입",
-      "Restored": "단축키가 기본값으로 복원되었습니다."
+      "Restored": "단축키가 기본값으로 복원되었습니다.",
+      "NextWaiting": "입력을 기다리는 다음 에이전트"
     },
     "FLOOR_PLAN": {
       "Title": "평면도",
@@ -2064,7 +2065,14 @@
     "Copy": "복사",
     "Paste": "붙여넣기",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "출력에서 찾기",
+    "No results": "결과 없음",
+    "Previous match": "이전 일치",
+    "Next match": "다음 일치",
+    "Close search": "검색 닫기",
+    "Scroll to bottom": "맨 아래로",
+    "New output": "새 줄 {{count}}개"
   },
   "SETTINGS": {
     "Notifications Title": "알림",

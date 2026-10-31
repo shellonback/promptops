@@ -1491,7 +1491,8 @@
       "Reason KillRing": "bläddra i kill ring i skalet",
       "Reason RevertLine": "återställ raden i skalet",
       "Reason LastArgument": "infoga sista argumentet i skalet",
-      "Restored": "Kortkommandona har återställts till standard."
+      "Restored": "Kortkommandona har återställts till standard.",
+      "NextWaiting": "Nästa agent som väntar på inmatning"
     },
     "FLOOR_PLAN": {
       "Title": "Planritning",
@@ -2064,7 +2065,14 @@
     "Copy": "Kopiera",
     "Paste": "Klistra in",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Sök i utdata",
+    "No results": "Inga resultat",
+    "Previous match": "Föregående träff",
+    "Next match": "Nästa träff",
+    "Close search": "Stäng sökning",
+    "Scroll to bottom": "Gå till botten",
+    "New output": "{{count}} nya rader"
   },
   "SETTINGS": {
     "Notifications Title": "Aviseringar",

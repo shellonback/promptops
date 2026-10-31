@@ -1491,7 +1491,8 @@
       "Reason KillRing": "recorrer el kill ring en la shell",
       "Reason RevertLine": "revertir la línea en la shell",
       "Reason LastArgument": "insertar el último argumento en la shell",
-      "Restored": "Atajos restablecidos a los valores predeterminados."
+      "Restored": "Atajos restablecidos a los valores predeterminados.",
+      "NextWaiting": "Siguiente agente esperando entrada"
     },
     "FLOOR_PLAN": {
       "Title": "Plano de planta",
@@ -2064,7 +2065,14 @@
     "Copy": "Copiar",
     "Paste": "Pegar",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Buscar en la salida",
+    "No results": "Sin resultados",
+    "Previous match": "Resultado anterior",
+    "Next match": "Resultado siguiente",
+    "Close search": "Cerrar búsqueda",
+    "Scroll to bottom": "Ir al final",
+    "New output": "{{count}} líneas nuevas"
   },
   "SETTINGS": {
     "Notifications Title": "Notificaciones",

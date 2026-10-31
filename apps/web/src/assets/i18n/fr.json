@@ -1491,7 +1491,8 @@
       "Reason KillRing": "parcourir le kill ring dans le shell",
       "Reason RevertLine": "rétablir la ligne dans le shell",
       "Reason LastArgument": "insérer le dernier argument dans le shell",
-      "Restored": "Raccourcis rétablis par défaut."
+      "Restored": "Raccourcis rétablis par défaut.",
+      "NextWaiting": "Agent suivant en attente d'une saisie"
     },
     "FLOOR_PLAN": {
       "Title": "Plan d'étage",
@@ -2064,7 +2065,14 @@
     "Copy": "Copier",
     "Paste": "Coller",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Rechercher dans la sortie",
+    "No results": "Aucun résultat",
+    "Previous match": "Résultat précédent",
+    "Next match": "Résultat suivant",
+    "Close search": "Fermer la recherche",
+    "Scroll to bottom": "Aller en bas",
+    "New output": "{{count}} nouvelles lignes"
   },
   "SETTINGS": {
     "Notifications Title": "Notifications",

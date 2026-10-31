@@ -1491,7 +1491,8 @@
       "Reason KillRing": "kill ring doorlopen in de shell",
       "Reason RevertLine": "regel terugzetten in de shell",
       "Reason LastArgument": "laatste argument invoegen in de shell",
-      "Restored": "Sneltoetsen teruggezet naar standaard."
+      "Restored": "Sneltoetsen teruggezet naar standaard.",
+      "NextWaiting": "Volgende agent die op invoer wacht"
     },
     "FLOOR_PLAN": {
       "Title": "Plattegrond",
@@ -2064,7 +2065,14 @@
     "Copy": "Kopiëren",
     "Paste": "Plakken",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Zoeken in uitvoer",
+    "No results": "Geen resultaten",
+    "Previous match": "Vorige overeenkomst",
+    "Next match": "Volgende overeenkomst",
+    "Close search": "Zoeken sluiten",
+    "Scroll to bottom": "Naar beneden",
+    "New output": "{{count}} nieuwe regels"
   },
   "SETTINGS": {
     "Notifications Title": "Meldingen",

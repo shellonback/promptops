@@ -5,6 +5,7 @@ import { setCurrentUser } from "@/store/authentication/authentication.actions";
 import { getUser } from "@/store/authentication/authentication.selector";
 import { changetheme, changesidebarsize } from "@/store/layout/layout-action";
 import type { UiPreferences } from "@core/models/user";
+import { TERMINAL_PREFS_EVENT } from "@core/helper/terminal-appearance";
 
 /**
  * ui_style is deliberately excluded: it's the manual A/B override managed by
@@ -186,6 +187,8 @@ export class UiPreferencesService {
     root.style.setProperty("--po-terminal-font-size", `${prefs.terminal_font_size}px`);
     root.style.setProperty("--po-terminal-line-height", `${prefs.terminal_line_height}`);
     root.style.setProperty("--po-terminal-cursor", prefs.terminal_cursor_style);
+    // Open terminals re-apply font/size/line height live.
+    window.dispatchEvent(new Event(TERMINAL_PREFS_EVENT));
 
     // Push the background-detection toggles to the native side so the
     // tail pipeline (pattern matching + tail file) adopts them on live

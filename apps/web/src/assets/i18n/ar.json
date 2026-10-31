@@ -1491,7 +1491,8 @@
       "Reason KillRing": "التنقل في kill ring في الصدفة",
       "Reason RevertLine": "استعادة السطر في الصدفة",
       "Reason LastArgument": "إدراج آخر وسيطة في الصدفة",
-      "Restored": "تمت استعادة الاختصارات الافتراضية."
+      "Restored": "تمت استعادة الاختصارات الافتراضية.",
+      "NextWaiting": "الوكيل التالي الذي ينتظر إدخالاً"
     },
     "FLOOR_PLAN": {
       "Title": "مخطط الطابق",
@@ -2064,7 +2065,14 @@
     "Copy": "نسخ",
     "Paste": "لصق",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "البحث في المخرجات",
+    "No results": "لا توجد نتائج",
+    "Previous match": "التطابق السابق",
+    "Next match": "التطابق التالي",
+    "Close search": "إغلاق البحث",
+    "Scroll to bottom": "الانتقال إلى الأسفل",
+    "New output": "{{count}} أسطر جديدة"
   },
   "SETTINGS": {
     "Notifications Title": "الإشعارات",

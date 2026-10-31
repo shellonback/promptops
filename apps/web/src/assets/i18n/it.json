@@ -1491,7 +1491,8 @@
       "Reason KillRing": "scorri il kill ring nella shell",
       "Reason RevertLine": "ripristina la riga nella shell",
       "Reason LastArgument": "inserisci l’ultimo argomento nella shell",
-      "Restored": "Scorciatoie ripristinate ai valori predefiniti."
+      "Restored": "Scorciatoie ripristinate ai valori predefiniti.",
+      "NextWaiting": "Prossimo agente in attesa di input"
     },
     "FLOOR_PLAN": {
       "Title": "Pianta",
@@ -2064,7 +2065,14 @@
     "Copy": "Copia",
     "Paste": "Incolla",
     "Copy link": "Copia link",
-    "Open link": "Apri link"
+    "Open link": "Apri link",
+    "Find in output": "Cerca nell'output",
+    "No results": "Nessun risultato",
+    "Previous match": "Risultato precedente",
+    "Next match": "Risultato successivo",
+    "Close search": "Chiudi ricerca",
+    "Scroll to bottom": "Vai in fondo",
+    "New output": "{{count}} righe nuove"
   },
   "SETTINGS": {
     "Notifications Title": "Notifiche",

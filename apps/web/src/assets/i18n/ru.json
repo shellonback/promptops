@@ -1491,7 +1491,8 @@
       "Reason KillRing": "перебрать kill ring в оболочке",
       "Reason RevertLine": "отменить изменения строки в оболочке",
       "Reason LastArgument": "вставить последний аргумент в оболочке",
-      "Restored": "Горячие клавиши сброшены по умолчанию."
+      "Restored": "Горячие клавиши сброшены по умолчанию.",
+      "NextWaiting": "Следующий агент, ожидающий ввода"
     },
     "FLOOR_PLAN": {
       "Title": "План этажа",
@@ -2064,7 +2065,14 @@
     "Copy": "Копировать",
     "Paste": "Вставить",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Поиск в выводе",
+    "No results": "Нет результатов",
+    "Previous match": "Предыдущее совпадение",
+    "Next match": "Следующее совпадение",
+    "Close search": "Закрыть поиск",
+    "Scroll to bottom": "Прокрутить вниз",
+    "New output": "Новых строк: {{count}}"
   },
   "SETTINGS": {
     "Notifications Title": "Уведомления",

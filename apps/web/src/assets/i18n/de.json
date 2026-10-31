@@ -1491,7 +1491,8 @@
       "Reason KillRing": "Kill-Ring in der Shell durchlaufen",
       "Reason RevertLine": "Zeile in der Shell zurücksetzen",
       "Reason LastArgument": "letztes Argument in der Shell einfügen",
-      "Restored": "Tastenkürzel auf Standard zurückgesetzt."
+      "Restored": "Tastenkürzel auf Standard zurückgesetzt.",
+      "NextWaiting": "Nächster Agent, der auf Eingabe wartet"
     },
     "FLOOR_PLAN": {
       "Title": "Grundriss",
@@ -2064,7 +2065,14 @@
     "Copy": "Kopieren",
     "Paste": "Einfügen",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "In der Ausgabe suchen",
+    "No results": "Keine Treffer",
+    "Previous match": "Vorheriger Treffer",
+    "Next match": "Nächster Treffer",
+    "Close search": "Suche schließen",
+    "Scroll to bottom": "Nach unten springen",
+    "New output": "{{count}} neue Zeilen"
   },
   "SETTINGS": {
     "Notifications Title": "Benachrichtigungen",

@@ -1491,7 +1491,8 @@
       "Reason KillRing": "शेल में किल रिंग घुमाएँ",
       "Reason RevertLine": "शेल में लाइन वापस करें",
       "Reason LastArgument": "शेल में आखिरी आर्गुमेंट डालें",
-      "Restored": "शॉर्टकट डिफ़ॉल्ट पर रीसेट कर दिए गए।"
+      "Restored": "शॉर्टकट डिफ़ॉल्ट पर रीसेट कर दिए गए।",
+      "NextWaiting": "इनपुट की प्रतीक्षा कर रहा अगला एजेंट"
     },
     "FLOOR_PLAN": {
       "Title": "फ़्लोर प्लान",
@@ -2064,7 +2065,14 @@
     "Copy": "कॉपी करें",
     "Paste": "पेस्ट करें",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "आउटपुट में खोजें",
+    "No results": "कोई परिणाम नहीं",
+    "Previous match": "पिछला मिलान",
+    "Next match": "अगला मिलान",
+    "Close search": "खोज बंद करें",
+    "Scroll to bottom": "नीचे जाएँ",
+    "New output": "{{count}} नई पंक्तियाँ"
   },
   "SETTINGS": {
     "Notifications Title": "सूचनाएं",

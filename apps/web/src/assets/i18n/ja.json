@@ -1491,7 +1491,8 @@
       "Reason KillRing": "シェルでキルリングを巡回",
       "Reason RevertLine": "シェルで行を元に戻す",
       "Reason LastArgument": "シェルで最後の引数を挿入",
-      "Restored": "ショートカットをデフォルトに戻しました。"
+      "Restored": "ショートカットをデフォルトに戻しました。",
+      "NextWaiting": "入力待ちの次のエージェント"
     },
     "FLOOR_PLAN": {
       "Title": "フロアマップ",
@@ -2064,7 +2065,14 @@
     "Copy": "コピー",
     "Paste": "ペースト",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "出力内を検索",
+    "No results": "結果なし",
+    "Previous match": "前の一致",
+    "Next match": "次の一致",
+    "Close search": "検索を閉じる",
+    "Scroll to bottom": "一番下へ",
+    "New output": "新しい行 {{count}} 件"
   },
   "SETTINGS": {
     "Notifications Title": "通知",

@@ -223,6 +223,57 @@ pub async fn assets_import_from_url(
     }
 }
 
+/// Per-file cap of `assets_import_paths` (same order of magnitude as the
+/// picker uploads, which travel whole as base64 over IPC).
+const IMPORT_PATH_MAX_BYTES: u64 = 512 * 1024 * 1024;
+
+/// assets:import-paths — copies local files (absolute paths) into the assets
+/// folder. Needed for drops from the file manager on Linux: WebKitGTK often
+/// delivers only `text/uri-list` with no `File` in `dataTransfer.files`, so the
+/// webview passes the paths and Rust reads the content. Regular files only.
+#[tauri::command]
+pub async fn assets_import_paths(app: tauri::AppHandle, cwd: String, paths: Vec<String>) -> Value {
+    let remote = match remote_assets(&app, &cwd) {
+        Some(Ok(r)) => Some(r),
+        Some(Err(e)) => return json!({ "ok": false, "error": e }),
+        None => None,
+    };
+    let mut uploaded: Vec<AssetInfo> = Vec::new();
+    for raw in paths {
+        let path = PathBuf::from(&raw);
+        if !path.is_absolute() {
+            return json!({ "ok": false, "error": "Only absolute paths are allowed" });
+        }
+        let meta = match std::fs::metadata(&path) {
+            Ok(m) => m,
+            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+        };
+        // Folders and special files: skipped silently, like the HTML5 drop.
+        if !meta.is_file() {
+            continue;
+        }
+        if meta.len() > IMPORT_PATH_MAX_BYTES {
+            return json!({ "ok": false, "error": "File too large" });
+        }
+        let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        let bytes = match std::fs::read(&path) {
+            Ok(b) => b,
+            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+        };
+        let res = match &remote {
+            Some(r) => r.upload(&app, &name, &bytes).await,
+            None => upload_asset(&cwd, &name, &base64_encode(&bytes)),
+        };
+        match res {
+            Ok(asset) => uploaded.push(asset),
+            Err(e) => return json!({ "ok": false, "error": e }),
+        }
+    }
+    json!({ "ok": true, "assets": uploaded })
+}
+
 /// assets:read-base64 — reads the asset as base64 (image preview / AI).
 /// Mirror of `ASSETS_READ_BASE64` → `{ ok, data, mimeType }` (spread of the result).
 #[tauri::command]
@@ -545,7 +596,13 @@ fn save_local_download(
     if !project.is_empty() && !project.starts_with('.') {
         dir = dir.join(project);
     }
-    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    write_unique(&dir, name, bytes)
+}
+
+/// Writes `bytes` to `dir/<basename(name)>` without overwriting: if the name
+/// already exists it moves on to name_1.ext, name_2.ext, …
+fn write_unique(dir: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let name = basename(name);
     let ext = ext_lower(&name);
     let mut target = dir.join(&name);
@@ -556,6 +613,94 @@ fn save_local_download(
     }
     fs::write(&target, bytes).map_err(|e| e.to_string())?;
     Ok(target)
+}
+
+/// Maximum download size of an attachment (task attachments are ≤ 20 MB).
+const MAX_URL_DOWNLOAD: u64 = 100 * 1024 * 1024;
+
+/// download:url — downloads a file from an https URL (e.g. a task attachment,
+/// a presigned S3 URL) into `Downloads/PromptOps/` with the given name and, with
+/// `reveal`, highlights it in the file manager. Needed because in the webview
+/// `<a download>` and `target=_blank` download nothing.
+/// → `{ ok, localPath }` | `{ ok:false, error }`.
+#[tauri::command]
+pub async fn download_url_to_downloads(
+    app: tauri::AppHandle,
+    url: String,
+    name: String,
+    reveal: Option<bool>,
+) -> Value {
+    use tauri::Manager as _;
+    if !url.to_lowercase().starts_with("https://") {
+        return json!({ "ok": false, "error": "Only https URLs are allowed" });
+    }
+    let name = basename(name.trim());
+    if name.is_empty() || name == "." || name == ".." {
+        return json!({ "ok": false, "error": "Invalid file name" });
+    }
+    let mut response = match reqwest::get(&url).await {
+        Ok(r) => r,
+        Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+    };
+    if !response.status().is_success() {
+        return json!({ "ok": false, "error": format!("Download failed (HTTP {})", response.status().as_u16()) });
+    }
+    if response
+        .content_length()
+        .is_some_and(|len| len > MAX_URL_DOWNLOAD)
+    {
+        return json!({ "ok": false, "error": "File too large" });
+    }
+    let mut bytes: Vec<u8> = Vec::new();
+    loop {
+        match response.chunk().await {
+            Ok(Some(chunk)) => {
+                if bytes.len() as u64 + chunk.len() as u64 > MAX_URL_DOWNLOAD {
+                    return json!({ "ok": false, "error": "File too large" });
+                }
+                bytes.extend_from_slice(&chunk);
+            }
+            Ok(None) => break,
+            Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+        }
+    }
+    let dir = match app.path().download_dir() {
+        Ok(d) => d.join("PromptOps"),
+        Err(e) => return json!({ "ok": false, "error": e.to_string() }),
+    };
+    let target = match write_unique(&dir, &name, &bytes) {
+        Ok(t) => t,
+        Err(e) => return json!({ "ok": false, "error": e }),
+    };
+    mark_quarantined(&target);
+    let local = target.to_string_lossy().to_string();
+    if reveal.unwrap_or(true) {
+        if let Err(e) = crate::commands::shell::shell_show_in_folder(local.clone()).await {
+            return json!({ "ok": true, "localPath": local, "revealError": e });
+        }
+    }
+    json!({ "ok": true, "localPath": local })
+}
+
+/// Like browsers do: a file downloaded from the internet gets `com.apple.quarantine`,
+/// so Gatekeeper checks it when it is opened (e.g. a .app inside a zip).
+/// Best-effort: if `xattr` fails the file stays saved anyway.
+fn mark_quarantined(_path: &Path) {
+    #[cfg(target_os = "macos")]
+    {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let _ = crate::commands::util_cmd::cmd("xattr")
+            .arg("-w")
+            .arg("com.apple.quarantine")
+            .arg(format!("0081;{secs:x};PromptOps;"))
+            .arg(_path)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
 }
 
 /// remote:outbox-collect — delivers the files the remote agent put in

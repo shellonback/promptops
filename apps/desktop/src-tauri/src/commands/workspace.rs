@@ -1331,11 +1331,8 @@ fn brief_context_files(workspace_path: &str) -> Vec<BriefContextFile> {
 }
 
 fn brief_claude_memories(workspace_path: &str) -> BriefAgentMemories {
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_default();
-    let memory_dir = Path::new(&home)
-        .join(".claude")
+    // Memories of the active Claude account (AI Accounts), not always ~/.claude.
+    let memory_dir = crate::commands::provider_account::active_claude_root()
         .join("projects")
         .join(claude_project_dir_name(workspace_path))
         .join("memory");

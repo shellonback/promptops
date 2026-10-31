@@ -1,0 +1,9 @@
+[package]
+name = "po-vt"
+version = "0.1.0"
+edition = "2021"
+description = "Host-side VT screen for PromptOps terminals (shared by the desktop app and termd)."
+publish = false
+
+[dependencies]
+alacritty_terminal = { version = "0.26", default-features = false }

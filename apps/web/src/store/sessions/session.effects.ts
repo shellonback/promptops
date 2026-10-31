@@ -36,12 +36,14 @@ import { getSessions } from './session.selectors';
 import { clearSessionsCache, readSessionsCache, writeSessionsCache } from './session.state';
 import { getWorkspaces } from '../workspaces/workspace.selectors';
 import { SessionSummary } from './session.state';
+import { mergeLiveWithSaved } from './session-merge';
 import { TranslateService } from '@ngx-translate/core';
 import { SessionService } from '../../app/views/admin-core/sessions/services/session.service';
 import { PromptInjectionService } from '../../app/views/admin-core/sessions/services/prompt-injection.service';
 import { PtyDimsRegistry } from '../../app/views/admin-core/sessions/services/pty-dims-registry.service';
 import { SwalService } from '../../app/core/services/swal.service';
 import { SubAgentStashService } from '../../app/views/admin-core/sessions/services/sub-agent-stash.service';
+import { SessionAccountGuardService } from '../../app/views/admin-core/sessions/services/session-account-guard.service';
 import { TodoStoreService } from '../../app/views/admin-core/sessions/services/todo-store.service';
 import { purgeBenchStorage, purgeLockStorage } from '../../app/views/admin-core/sessions/services/sub-agent-bench-storage';
 import { DesktopSessionApiService } from '../../app/views/admin-core/sessions/services/desktop-session-api.service';
@@ -57,6 +59,7 @@ export class SessionEffects {
   private sessionService = inject(SessionService);
   private promptInjection = inject(PromptInjectionService);
   private subAgentStash = inject(SubAgentStashService);
+  private accountGuard = inject(SessionAccountGuardService);
   private todoStore = inject(TodoStoreService);
   private apiService = inject(DesktopSessionApiService);
   private historyService = inject(SessionHistoryService);
@@ -115,53 +118,9 @@ export class SessionEffects {
               return loadSessionsFailure({ error: 'sessions_list_unavailable' });
             }
 
-            // Merge metadata from saved (local store) → live (desktop) sessions.
-            // All live sessions are kept — the local store save may still be in-flight
-            // for recently created sessions, so filtering them out would cause a race condition.
-            // Match by stored record id first (the live summary carries its dbId):
-            // a name that diverged between app and local store (rename from another
-            // instance/device, failed PUT) used to split one session into two
-            // tabs. The name match stays as fallback for rows without dbId.
-            const mergedLive = liveSessions.map((live) => {
-              const liveDbId = (live as any).dbId as string | undefined;
-              const saved = (liveDbId ? savedSessions.find((s) => s.id === liveDbId) : undefined)
-                ?? savedSessions.find((s) => s.name === live.name);
-              if (saved) {
-                return {
-                  ...live,
-                  dbId: saved.id,
-                  // The restore stamps createdAt with the restore time (ties
-                  // broken by HashMap order on macOS/Windows) → the sidebar,
-                  // which sorts by createdAt, reshuffled at every restart. The
-                  // stored record's created_at is immutable: same order every boot.
-                  createdAt: this.stableCreatedAt(saved.createdAt, live.createdAt),
-                  workspaceId: saved.workspaceId ?? live.workspaceId,
-                  categoryId: saved.categoryId ?? live.categoryId,
-                  teamId: saved.teamId ?? live.teamId,
-                  teamName: saved.teamName ?? live.teamName,
-                  projectId: saved.projectId ?? live.projectId,
-                  projectName: saved.projectName ?? live.projectName,
-                  repoUrl: saved.repoUrl ?? live.repoUrl,
-                  repoBranch: saved.repoBranch ?? live.repoBranch,
-                  deviceWorkspace: saved.deviceWorkspace ?? live.deviceWorkspace,
-                };
-              }
-              return live;
-            });
-
-            const liveNames = new Set(mergedLive.map((s) => s.name));
-            const liveDbIds = new Set(mergedLive.map((s) => (s as any).dbId).filter(Boolean));
-
-            // Keep saved sessions that don't have a live counterpart, dedup by id and name
-            const seenNames = new Set<string>(liveNames);
-            const uniqueSaved = savedSessions.filter((s) => {
-              if (liveDbIds.has(s.id)) return false;
-              if (seenNames.has(s.name)) return false;
-              seenNames.add(s.name);
-              return true;
-            });
-
-            const finalSessions = [...mergedLive, ...uniqueSaved];
+            // Saved (local store) metadata onto live sessions; see mergeLiveWithSaved.
+            // The desktop app is always v2: match by stored record id first.
+            const finalSessions = mergeLiveWithSaved(liveSessions, savedSessions, true);
 
             // Auto-migrate legacy sessions if we detect any with workspace_path but empty device_workspace.id
             if (this.sessionService.isDesktop) {
@@ -370,6 +329,11 @@ export class SessionEffects {
     ),
   );
 
+  constructor() {
+    // Live sessions left on the previous account after an AI Accounts switch.
+    this.accountGuard.init();
+  }
+
   /**
    * Wake a parked session: re-spawn its provider (desktop, --resume) and clear
    * the standby marker. Focus/switch-to is handled by the view component.
@@ -378,6 +342,12 @@ export class SessionEffects {
    * wins when present). Single choke point: every wake trigger (sidebar click,
    * selectSession, auto-wake, wakeWorkspace fan-out) dispatches this action.
    */
+  /**
+   * Session ids with a wake in flight. A second wake for the same id
+   * is a no-op in Rust but still re-inits the terminal: dropped here.
+   */
+  private readonly wakesInFlight = new Set<string>();
+
   wakeSession$ = createEffect(() =>
     this.actions$.pipe(
       ofType(wakeSession),
@@ -398,15 +368,25 @@ export class SessionEffects {
           // reject surfaces as wakeSessionFailure (toast) while the Rust
           // re-park emit restores the cover. Current xterm dims ride the
           // invoke so the new PTY spawns at the right grid.
-          const dims = this.dimsRegistry.get(`session:${sessionId}`) ?? undefined;
-          return merge(
-            of(sessionStandbyChanged({ sessionId, standbyAt: null })),
-            from(this.sessionService.wakeSession(sessionId, stash, dims)).pipe(
-              map(() => wakeSessionSuccess({ sessionId })),
-              catchError((err) =>
-                of(wakeSessionFailure({ sessionId, error: String(err?.message ?? err ?? '') })),
-              ),
-            ),
+          if (this.wakesInFlight.has(sessionId)) return EMPTY;
+          this.wakesInFlight.add(sessionId);
+          // Account switched in AI Accounts: a conversation of the old
+          // account cannot resume on the new one — the guard asks first.
+          return from(this.accountGuard.beforeWake(sessionId)).pipe(
+            mergeMap((proceed) => {
+              if (!proceed) return EMPTY;
+              const dims = this.dimsRegistry.get(`session:${sessionId}`) ?? undefined;
+              return merge(
+                of(sessionStandbyChanged({ sessionId, standbyAt: null })),
+                from(this.sessionService.wakeSession(sessionId, stash, dims)).pipe(
+                  map(() => wakeSessionSuccess({ sessionId })),
+                  catchError((err) =>
+                    of(wakeSessionFailure({ sessionId, error: String(err?.message ?? err ?? '') })),
+                  ),
+                ),
+              );
+            }),
+            finalize(() => this.wakesInFlight.delete(sessionId)),
           );
         }
         this.apiService.update(sessionId, { standby_at: null }, { silent: true }).subscribe();
@@ -675,14 +655,5 @@ export class SessionEffects {
         }
       }
     }
-  }
-
-  /**
-   * Local store created_at (microseconds) normalized to toISOString(); falls
-   * back to the live value when missing/unparsable, so a bad row never moves.
-   */
-  private stableCreatedAt(saved: string | undefined, live: string): string {
-    const t = saved ? Date.parse(saved) : NaN;
-    return Number.isFinite(t) ? new Date(t).toISOString() : live;
   }
 }

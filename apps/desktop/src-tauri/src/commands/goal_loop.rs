@@ -429,6 +429,10 @@ fn spawn_evaluator(
         permission_mode: Some("plan".into()),
         no_session_persistence: true,
         timeout_ms: Some(EVAL_TIMEOUT_MS),
+        // Active AI Accounts login: the same one new sessions use.
+        env: crate::commands::provider_account::utility_account_vars("claude-code-cli")
+            .into_iter()
+            .collect(),
         ..Default::default()
     };
 

@@ -29,6 +29,11 @@ export class WorkspaceApiService {
    * workspace; the load effect keeps the current list on failure instead.
    */
   list(): Observable<WorkspaceSummary[]> {
+    return this.fetchList();
+  }
+
+  /** Same as list(): kept for the store load, which keeps the cached workspaces on failure. */
+  fetchList(): Observable<WorkspaceSummary[]> {
     return scoped$<WorkspaceDto[]>(this.data, this.injector, 'workspaces.list').pipe(
       map((list) => (list ?? []).map((dto) => this.toSummary(dto))),
     );

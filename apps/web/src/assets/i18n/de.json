@@ -967,7 +967,13 @@
       "Install terminal": "Installations-Terminal",
       "Close terminal": "Terminal schließen",
       "Install copilot": "GitHub Copilot CLI installieren",
-      "Copilot npm desc": "Mit npm unter macOS, Windows oder Linux installieren (benötigt Node.js 22 oder neuer):"
+      "Copilot npm desc": "Mit npm unter macOS, Windows oder Linux installieren (benötigt Node.js 22 oder neuer):",
+      "Copy output": "Ausgabe kopieren",
+      "Output copied": "Ausgabe kopiert",
+      "Native install title": "Offizieller nativer Installer (empfohlen)",
+      "Native install desc": "Installiert Claude Code ohne Node.js, npm oder sudo. Die npm-Schritte unten kannst du überspringen.",
+      "Linux eacces title": "„EACCES: permission denied\" bei npm install?",
+      "Linux eacces desc": "Mit apt installiertes Node.js legt globale Pakete in /usr ab, wo nur root schreiben darf. Kein sudo verwenden: Lass npm einen Ordner in deinem Home nutzen und füge ihn zum PATH hinzu."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Workspace auf diesem Gerät nicht konfiguriert",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "Kill-Ring in der Shell durchlaufen",
       "Reason RevertLine": "Zeile in der Shell zurücksetzen",
       "Reason LastArgument": "letztes Argument in der Shell einfügen",
-      "Restored": "Tastenkürzel auf Standard zurückgesetzt."
+      "Restored": "Tastenkürzel auf Standard zurückgesetzt.",
+      "NextWaiting": "Nächster Agent, der auf Eingabe wartet"
     },
     "FLOOR_PLAN": {
       "Title": "Grundriss",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "Erkannt",
       "Tailer response": "Antwort",
       "Close": "Schließen"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Sitzung eines anderen Kontos",
+      "DefaultAccount": "Standardkonto",
+      "Message": "Diese Sitzung wurde mit dem Konto {{oldName}} geöffnet, aktiv ist jetzt aber {{newName}}. Die Unterhaltung lässt sich nicht in einem anderen Konto fortsetzen: Beim erneuten Öffnen mit {{newName}} beginnt eine neue Unterhaltung.",
+      "MessageMany": "{{count}} offene Sitzungen wurden mit dem Konto {{oldName}} gestartet, aktiv ist jetzt aber {{newName}}. Unterhaltungen lassen sich nicht in einem anderen Konto fortsetzen: Beim erneuten Öffnen mit {{newName}} beginnen neue Unterhaltungen.",
+      "Reopen": "Mit {{newName}} neu öffnen",
+      "Keep": "{{oldName}} behalten"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "Kopieren",
     "Paste": "Einfügen",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "In der Ausgabe suchen",
+    "No results": "Keine Treffer",
+    "Previous match": "Vorheriger Treffer",
+    "Next match": "Nächster Treffer",
+    "Close search": "Suche schließen",
+    "Scroll to bottom": "Nach unten springen",
+    "New output": "{{count}} neue Zeilen"
   },
   "SETTINGS": {
     "Notifications Title": "Benachrichtigungen",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Bedienungshilfen",
     "Terminal Default Shell": "Standard-Shell für neue Sitzungen",
-    "Terminal Default Shell Hint": "In welcher Windows-Shell neue Sitzungen starten (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "In welcher Windows-Shell neue Sitzungen starten (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agenten überstehen Abstürze und Updates",
+    "Terminal Persistent Agents Hint": "Agenten laufen in einem separaten Terminal-Prozess: Stürzt die App ab oder startet sie für ein Update neu, arbeiten sie weiter und du findest sie dort, wo du sie gelassen hast. Beim Schließen der App werden sie trotzdem beendet. Gilt für neue Agenten.",
+    "Terminal Host Screen": "Schneller Sitzungswechsel",
+    "Terminal Host Screen Hint": "Die App behält den Bildschirm jedes Terminals und zeichnet ihn sofort neu, wenn du Sitzung oder Workspace wechselst. Nur ausschalten, wenn ein Terminal nach einem Wechsel falsch aussieht."
   },
   "SSH": {
     "Security note": "Alle SSH-Verbindungen werden lokal auf deinem Gerät gespeichert, verschlüsselt (AES-256-GCM), im PromptOps-Anwendungsordner. Es werden keine Daten nach außen gesendet.",

@@ -967,7 +967,13 @@
       "Install terminal": "طرفية التثبيت",
       "Close terminal": "إغلاق الطرفية",
       "Install copilot": "ثبّت GitHub Copilot CLI",
-      "Copilot npm desc": "ثبّتها عبر npm على macOS أو Windows أو Linux (تتطلب Node.js 22 أو أحدث):"
+      "Copilot npm desc": "ثبّتها عبر npm على macOS أو Windows أو Linux (تتطلب Node.js 22 أو أحدث):",
+      "Copy output": "نسخ المخرجات",
+      "Output copied": "تم نسخ المخرجات",
+      "Native install title": "المثبّت الأصلي الرسمي (موصى به)",
+      "Native install desc": "يثبّت Claude Code بدون Node.js أو npm أو sudo. يمكنك تخطي خطوات npm أدناه.",
+      "Linux eacces title": "هل يظهر \"EACCES: permission denied\" عند npm install؟",
+      "Linux eacces desc": "يضع Node.js المثبّت عبر apt الحزم العامة في /usr، ولا يمكن الكتابة فيه إلا لـ root. لا تستخدم sudo: وجّه npm إلى مجلد داخل مجلدك الرئيسي وأضفه إلى PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "بيئة العمل غير مضبوطة على هذا الجهاز",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "التنقل في kill ring في الصدفة",
       "Reason RevertLine": "استعادة السطر في الصدفة",
       "Reason LastArgument": "إدراج آخر وسيطة في الصدفة",
-      "Restored": "تمت استعادة الاختصارات الافتراضية."
+      "Restored": "تمت استعادة الاختصارات الافتراضية.",
+      "NextWaiting": "الوكيل التالي الذي ينتظر إدخالاً"
     },
     "FLOOR_PLAN": {
       "Title": "مخطط الطابق",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "ما تم اكتشافه",
       "Tailer response": "الرد",
       "Close": "إغلاق"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "جلسة من حساب آخر",
+      "DefaultAccount": "الحساب الافتراضي",
+      "Message": "فُتحت هذه الجلسة بالحساب {{oldName}}، لكن الحساب النشط الآن هو {{newName}}. لا يمكن استئناف المحادثة على حساب آخر: إعادة فتحها باستخدام {{newName}} تبدأ محادثة جديدة.",
+      "MessageMany": "بدأت {{count}} جلسات مفتوحة بالحساب {{oldName}}، لكن الحساب النشط الآن هو {{newName}}. لا يمكن استئناف المحادثات على حساب آخر: إعادة فتحها باستخدام {{newName}} تبدأ محادثات جديدة.",
+      "Reopen": "إعادة الفتح باستخدام {{newName}}",
+      "Keep": "الإبقاء على {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "نسخ",
     "Paste": "لصق",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "البحث في المخرجات",
+    "No results": "لا توجد نتائج",
+    "Previous match": "التطابق السابق",
+    "Next match": "التطابق التالي",
+    "Close search": "إغلاق البحث",
+    "Scroll to bottom": "الانتقال إلى الأسفل",
+    "New output": "{{count}} أسطر جديدة"
   },
   "SETTINGS": {
     "Notifications Title": "الإشعارات",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "إمكانية الوصول",
     "Terminal Default Shell": "الصدفة الافتراضية للجلسات الجديدة",
-    "Terminal Default Shell Hint": "أي صدفة Windows تبدأ فيها الجلسات الجديدة (PowerShell، cmd، WSL، ...)."
+    "Terminal Default Shell Hint": "أي صدفة Windows تبدأ فيها الجلسات الجديدة (PowerShell، cmd، WSL، ...).",
+    "Terminal Persistent Agents": "وكلاء يستمرون بعد الأعطال والتحديثات",
+    "Terminal Persistent Agents Hint": "يعمل الوكلاء في عملية طرفية منفصلة: إذا تعطل التطبيق أو أعيد تشغيله للتحديث يواصلون العمل وتجدهم حيث تركتهم. إغلاق التطبيق يوقفهم مع ذلك. ينطبق على الوكلاء الجدد.",
+    "Terminal Host Screen": "تبديل سريع للجلسات",
+    "Terminal Host Screen Hint": "يحتفظ التطبيق بشاشة كل طرفية ويعيد رسمها فورًا عند تبديل الجلسة أو مساحة العمل. أوقفه فقط إذا ظهرت طرفية بشكل خاطئ بعد التبديل."
   },
   "SSH": {
     "Security note": "تُخزَّن جميع اتصالات SSH محلياً على جهازك، مشفَّرة (AES-256-GCM)، داخل مجلد تطبيق PromptOps. لا تُرسَل أي بيانات خارجياً.",

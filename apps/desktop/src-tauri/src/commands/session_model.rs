@@ -415,17 +415,27 @@ fn find_claude_transcript(config_dir: &Path, cwd: &str, conversation_id: &str) -
     {
         return None;
     }
-    let file = config_dir
-        .join("projects")
-        .join(claude_project_dir_name(cwd))
-        .join(format!("{conversation_id}.jsonl"));
-    file.exists().then_some(file)
+    let in_root = |root: &Path| {
+        let file = root
+            .join("projects")
+            .join(claude_project_dir_name(cwd))
+            .join(format!("{conversation_id}.jsonl"));
+        file.exists().then_some(file)
+    };
+    // Each claude account has its own config dir and the conversation lives in
+    // only one: the session's own dir first, then every known account dir.
+    in_root(config_dir).or_else(|| {
+        crate::commands::provider_account::claude_config_roots()
+            .into_iter()
+            .find_map(|(_, root)| in_root(&root))
+    })
 }
 
 fn codex_sessions_root(provider_home: Option<&str>) -> PathBuf {
     let home = match provider_home
         .filter(|v| !v.trim().is_empty())
         .map(str::to_string)
+        .or_else(crate::commands::provider_account::active_codex_home)
         .or_else(|| std::env::var("CODEX_HOME").ok())
     {
         Some(v) if !v.trim().is_empty() => PathBuf::from(v),

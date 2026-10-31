@@ -27,6 +27,12 @@ export interface UiPreferences {
   // post-switch reflow nudge and git-status polling — so the user can confirm
   // whether our software is the cause of the Windows lag. Inert on macOS/Linux.
   terminal_safe_mode?: boolean;
+  // Desktop v2: terminal screens kept by the app (host VT state). Switching
+  // sessions repaints from that exact picture instead of replaying raw output.
+  terminal_host_screen?: boolean;
+  // Desktop v2 (beta): agents run in the separate terminal host (termd), so a
+  // crash or an update restart of the app does not stop them.
+  terminal_persistent_agents?: boolean;
   // Windows-only default terminal shell for NEW sessions
   // ('powershell' | 'pwsh' | 'cmd' | 'gitbash' | 'wsl:<distro>').
   // Device-specific (the shell roster differs per machine) → localStorage.

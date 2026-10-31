@@ -967,7 +967,13 @@
       "Install terminal": "Terminal de Instalação",
       "Close terminal": "Fechar terminal",
       "Install copilot": "Instalar a GitHub Copilot CLI",
-      "Copilot npm desc": "Instale com npm no macOS, Windows ou Linux (requer Node.js 22 ou posterior):"
+      "Copilot npm desc": "Instale com npm no macOS, Windows ou Linux (requer Node.js 22 ou posterior):",
+      "Copy output": "Copiar saída",
+      "Output copied": "Saída copiada",
+      "Native install title": "Instalador nativo oficial (recomendado)",
+      "Native install desc": "Instala o Claude Code sem Node.js, npm ou sudo. Você pode pular as etapas do npm abaixo.",
+      "Linux eacces title": "\"EACCES: permission denied\" no npm install?",
+      "Linux eacces desc": "O Node.js instalado via apt coloca os pacotes globais em /usr, onde só o root pode gravar. Não use sudo: aponte o npm para uma pasta na sua home e adicione-a ao PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Workspace não configurado neste dispositivo",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "percorrer o kill ring no shell",
       "Reason RevertLine": "reverter a linha no shell",
       "Reason LastArgument": "inserir o último argumento no shell",
-      "Restored": "Atalhos restaurados para o padrão."
+      "Restored": "Atalhos restaurados para o padrão.",
+      "NextWaiting": "Próximo agente aguardando entrada"
     },
     "FLOOR_PLAN": {
       "Title": "Planta baixa",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "Detectado",
       "Tailer response": "Resposta",
       "Close": "Fechar"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Sessão de outra conta",
+      "DefaultAccount": "Conta padrão",
+      "Message": "Esta sessão foi aberta com a conta {{oldName}}, mas a conta ativa agora é {{newName}}. A conversa não pode ser retomada em outra conta: reabri-la com {{newName}} inicia uma nova conversa.",
+      "MessageMany": "{{count}} sessões abertas foram iniciadas com a conta {{oldName}}, mas a conta ativa agora é {{newName}}. As conversas não podem ser retomadas em outra conta: reabri-las com {{newName}} inicia novas conversas.",
+      "Reopen": "Reabrir com {{newName}}",
+      "Keep": "Manter {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "Copiar",
     "Paste": "Colar",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Pesquisar na saída",
+    "No results": "Sem resultados",
+    "Previous match": "Resultado anterior",
+    "Next match": "Próximo resultado",
+    "Close search": "Fechar pesquisa",
+    "Scroll to bottom": "Ir para o fim",
+    "New output": "{{count}} linhas novas"
   },
   "SETTINGS": {
     "Notifications Title": "Notificações",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Acessibilidade",
     "Terminal Default Shell": "Shell padrão para novas sessões",
-    "Terminal Default Shell Hint": "Em qual shell do Windows as novas sessões iniciam (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "Em qual shell do Windows as novas sessões iniciam (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agentes que sobrevivem a falhas e atualizações",
+    "Terminal Persistent Agents Hint": "Os agentes rodam em um processo de terminal separado: se o app travar ou reiniciar para atualizar, eles continuam trabalhando e você os encontra onde deixou. Fechar o app ainda os interrompe. Vale para novos agentes.",
+    "Terminal Host Screen": "Troca de sessão rápida",
+    "Terminal Host Screen Hint": "O app guarda a tela de cada terminal e a redesenha na hora quando você troca de sessão ou de workspace. Desative apenas se um terminal parecer errado após a troca."
   },
   "SSH": {
     "Security note": "Todas as conexões SSH são armazenadas localmente na sua máquina, criptografadas (AES-256-GCM), dentro da pasta do aplicativo PromptOps. Nenhum dado é enviado para fora.",

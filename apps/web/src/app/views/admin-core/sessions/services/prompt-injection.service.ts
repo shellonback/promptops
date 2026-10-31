@@ -3,6 +3,7 @@ import { Store } from '@ngrx/store';
 import { wakeSession } from '../../../../../store/sessions/session.actions';
 import { SessionSummary } from '../../../../../store/sessions/session.state';
 import { SessionService } from './session.service';
+import { SubAgentService } from './sub-agent.service';
 
 /**
  * Injects a prompt into a session's terminal, waking the session first when
@@ -16,13 +17,30 @@ import { SessionService } from './session.service';
 export class PromptInjectionService {
   private store = inject(Store);
   private sessionService = inject(SessionService);
+  private subAgentService = inject(SubAgentService);
 
   /**
    * Write a prompt into an existing session, waking it if needed.
    * Resolves true once the terminal accepted the write.
    */
-  async injectIntoSession(session: SessionSummary, prompt: string): Promise<boolean> {
+  async injectIntoSession(session: SessionSummary, prompt: string, title?: string): Promise<boolean> {
     if (!this.sessionService.isDesktop) return false;
+
+    // "Start in session" = a NEW sub-agent in that session (same as the
+    // board opened from a session), not text typed into the lead terminal,
+    // which may be busy, fullscreen or without a PTY. A parked parent is
+    // woken first so the sub-agent lands in a live session.
+    if (session.standbyAt) {
+      this.store.dispatch(wakeSession({ sessionId: session.id }));
+      await this.sleep(2500);
+    }
+    const agentTitle = (title || prompt.split('\n').find((l) => l.trim()) || 'Task').trim().substring(0, 40);
+    try {
+      const agent = await this.subAgentService.spawnCustom(session.id, 'task', agentTitle, prompt);
+      if (agent) return true;
+    } catch {
+      // Spawn refused by main: fall back to the lead terminal below.
+    }
 
     // Live PTY: write immediately (previous behavior, no extra latency).
     if (!session.standbyAt && (await this.tryWrite(session.id, prompt + '\r'))) {

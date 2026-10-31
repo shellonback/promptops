@@ -107,8 +107,10 @@ export class AgentRosterService {
    * was not closed and at least one member exists — a single session stays the
    * classic pane, exactly as before.
    */
-  rosterFor(session: AgentSessionLike | null, subs: SubAgent[]): SubAgent[] {
-    if (!session || subs.length === 0) return subs;
+  rosterFor(session: AgentSessionLike | null, subs: SubAgent[], includeLoneLead = false): SubAgent[] {
+    // includeLoneLead: the sidebar shows the lead even when it's the only agent;
+    // the session-view grid stays a single pane until there are sub-agents.
+    if (!session || (subs.length === 0 && !includeLoneLead)) return subs;
     // Meta not yet read from Rust: when in doubt the lead stays out. Showing it
     // with the "open" default made a lead the user had closed reappear for a moment
     // (and get mounted).
@@ -123,7 +125,10 @@ export class AgentRosterService {
       title: session.name || this.translate.instant('SUBAGENTS.Lead'),
       parentSessionId: session.id,
       sessionId: session.id,
-      status: (session.status === 'running' || session.status === 'in_progress' ? session.status : 'idle') as SubAgent['status'],
+      // waiting_input passes through as is: without it, a lead waiting for input
+      // showed as "idle" (no attention dot/timer in the sidebar, no highlight on the pane).
+      status: (session.status === 'running' || session.status === 'in_progress' || session.status === 'waiting_input'
+        ? session.status : 'idle') as SubAgent['status'],
       autoPrompt: '',
       provider: session.provider as SubAgent['provider'],
       icon: 'solar:monitor-bold',

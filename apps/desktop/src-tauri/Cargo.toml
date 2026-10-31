@@ -123,3 +123,11 @@ opt-level = 3
 
 [profile.dev.package.blake2]
 opt-level = 3
+
+# Smaller release binary. Unwinding stays on: local_store, tray and metrics use
+# catch_unwind. strip drops symbols from crash backtraces. No LTO: with
+# lto = true the link fails, whisper-rs-sys (ggml Metal) loses
+# ___isPlatformVersionAtLeast from compiler_builtins.
+[profile.release]
+codegen-units = 1
+strip = true

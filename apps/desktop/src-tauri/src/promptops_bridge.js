@@ -243,6 +243,23 @@
     return ch;
   }
 
+  // Replay header (session_buffer / subagent_buffer): u64 LE endOffset,
+  // high bit = "VT snapshot of the host screen" (term_state) instead of raw bytes.
+  // With the VT snapshot, cols/rows (u16 LE) of the host screen follow: `body` is
+  // the offset where the bytes to write start.
+  function readReplayHeader(u8) {
+    var dv = new DataView(u8.buffer, u8.byteOffset, Math.min(u8.length, 12));
+    var hi = dv.getUint32(4, true);
+    var vt = (hi & 0x80000000) !== 0 && u8.length >= 12;
+    return {
+      end: dv.getUint32(0, true) + (hi & 0x7fffffff) * 4294967296,
+      vt: vt,
+      cols: vt ? dv.getUint16(8, true) : 0,
+      rows: vt ? dv.getUint16(10, true) : 0,
+      body: vt ? 12 : 8,
+    };
+  }
+
   function toBytes(m) {
     return m instanceof ArrayBuffer ? new Uint8Array(m)
       : (m && ArrayBuffer.isView(m)) ? new Uint8Array(m.buffer, m.byteOffset, m.byteLength)
@@ -251,7 +268,12 @@
 
   // Absolute byte offsets let each renderer deduplicate its own replay.
   // A buffer read (including background diagnostics) must not mute other consumers.
+  // The offset travels INSIDE the frame (term_host: [u64 LE][data], counted by Rust
+  // from the PTY spawn): a reattach after a reload stays aligned with the replay.
   var sessOffsets = {};
+  // Sessions with a live channel in THIS JS context. Empty after a webview
+  // reload: the first getSessionBuffer reattaches the still-live PTY.
+  var sessAttached = {};
 
   function makeSessionOutputChannel(sessionId) {
     // Per-session channel: raw PTY chunks (ArrayBuffer, no base64 or
@@ -260,10 +282,20 @@
     // queued and flushed by _bind(id).
     var sid = sessionId || null;
     var pending = [];
+    var cut = 0;
     function deliver(id, m) {
-      var bytes = toBytes(m);
-      var start = sessOffsets[id] || 0;
+      var u8 = toBytes(m);
+      if (u8.length < 8) return;
+      // u64 LE without BigInt (buffers stay well below 2^53 bytes).
+      var odv = new DataView(u8.buffer, u8.byteOffset, 8);
+      var start = odv.getUint32(0, true) + odv.getUint32(4, true) * 4294967296;
+      var bytes = u8.subarray(8);
+      // PER-CHANNEL cursor: late frames of a previous PTY (wake) cannot
+      // silence those of the new one, which restart from 0.
       var end = start + bytes.length;
+      if (end <= cut) return; // already covered by the replay we attached from
+      if (start < cut) bytes = bytes.subarray(cut - start);
+      cut = end;
       sessOffsets[id] = end;
       var sdec = sessDecoders[id] || (sessDecoders[id] = new TextDecoder());
       var text = sdec.decode(bytes, { stream: true });
@@ -280,10 +312,12 @@
     };
     ch._bind = function (id, startOffset) {
       sid = id;
+      sessAttached[id] = true;
       // New PTY = new offset space and new stream: reset the counter
       // and the stateful decoder (the previous PTY's state is garbage).
       // Child window attaching to an already live PTY: start from the end of the buffer.
-      sessOffsets[id] = startOffset || 0;
+      cut = startOffset || 0;
+      sessOffsets[id] = cut;
       sessDecoders[id] = new TextDecoder();
       for (var i = 0; i < pending.length; i++) deliver(id, pending[i]);
       pending.length = 0;
@@ -362,7 +396,9 @@
   // ─────────────────────────────────────────────────────────────────────────
   var api = {
     // `platform` is a synchronous string property (darwin / win32 / linux).
+    // OS declared by lib.rs (authoritative); the userAgent only as a fallback.
     platform: (function () {
+      if (window.__PROMPTOPS_OS__) return window.__PROMPTOPS_OS__;
       var p = ((navigator.platform || '') + ' ' + navigator.userAgent).toLowerCase();
       if (p.indexOf('mac') >= 0) return 'darwin';
       if (p.indexOf('win') >= 0) return 'win32';
@@ -519,10 +555,7 @@
         .then(function (r) {
           var u8 = toBytes(r);
           var end = 0;
-          if (u8.length >= 8) {
-            var dv = new DataView(u8.buffer, u8.byteOffset, 8);
-            end = dv.getUint32(0, true) + dv.getUint32(4, true) * 4294967296;
-          }
+          if (u8.length >= 8) end = readReplayHeader(u8).end;
           ch._bind(sessionId, end);
           return { ok: true };
         })
@@ -531,15 +564,29 @@
     getSessionBuffer: function (sessionId) {
       // RAW response (ArrayBuffer): 8-byte u64 LE endOffset + payload.
       // Raw bytes and offset allow per-renderer replay/live reconciliation.
-      return invoke('session_buffer', { sessionId: sessionId })
+      // Webview reload with a live PTY: reattach the output BEFORE reading the
+      // buffer (chunks in between arrive with their offset and the renderer
+      // dedupes them). false = no live PTY (parked): everything stays as it was.
+      var attach = (IS_MAIN_WINDOW && sessionId && !sessAttached[sessionId])
+        ? (function () {
+            var ch = makeSessionOutputChannel(sessionId);
+            return invoke('session_output_attach', { sessionId: sessionId, onOutput: ch })
+              .then(function (ok) { if (ok) ch._bind(sessionId, 0); })
+              .catch(function () {});
+          })()
+        : null;
+      var read = function () { return invoke('session_buffer', { sessionId: sessionId }); };
+      // No reattach needed: read right away (no extra tick before the request).
+      return (attach ? attach.then(read) : read())
         .then(function (r) {
           var u8 = toBytes(r);
           if (u8.length < 8) return { ok: true, data: '' };
-          var dv = new DataView(u8.buffer, u8.byteOffset, 8);
-          // u64 LE: buffers stay well below 2^32, the low word is enough.
-          var endOffset = dv.getUint32(0, true) + dv.getUint32(4, true) * 4294967296;
-          var bytes = u8.subarray(8);
-          return { ok: true, data: new TextDecoder().decode(bytes), bytes: bytes, endOffset: endOffset };
+          var head = readReplayHeader(u8);
+          var bytes = u8.subarray(head.body);
+          return {
+            ok: true, data: new TextDecoder().decode(bytes), bytes: bytes, endOffset: head.end,
+            vtSnapshot: head.vt, cols: head.cols || undefined, rows: head.rows || undefined,
+          };
         })
         .catch(function (e) { return { ok: false, data: '', error: String(e) }; });
     },
@@ -615,7 +662,11 @@
         cols: dims && dims.cols,
         rows: dims && dims.rows,
       }).then(function (res) {
-        wakeCh._bind((res && res.id) || sessionId);
+        // No-op wake (already awake, lead closed, session missing): no new
+        // PTY, the channel stays unused. Binding it would reset sessOffsets
+        // of the live PTY and the replay would drop the live output (shell
+        // prompt invisible until the first Enter).
+        if (res && res.respawned !== false) wakeCh._bind(res.id || sessionId);
         // The localStorage stash of parked sub-agents travels with the wake
         // as well: the respawn waits for the PTY to be ready on the Rust side.
         if (parkedSubAgents && parkedSubAgents.length) {
@@ -628,6 +679,12 @@
       });
     },
     onSessionStandbyChanged: function (cb) { return on('session:standby-changed', cb); },
+    // Account switch (AI Accounts): is the conversation from another account?
+    checkSessionAccount: function (sessionId) { return call('session_account_check', { sessionId: sessionId }); },
+    // Parks the session and marks the next wake as a new conversation on the active account.
+    prepareSessionAccountRelaunch: function (sessionId) {
+      return call('session_prepare_account_relaunch', { sessionId: sessionId });
+    },
     // In-place provider switch of the main session (same PTY).
     switchSessionProvider: function (request) { return call('session_switch_provider', { request: request }); },
     getSessionHandoffContext: function (sessionId) { return call('session_handoff_context', { sessionId: sessionId }); },
@@ -791,6 +848,14 @@
     },
     setTerminalSafeMode: function (enabled) {
       return call('app_set_terminal_safe_mode', { enabled: enabled });
+    },
+    // Terminal replay from the screen snapshot kept by Rust (term_state).
+    setTerminalHostScreen: function (enabled) {
+      return call('term_vt_replay_set', { enabled: !!enabled });
+    },
+    // Agents in the external termd host (they survive crashes and updates).
+    setTerminalPersistentAgents: function (enabled) {
+      return call('termd_set_enabled', { enabled: !!enabled });
     },
     getDroppedPath: function (file) {
       if (!file || !file.name) return '';
@@ -1017,10 +1082,12 @@
         .then(function (r) {
           var u8 = toBytes(r);
           if (u8.length < 8) return { ok: true, data: '' };
-          var dv = new DataView(u8.buffer, u8.byteOffset, 8);
-          var endOffset = dv.getUint32(0, true) + dv.getUint32(4, true) * 4294967296;
-          if (endOffset > 0) saReplayCut[subAgentId] = endOffset;
-          return { ok: true, data: new TextDecoder().decode(u8.subarray(8)) };
+          var head = readReplayHeader(u8);
+          if (head.end > 0) saReplayCut[subAgentId] = head.end;
+          return {
+            ok: true, data: new TextDecoder().decode(u8.subarray(head.body)),
+            vtSnapshot: head.vt, cols: head.cols || undefined, rows: head.rows || undefined,
+          };
         })
         .catch(function (e) { return { ok: false, data: '', error: String(e) }; });
     },
@@ -1113,6 +1180,7 @@
     importAssetFromUrl: function (cwd, url, fileName) {
       return call('assets_import_from_url', { cwd: cwd, url: url, fileName: fileName });
     },
+    importAssetPaths: function (cwd, paths) { return call('assets_import_paths', { cwd: cwd, paths: paths }); },
     openAssetsFolder: function (cwd) { return call('assets_open_folder', { cwd: cwd }); },
     fetchRemoteFile: function (cwd, path, open) { return call('remote_fetch_file', { cwd: cwd, path: path, open: open }); },
     remoteOutboxCollect: function (cwd, open) { return call('remote_outbox_collect', { cwd: cwd, open: open }); },
@@ -1129,10 +1197,14 @@
     showInFolder: function (folderPath) { return call('shell_show_in_folder', { folderPath: folderPath }); },
     openTerminalInFolder: function (cwd) { return call('shell_open_terminal', { cwd: cwd }); },
     openExternal: function (url) { return openExternalDedup(url); },
+    downloadFile: function (url, name) {
+      return call('download_url_to_downloads', { url: url, name: name, reveal: true });
+    },
     clipboardWrite: function (text) { return call('clipboard_write', { text: text }); },
     clipboardRead: function () { return call('clipboard_read'); },
     clipboardWriteImage: function (dataUrl) { return call('clipboard_write_image', { dataUrl: dataUrl }); },
     clipboardReadImage: function () { return call('clipboard_read_image'); },
+    installerWriteScript: function (content) { return call('installer_write_script', { content: content }); },
 
     // ── File System (code editor) ────────────────────────────────────────
     fsListDir: function (cwd) { return call('fs_list_dir', { cwd: cwd }); },
@@ -1668,7 +1740,9 @@
   // one per mousemove.
   // navigator.platform is deprecated and in some WebKit builds returns empty: if
   // we gated on that alone the fallback would never register.
-  if (/Mac/i.test(navigator.platform) || /Mac OS X/i.test(navigator.userAgent)) {
+  if (window.__PROMPTOPS_OS__
+    ? window.__PROMPTOPS_OS__ === 'darwin'
+    : /Mac/i.test(navigator.platform) || /Mac OS X/i.test(navigator.userAgent)) {
     var lastCursor = '';
     var cursorPending = false;
     var lastTarget = null;
@@ -1720,13 +1794,19 @@
   }
 
   // Cmd+R (mac) / F5 and Ctrl+Shift+R (win/linux) → reload webview.
-  // NO plain Ctrl+R: in the terminal it is the shell's reverse-search.
+  // Plain Ctrl+R reloads only outside the terminal: inside xterm it is the
+  // shell's reverse-search (and Claude Code's history).
   window.addEventListener('keydown', function (e) {
-    var isMac = /Mac/i.test(navigator.platform);
+    var isMac = window.__PROMPTOPS_OS__
+      ? window.__PROMPTOPS_OS__ === 'darwin'
+      : /Mac/i.test(navigator.platform);
+    var isR = e.key === 'r' || e.key === 'R';
+    var inTerminal = !!(e.target && e.target.closest && e.target.closest('.xterm'));
     var reload =
-      (isMac && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && (e.key === 'r' || e.key === 'R')) ||
+      (isMac && e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && isR) ||
       (!isMac && e.key === 'F5') ||
-      (!isMac && e.ctrlKey && e.shiftKey && (e.key === 'r' || e.key === 'R'));
+      (!isMac && e.ctrlKey && e.shiftKey && isR) ||
+      (!isMac && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && isR && !inTerminal);
     if (!reload) return;
     e.preventDefault();
     e.stopPropagation();

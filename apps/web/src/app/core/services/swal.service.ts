@@ -123,6 +123,23 @@ export class SwalService {
     }, closeWith);
   }
 
+  /** Three-way choice: primary, secondary (deny) or dismiss. Inputs are plain text. */
+  choose(options: {
+    title: string;
+    message: string;
+    confirmText: string;
+    denyText: string;
+  }): Promise<"confirm" | "deny" | "cancel"> {
+    return this.open({
+      variant: "warning",
+      title: options.title,
+      html: escapeHtml(options.message),
+      confirmText: options.confirmText,
+      denyText: options.denyText,
+      cancelText: this.translate.instant("BUTTONS.Cancel"),
+    }).then((r) => (r.isConfirmed ? "confirm" : r.isDenied ? "deny" : "cancel"));
+  }
+
   /**
    * Text-input dialog. Replacement for `window.prompt`, which is not
    * implemented in every webview. Resolves with the trimmed value,

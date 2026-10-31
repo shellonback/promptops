@@ -1,6 +1,6 @@
 {
   "name": "promptops-web",
-  "version": "2.1.7",
+  "version": "2.2.0-beta.0",
   "scripts": {
     "start": "ng serve --configuration=desktop-dev",
     "start:desktop": "ng serve --configuration=desktop-dev",

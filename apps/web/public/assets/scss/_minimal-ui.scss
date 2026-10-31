@@ -1450,6 +1450,17 @@ html[data-po-ui="minimal"] {
     }
   }
 
+  // Linux (WebKitGTK) often skips backdrop-filter: the 55% tint alone let the
+  // page show through the menu (fb 214). Solid pane there, same glass edges.
+  &[data-po-os="linux"] .sidenav-menu {
+    background: var(--po-bg-1);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  &[data-po-os="linux"][data-bs-theme="light"] .sidenav-menu {
+    background: var(--po-bg-0);
+  }
+
   // Expanded (hover) state: the pane lifts off the content underneath.
   &[data-sidenav-size="sm-hover"] .po-sidebar:hover {
     box-shadow:

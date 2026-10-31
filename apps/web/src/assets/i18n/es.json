@@ -967,7 +967,13 @@
       "Install terminal": "Terminal de instalación",
       "Close terminal": "Cerrar terminal",
       "Install copilot": "Instalar la GitHub Copilot CLI",
-      "Copilot npm desc": "Instálala con npm en macOS, Windows o Linux (requiere Node.js 22 o posterior):"
+      "Copilot npm desc": "Instálala con npm en macOS, Windows o Linux (requiere Node.js 22 o posterior):",
+      "Copy output": "Copiar salida",
+      "Output copied": "Salida copiada",
+      "Native install title": "Instalador nativo oficial (recomendado)",
+      "Native install desc": "Instala Claude Code sin Node.js, npm ni sudo. Puedes omitir los pasos de npm de abajo.",
+      "Linux eacces title": "¿\"EACCES: permission denied\" con npm install?",
+      "Linux eacces desc": "Node.js instalado con apt guarda los paquetes globales en /usr, donde solo root puede escribir. No uses sudo: apunta npm a una carpeta de tu home y añádela al PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Espacio de trabajo no configurado en este dispositivo",
@@ -1608,6 +1614,14 @@
       "Tailer detected": "Detectado",
       "Tailer response": "Respuesta",
       "Close": "Cerrar"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Sesión de otra cuenta",
+      "DefaultAccount": "Cuenta predeterminada",
+      "Message": "Esta sesión se abrió con la cuenta {{oldName}}, pero ahora la cuenta activa es {{newName}}. La conversación no se puede reanudar en otra cuenta: al reabrirla con {{newName}} empezará una conversación nueva.",
+      "MessageMany": "{{count}} sesiones abiertas se iniciaron con la cuenta {{oldName}}, pero ahora la cuenta activa es {{newName}}. Las conversaciones no se pueden reanudar en otra cuenta: al reabrirlas con {{newName}} empezarán conversaciones nuevas.",
+      "Reopen": "Reabrir con {{newName}}",
+      "Keep": "Seguir con {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2166,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Accesibilidad",
     "Terminal Default Shell": "Shell predeterminada para nuevas sesiones",
-    "Terminal Default Shell Hint": "En qué shell de Windows se inician las nuevas sesiones (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "En qué shell de Windows se inician las nuevas sesiones (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agentes que sobreviven a fallos y actualizaciones",
+    "Terminal Persistent Agents Hint": "Los agentes se ejecutan en un proceso de terminal separado: si la app falla o se reinicia para actualizarse, siguen trabajando y los encuentras donde los dejaste. Cerrar la app los detiene igualmente. Se aplica a los agentes nuevos.",
+    "Terminal Host Screen": "Cambio de sesión rápido",
+    "Terminal Host Screen Hint": "La app conserva la pantalla de cada terminal y la redibuja al instante cuando cambias de sesión o de espacio de trabajo. Desactívalo solo si un terminal se ve mal tras un cambio."
   },
   "SSH": {
     "Security note": "Todas las conexiones SSH se almacenan localmente en tu máquina, cifradas (AES-256-GCM), dentro de la carpeta de la aplicación PromptOps. Ningún dato se envía al exterior.",

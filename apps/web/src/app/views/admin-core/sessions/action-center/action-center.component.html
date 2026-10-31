@@ -127,17 +127,14 @@
               >
                 <iconify-icon [icon]="isSubAgentAutoApproved(sa.sessionId) ? 'solar:shield-warning-bold' : 'solar:shield-check-bold-duotone'" width="12"></iconify-icon>
               </button>
-              <!-- The main doesn't go on the bench: it isn't a backend sub-agent. -->
-              @if (!isMainPane(sa.id)) {
-                <button
-                  class="btn-agent-bench"
-                  [disabled]="subAgentService.benchFull()"
-                  (click)="subAgentService.bench(sa.id); $event.stopPropagation()"
-                  [appTooltip]="(subAgentService.benchFull() ? 'SESSIONS.TOOLTIPS.Bench full' : 'SESSIONS.TOOLTIPS.Bench sub-agent') | translate"
-                >
-                  <iconify-icon icon="solar:bed-bold-duotone" width="12"></iconify-icon>
-                </button>
-              }
+              <button
+                class="btn-agent-bench"
+                [disabled]="subAgentService.benchFull()"
+                (click)="benchAgent(sa); $event.stopPropagation()"
+                [appTooltip]="(subAgentService.benchFull() ? 'SESSIONS.TOOLTIPS.Bench full' : 'SESSIONS.TOOLTIPS.Bench sub-agent') | translate"
+              >
+                <iconify-icon icon="solar:bed-bold-duotone" width="12"></iconify-icon>
+              </button>
               <button class="btn-agent-close" (click)="onCloseAgent.emit(sa); $event.stopPropagation()" [appTooltip]="'SESSIONS.TOOLTIPS.Terminate sub-agent' | translate">
                 <iconify-icon icon="solar:close-circle-bold" width="12"></iconify-icon>
               </button>
@@ -148,13 +145,13 @@
     }
 
     <!-- Bench (Panchinari) — sub-agents parked but still active -->
-    @if (subAgentService.benchedSubAgents().length > 0) {
+    @if (benchedAgents().length > 0) {
       <div class="bench-section">
         <h6 class="section-label">
           <iconify-icon icon="solar:bed-bold-duotone" width="13"></iconify-icon>
-          {{ 'SESSIONS.Benched' | translate }} ({{ subAgentService.benchedSubAgents().length }}/{{ subAgentService.MAX_BENCH }})
+          {{ 'SESSIONS.Benched' | translate }} ({{ benchedAgents().length }}/{{ subAgentService.MAX_BENCH }})
         </h6>
-        @for (sa of subAgentService.benchedSubAgents(); track sa.id) {
+        @for (sa of benchedAgents(); track sa.id) {
           <div class="agent-card benched"
                [class.active]="activeSubAgentId() === sa.id"
                (click)="onSelectSubAgent.emit(sa)">
@@ -175,12 +172,12 @@
             <div class="agent-card-actions">
               <button
                 class="btn-agent-bench bench-back"
-                (click)="subAgentService.unbench(sa.id); $event.stopPropagation()"
+                (click)="unbenchAgent(sa); $event.stopPropagation()"
                 [appTooltip]="'SESSIONS.TOOLTIPS.Bring back sub-agent' | translate"
               >
                 <iconify-icon icon="solar:running-round-bold" width="12"></iconify-icon>
               </button>
-              <button class="btn-agent-close" (click)="subAgentService.destroy(sa.id); $event.stopPropagation()" [appTooltip]="'SESSIONS.TOOLTIPS.Terminate sub-agent' | translate">
+              <button class="btn-agent-close" (click)="onCloseAgent.emit(sa); $event.stopPropagation()" [appTooltip]="'SESSIONS.TOOLTIPS.Terminate sub-agent' | translate">
                 <iconify-icon icon="solar:close-circle-bold" width="12"></iconify-icon>
               </button>
             </div>
@@ -1009,7 +1006,10 @@
       <div class="accordion-panel acc-panel-usage" [class.acc-collapsed]="!usageOpen()">
         <div class="acc-header" (click)="usageOpen.set(!usageOpen())">
           <h6 class="acc-title">
-            <iconify-icon icon="solar:chart-square-bold-duotone" width="14"></iconify-icon>
+            @if (usageProvider(); as up) {
+              <img [src]="getProviderLogo(up)" width="14" height="14" alt="" class="usage-provider-logo"
+                   [appTooltip]="getProviderLabel(up) + (providerUsage()?.accountName ? ' · ' + providerUsage()?.accountName : '')" />
+            }
             {{ 'SESSIONS.ACTION_CENTER.Usage' | translate }}
             @if (usageLoading()) {
               <span class="usage-badge usage-badge-loading">

@@ -17,6 +17,8 @@ export interface AlertDialogOptions {
   confirmText?: string;
   confirmClass?: string;
   cancelText?: string;
+  /** Second choice next to confirm; resolves with `isDenied`. */
+  denyText?: string;
   /** Shows a text field; the dialog then resolves with its value. */
   input?: { value: string };
   /** Closes by itself after this many milliseconds, with a progress bar. */
@@ -29,6 +31,7 @@ export interface AlertDialogOptions {
 
 export interface AlertDialogResult {
   isConfirmed: boolean;
+  isDenied?: boolean;
   value?: string;
 }
 
@@ -109,6 +112,9 @@ const ICONS: Record<AlertVariant, string> = {
         <div class="alert-dialog-actions">
           @if (options.cancelText) {
             <button type="button" class="btn po-btn-ghost" (click)="dismiss()">{{ options.cancelText }}</button>
+          }
+          @if (options.denyText) {
+            <button type="button" class="btn btn-outline-secondary" (click)="deny()">{{ options.denyText }}</button>
           }
           @if (options.confirmText) {
             <button type="button" class="btn {{ options.confirmClass || 'btn-primary' }}" (click)="confirm()">{{ options.confirmText }}</button>
@@ -252,6 +258,10 @@ export class AlertDialogComponent implements AfterViewInit, OnDestroy {
     const result: AlertDialogResult = { isConfirmed: true };
     if (this.options.input) result.value = this.options.input.value;
     this.activeModal.close(result);
+  }
+
+  deny(): void {
+    this.activeModal.close({ isConfirmed: false, isDenied: true });
   }
 
   dismiss(): void {

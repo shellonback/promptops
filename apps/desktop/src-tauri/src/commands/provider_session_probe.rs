@@ -277,6 +277,7 @@ pub fn encode_cwd(cwd: &str) -> String {
 fn probe_opencode(cwd: &str, spawned_at_ms: u128) -> Option<String> {
     let out = run(
         cwd,
+        Some("opencode"),
         "opencode",
         &["session", "list", "--format", "json", "-n", "10"],
     )?;
@@ -320,7 +321,12 @@ fn probe_opencode(cwd: &str, spawned_at_ms: u128) -> Option<String> {
 /// hermes — `hermes sessions list` prints a table without cwd, but the ID CARRIES
 /// the timestamp (`20260614_124133_3491ac`): that is what ties it to our spawn.
 fn probe_hermes(cwd: &str, spawned_at_ms: u128) -> Option<String> {
-    let out = run(cwd, "hermes", &["sessions", "list", "--limit", "10"])?;
+    let out = run(
+        cwd,
+        Some("hermes"),
+        "hermes",
+        &["sessions", "list", "--limit", "10"],
+    )?;
     let mut best: Option<(String, u128)> = None;
     for line in out.lines() {
         let Some(id) = extract_hermes_id(&crate::commands::session::strip_ansi(line)) else {
@@ -397,7 +403,7 @@ pub fn parse_hermes_id_time(id: &str) -> Option<u128> {
 fn local_utc_offset_secs() -> i64 {
     static CACHE: std::sync::OnceLock<i64> = std::sync::OnceLock::new();
     *CACHE.get_or_init(|| {
-        let Some(out) = run(".", "date", &["+%z"]) else {
+        let Some(out) = run(".", None, "date", &["+%z"]) else {
             return 0;
         };
         let t = out.trim();
@@ -462,11 +468,22 @@ const RUN_TIMEOUT_MS: u128 = 8_000;
 
 /// Runs a short command capturing its stdout, killing it if it exceeds the
 /// timeout. `None` on any problem: the probe is an optimization, not a
-/// requirement of the spawn.
-fn run(cwd: &str, program: &str, args: &[&str]) -> Option<String> {
+/// requirement of the spawn. With `provider` it runs on that provider's active
+/// account (AI Accounts).
+fn run(cwd: &str, provider: Option<&str>, program: &str, args: &[&str]) -> Option<String> {
     use std::process::Stdio;
 
-    let mut child = crate::commands::util_cmd::cmd(program)
+    let account_vars = provider
+        .map(crate::commands::provider_account::utility_account_vars)
+        .unwrap_or_default();
+    let program =
+        crate::commands::provider_account::utility_base_command(program.to_string(), &account_vars);
+    let mut command = crate::commands::util_cmd::cmd(&program);
+    for key in crate::commands::provider_account::utility_env_removals(&account_vars) {
+        command.env_remove(key);
+    }
+    let mut child = command
+        .envs(account_vars.iter().map(|(k, v)| (k, v)))
         .args(args)
         .current_dir(if Path::new(cwd).is_dir() { cwd } else { "." })
         .env("NO_COLOR", "1")

@@ -44,7 +44,8 @@ import { SubAgentStashService } from '../services/sub-agent-stash.service';
 import { AgentActionNoticeService } from '../services/agent-action-notice.service';
 import { SubAgentReviewService } from '../services/sub-agent-review.service';
 import { CheckWithProviderModalComponent } from '../check-with-provider-modal/check-with-provider-modal.component';
-import { buildInstallScript, npmInstallCommand } from './install-scripts';
+import { buildInstallScript, buildInstallScriptFile, CLAUDE_NATIVE_INSTALL, installerRunCommand, npmInstallCommand } from './install-scripts';
+import { decideTerminalClipboardAction } from '@core/helper/terminal-clipboard';
 import { captureExpandedSubAgentEscape } from './expanded-sub-agent-escape';
 import { SessionShortcutAction, SessionShortcutsService, shortcutKeyLabel } from '../services/session-shortcuts.service';
 import { setPaneResizing } from '../pane-resize-flag';
@@ -70,6 +71,7 @@ import { ResumeSubAgentModalComponent } from '../resume-subagent-modal/resume-su
 import { IntentModalComponent } from '../intent-modal/intent-modal.component';
 import { WorkspaceSetupModalComponent } from '../workspace-setup-modal/workspace-setup-modal.component';
 import { SessionCodeEditorComponent } from '../session-code-editor/session-code-editor.component';
+import { canAutoFocus, installTerminalTypingTracker, pickFallbackPane } from '../../../../core/helper/terminal-focus-guard';
 import {
   loadSessions,
   setActiveSession,
@@ -1153,13 +1155,12 @@ function safeSetItem(key: string, value: string): void {
     }
 
     /* ── Pane state highlights ──
-       Yellow = input required, Green = completed, Purple = focused.
-       Rules are ordered so .pane-focused (declared last) wins when the
-       user clicks into a pane that is also waiting_input/completed. */
+       Yellow = input required, Green = completed (box-shadow);
+       focused = accent outline, so it stacks on top of any state. */
     .main-pane,
     .subagent-pane,
     .ide-terminal-area {
-      transition: box-shadow 0.25s ease;
+      transition: box-shadow 0.25s ease, outline-color 0.2s ease;
     }
 
     /* Yellow blink — any sub-agent pane waiting for user input */
@@ -1198,25 +1199,36 @@ function safeSetItem(key: string, value: string): void {
       }
     }
 
-    /* Purple — focused pane (overrides yellow/green via source order) */
+    /* Current pane — static ring in the theme accent. It lives on outline
+       (not box-shadow) so it coexists with yellow/green/red instead of
+       covering them or being covered: focus and state stay readable together. */
     .main-pane.pane-focused,
     .subagent-pane.pane-focused,
     .ide-terminal-area.pane-focused {
-      box-shadow: inset 0 0 0 2.5px rgba(139, 92, 246, 0.55),
-                  0 0 14px 3px rgba(139, 92, 246, 0.22);
+      outline: 1.5px solid color-mix(in srgb, var(--po-accent, #6366F1) 80%, transparent);
+      outline-offset: -1.5px;
       border-radius: 12px;
-      animation: pane-pulse 2s ease-in-out infinite;
     }
-
-    @keyframes pane-pulse {
-      0%, 100% {
-        box-shadow: inset 0 0 0 2.5px rgba(139, 92, 246, 0.55),
-                    0 0 14px 3px rgba(139, 92, 246, 0.22);
-      }
-      50% {
-        box-shadow: inset 0 0 0 2.5px rgba(139, 92, 246, 0.35),
-                    0 0 8px 1px rgba(139, 92, 246, 0.10);
-      }
+    /* Current pane header: accent bar like the active tab. */
+    .subagent-pane.pane-focused > .subagent-pane-header {
+      box-shadow: inset 0 2px 0 var(--po-accent, #6366F1);
+      background: color-mix(in srgb, var(--po-accent, #6366F1) 8%, var(--po-bg-1, #161b22));
+    }
+    /* With several panes side by side, the other headers step back (the terminals don't). */
+    .subagents-terminals.has-focus:not(.tab-mode) > .subagent-pane:not(.pane-focused) > .subagent-pane-header .subagent-pane-title {
+      opacity: 0.72;
+    }
+    /* Spawn that arrived while the user was typing elsewhere: a single glow, no caret stealing. */
+    .subagent-pane.pane-just-spawned {
+      animation: pane-just-spawned 1.2s ease-out 1;
+    }
+    @keyframes pane-just-spawned {
+      0% { outline: 2px solid color-mix(in srgb, var(--po-accent, #6366F1) 0%, transparent); outline-offset: -2px; }
+      30% { outline: 2px solid color-mix(in srgb, var(--po-accent, #6366F1) 85%, transparent); outline-offset: -2px; }
+      100% { outline: 2px solid color-mix(in srgb, var(--po-accent, #6366F1) 0%, transparent); outline-offset: -2px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .subagent-pane.pane-just-spawned { animation: none; }
     }
 
     /* Red blink — Auto Approve is ON (takes precedence over other pane states) */
@@ -1652,13 +1664,16 @@ function safeSetItem(key: string, value: string): void {
       background: color-mix(in srgb, var(--po-text-primary, #e6edf3) 7%, transparent);
       color: var(--po-text-primary, #e6edf3);
     }
+    /* fb 209: the active tab must stand out even in light themes, where
+       --po-bg-0 is almost the same as the bar, so it gets an accent tint. */
     .sa-tab.sa-tab-active {
-      background: var(--po-bg-0, #0d1117);
-      border-color: var(--po-border-subtle, rgba(128, 128, 128, 0.25));
-      box-shadow: inset 0 2px 0 var(--po-text-primary, #e6edf3);
+      background: color-mix(in srgb, var(--po-accent, #6366f1) 18%, var(--po-bg-0, #0d1117));
+      border-color: color-mix(in srgb, var(--po-accent, #6366f1) 45%, transparent);
+      box-shadow: inset 0 2px 0 var(--po-accent, #6366f1);
       color: var(--po-text-primary, #e6edf3);
       font-weight: 600;
     }
+    .sa-tab.sa-tab-active .sa-tab-shortcut { opacity: 0.8; }
     .sa-tab.sa-tab-locked {
       border-color: rgba(210, 153, 34, 0.35);
       border-style: solid;
@@ -1681,6 +1696,14 @@ function safeSetItem(key: string, value: string): void {
         background: rgba(210, 153, 34, 0.3);
         box-shadow: 0 0 14px rgba(210, 153, 34, 0.5);
       }
+    }
+    /* Active + waiting: pulse only the amber halo, keep the accent fill and top bar */
+    .sa-tab.sa-tab-active.sa-tab-needs-input {
+      animation-name: sa-tab-glow-active;
+    }
+    @keyframes sa-tab-glow-active {
+      0%, 100% { box-shadow: inset 0 2px 0 var(--po-accent, #6366f1), 0 0 8px rgba(210, 153, 34, 0.25); }
+      50% { box-shadow: inset 0 2px 0 var(--po-accent, #6366f1), 0 0 14px rgba(210, 153, 34, 0.5); }
     }
 
     .sa-tab-dot {
@@ -3586,6 +3609,10 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   /** Tracks which pane (main | subagent:<id>) currently has focus */
   focusedPaneId = signal<string | null>(null);
 
+  /** Sub-agent just born while the user was typing elsewhere: one-off glow, no caret stealing. */
+  justSpawnedId = signal<string | null>(null);
+  private justSpawnedTimer: ReturnType<typeof setTimeout> | null = null;
+
   /** Provider install guide state */
   providerMissing = signal(false);
   providerChecking = signal(false);
@@ -3747,7 +3774,55 @@ export class SessionViewComponent implements OnInit, OnDestroy {
    */
   paneRoster = computed<SubAgent[]>(() => this.applyPaneOrder(this.rawPaneRoster()));
 
+  /**
+   * On-screen roster: a benched main/lead leaves the grid like a benched
+   * sub-agent. Without other panes the bench does not apply (the main would
+   * be a single pane anyway) and the lead stays in view.
+   */
   private rawPaneRoster = computed<SubAgent[]>(() => {
+    const all = this.fullPaneRoster();
+    const lead = this.benchedLeadPane();
+    return lead ? all.filter(p => p !== lead) : all;
+  });
+
+  /** The main/lead tile when it's on the bench (null otherwise). */
+  benchedLeadPane = computed<SubAgent | null>(() => {
+    const id = this.activeSessionId();
+    if (!id || !this.subAgentService.isLeadBenched(id)) return null;
+    return this.fullPaneRoster().find(p => this.isMainPane(p.id)) ?? null;
+  });
+
+  /** Full bench for the IDE view: lead (if any) + sub-agents. */
+  benchedPanes = computed<SubAgent[]>(() => {
+    const lead = this.benchedLeadPane();
+    const subs = this.subAgentService.benchedSubAgents();
+    return lead ? [lead, ...subs] : subs;
+  });
+
+  /** Bench: same button for main/lead and sub-agents. */
+  benchPane(paneId: string, event?: MouseEvent): void {
+    event?.stopPropagation();
+    if (!this.isMainPane(paneId)) {
+      this.subAgentService.bench(paneId);
+      return;
+    }
+    const id = this.activeSessionId();
+    if (!id) return;
+    this.subAgentService.benchLead(id);
+    if (this.expandedSubAgentId() === paneId) this.expandedSubAgentId.set(null);
+    if (this.activeSubAgentTab() === paneId) {
+      this.activeSubAgentTab.set(this.subAgentService.activeRoster()[0]?.id ?? null);
+    }
+    this.subAgentPaneWidths.set({});
+  }
+
+  unbenchPane(pane: SubAgent, event?: MouseEvent): void {
+    event?.stopPropagation();
+    if (this.isMainPane(pane.id)) this.subAgentService.unbenchLead(pane.sessionId);
+    else this.subAgentService.unbench(pane.id);
+  }
+
+  private fullPaneRoster = computed<SubAgent[]>(() => {
     const subs = this.subAgentService.activeRoster();
     const session = this.activeSession();
     // Agents model: roster from the agents adapter (lead = session PTY, same id `__main__`).
@@ -3783,7 +3858,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
    * empty-state with explicit restore (`restoreMain`).
    */
   mainIsFlattened = computed(() =>
-    this.paneRoster().some(p => this.isMainPane(p.id)) || this.mainDismissed() || this.leadMetaPending(),
+    this.paneRoster().some(p => this.isMainPane(p.id)) || !!this.benchedLeadPane() || this.mainDismissed() || this.leadMetaPending(),
   );
 
   /**
@@ -3822,21 +3897,16 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     if (!id) return;
     if (this.agentsEnabled) {
       // Agents model: REAL close — Rust kills the session PTY, the members stay.
-      // Destructive and barely visible action: confirm first, saying where to
-      // reopen it (session menu in the sidebar).
-      this.swalService.confirmDanger(
-        this.translateService.instant('SUBAGENTS.Close lead confirm title'),
-        this.translateService.instant('SUBAGENTS.Close lead confirm text'),
-        () => {
-          void this.agentRoster.closeLead(id).then((ok) => {
-            if (!ok) this.swalService.error(this.translateService.instant('SUBAGENTS.Close lead failed'));
-          });
-          if (this.activeSubAgentTab() === SessionViewComponent.MAIN_PANE_ID) {
-            this.activeSubAgentTab.set(this.subAgentService.activeRoster()[0]?.id ?? null);
-          }
-          this.subAgentPaneWidths.set({});
-        },
-      );
+      // Like the other agents: no confirmation (it reopens from the session
+      // menu in the sidebar).
+      this.subAgentService.unbenchLead(id);
+      void this.agentRoster.closeLead(id).then((ok) => {
+        if (!ok) this.swalService.error(this.translateService.instant('SUBAGENTS.Close lead failed'));
+      });
+      if (this.activeSubAgentTab() === SessionViewComponent.MAIN_PANE_ID) {
+        this.activeSubAgentTab.set(this.subAgentService.activeRoster()[0]?.id ?? null);
+      }
+      this.subAgentPaneWidths.set({});
       return;
     }
     this.dismissedMains.update(set => {
@@ -4522,57 +4592,85 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   });
 
   /**
-   * The spawn already handled before this view existed. `lastSpawnedId` lives
+   * The spawn already handled before this view existed. `lastSpawned` lives
    * in a root service and is never cleared: without this baseline every new
    * Sessions view (back from Settings, window reload) re-ran the focus for
    * the last agent spawned long ago — re-expanding the panel, resetting pane
    * widths and sending it another "backup" Enter.
    */
-  private readonly spawnBaseline = this.subAgentService.lastSpawnedId();
+  private readonly spawnBaseline = this.subAgentService.lastSpawned();
   private readonly destroyRef = inject(DestroyRef);
   private spawnFocusTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Auto-focus effect: reacts to lastSpawnedId from SubAgentService */
+  /** Auto-focus effect: reacts to lastSpawned from SubAgentService */
   private autoFocusEffect = effect(() => {
     // Dedicated window: the fallback Enter on the new sub-agent is already sent by the main window (no duplicates).
     if (this.dedicatedSessionId) return;
-    const saId = this.subAgentService.lastSpawnedId();
-    if (!saId || saId === this.spawnBaseline) return;
+    const spawned = this.subAgentService.lastSpawned();
+    if (!spawned || spawned === this.spawnBaseline) return;
     // Only a NEW spawn may run this: the body reads other signals (layout
     // mode, accordion state), and tracking them re-ran the effect on every
     // layout toggle — each run sent another "backup" Enter to the last
     // spawned agent (blank prompt lines in shells, phantom prompt credits).
-    untracked(() => this.focusNewSubAgent(saId));
+    untracked(() => this.focusNewSubAgent(spawned));
   });
 
-  private focusNewSubAgent(saId: string): void {
-    // Expand sub-agents section and set focus state
+  private focusNewSubAgent(spawned: { id: string; parentSessionId: string; restored: boolean }): void {
+    const saId = spawned.id;
+
+    // Restored (restart/wake): no prompt to inject and no focus stealing —
+    // each one came back with the focus and an empty Enter. The current pane
+    // is decided by the reconciliation and the saved focused_role.
+    if (spawned.restored) return;
+
+    // Backup Enter after the native prompt injection (2s paste + 300ms Enter):
+    // it concerns the PTY, so it applies even when the spawn is in another session.
+    setTimeout(() => {
+      this.subAgentService.writeToSubAgent(saId, '\r');
+    }, 3000);
+
+    // Spawn in another session (MCP from a different window/session): this
+    // one's UI is left alone.
+    if (this.activeSessionId() !== spawned.parentSessionId) return;
+
     this.subAgentsExpanded.set(true);
     // Reset pane widths so all sub-agents get equal space in split mode
     this.subAgentPaneWidths.set({});
     if (this.currentLayoutMode() === 'code' && !this.subagentsAccordionUserClosed()) {
       this.ideAccordion.set('subagents');
     }
-    this.focusedPaneId.set('sa:' + saId);
-    // Ensure new agent is active tab
-    this.activeSubAgentTab.set(saId);
-    this.ideTerminalTab.set(saId);
 
-    // Wait for the terminal to render, then focus it and scroll into view
+    // Wait for the terminal to render, then decide: if the user is typing
+    // (commit message, composer, rename, a modal, or another terminal in the
+    // last moments) the caret stays where it is and the new pane only glows.
     if (this.spawnFocusTimer) clearTimeout(this.spawnFocusTimer);
     this.spawnFocusTimer = setTimeout(() => {
       this.spawnFocusTimer = null;
+      if (this.subAgentService.isBenched(saId)) return;
       const terminal = this.subAgentTerminals?.find(t => t.subAgentId === saId);
+      const pane = (terminal as any)?.containerRef?.nativeElement?.closest('.subagent-pane') as HTMLElement | undefined;
+      if (!canAutoFocus('spawn')) {
+        this.flashJustSpawned(saId);
+        pane?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+      this.focusedPaneId.set('sa:' + saId);
+      this.activeSubAgentTab.set(saId);
+      this.ideTerminalTab.set(saId);
       if (terminal) {
         terminal.focus();
-        (terminal as any).containerRef?.nativeElement?.closest('.subagent-pane')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        pane?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }, 500);
+  }
 
-    // Send a backup Enter after the native prompt injection (2s paste delay + 300ms Enter)
-    setTimeout(() => {
-      this.subAgentService.writeToSubAgent(saId, '\r');
-    }, 3000);
+  private flashJustSpawned(saId: string): void {
+    if (this.justSpawnedTimer) clearTimeout(this.justSpawnedTimer);
+    this.justSpawnedId.set(saId);
+    this.justSpawnedTimer = setTimeout(() => {
+      this.justSpawnedTimer = null;
+      if (this.justSpawnedId() === saId) this.justSpawnedId.set(null);
+    }, 1400);
   }
 
   /** Agents model: meta (lead/closed lead) of the active session, once per session. */
@@ -4599,7 +4697,101 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
   });
 
+  /** `focusedPaneId` ids of the visible panes, in display order (bench excluded). */
+  visiblePaneIds = computed<string[]>(() => {
+    const ids = this.paneRoster().map(sa => 'sa:' + sa.id);
+    if (!this.mainIsFlattened() && !this.mainDismissed()) ids.unshift('main');
+    return ids;
+  });
+
+  focusedPaneVisible = computed(() => {
+    const f = this.focusedPaneId();
+    return !!f && this.visiblePaneIds().includes(f);
+  });
+
+  private reconcilePrevIds: string[] = [];
+  private reconcileSessionId: string | null = null;
+
+  /**
+   * An open session always has a current pane. If the focused one goes away
+   * (close, exit, bench, move, main closed) the focus moves to its neighbor
+   * in display order; with no focus yet, to the lead. The DOM caret moves
+   * only if it was left orphaned (on the body) and the user isn't typing
+   * elsewhere.
+   */
+  private focusReconcileEffect = effect(() => {
+    const ids = this.visiblePaneIds();
+    const focused = this.focusedPaneId();
+    const sessionId = this.activeSessionId();
+    // Session switch: for a moment the roster may still be the previous one's.
+    // It isn't compared, or a "vanished" pane would steal the caret.
+    const rosterParent = this.paneRoster()[0]?.parentSessionId;
+    if (rosterParent && rosterParent !== sessionId) return;
+    if (sessionId !== this.reconcileSessionId) {
+      this.reconcileSessionId = sessionId;
+      this.reconcilePrevIds = [];
+    }
+    const prevIds = this.reconcilePrevIds;
+    this.reconcilePrevIds = ids;
+    if (focused && ids.includes(focused)) return;
+    if (ids.length === 0) return;
+
+    const goneIndex = focused ? prevIds.indexOf(focused) : -1;
+    const next = pickFallbackPane(ids, goneIndex, untracked(() => this.leadPaneId(ids)));
+    if (!next) return;
+    untracked(() => {
+      this.focusedPaneId.set(next);
+      const saId = next.startsWith('sa:') ? next.slice(3) : null;
+      if (saId) {
+        this.activeSubAgentTab.set(saId);
+        this.ideTerminalTab.set(saId);
+      } else {
+        this.ideTerminalTab.set('main');
+      }
+    });
+    // Only after a pane vanished: on open the caret is handled by scheduleAutoFocusOnOpen.
+    if (goneIndex < 0) return;
+    setTimeout(() => {
+      if (this.focusedPaneId() !== next) return;
+      const active = document.activeElement;
+      if (active && active !== document.body) return;
+      if (!canAutoFocus('open')) return;
+      this.focusPaneTerminal(next);
+    }, 80);
+  });
+
+  /** Pane of the lead (agents model) or of the main, if visible. */
+  private leadPaneId(ids: string[]): string | null {
+    const sid = this.activeSessionId();
+    const leadId = this.agentsEnabled && sid ? this.agentRoster.meta(sid).leadId : null;
+    if (leadId && ids.includes('sa:' + leadId)) return 'sa:' + leadId;
+    const main = 'sa:' + SessionViewComponent.MAIN_PANE_ID;
+    if (ids.includes(main)) return main;
+    return ids.includes('main') ? 'main' : null;
+  }
+
+  /** Moves the DOM caret into the given pane's terminal (classic main or roster tile). */
+  private focusPaneTerminal(paneId: string): void {
+    if (paneId === 'main') {
+      this.terminalRef?.focus();
+      return;
+    }
+    const saId = paneId.slice(3);
+    if (this.isMainPane(saId)) {
+      this.flattenedMainTerminal()?.focus();
+      return;
+    }
+    this.subAgentTerminals?.find(t => t.subAgentId === saId)?.focus();
+  }
+
+  /** Demoted main: it's the <app-session-terminal> inside the tile, not `#terminalRef`. */
+  private flattenedMainTerminal(): SessionTerminalComponent | undefined {
+    const sid = this.activeSession()?.id;
+    return this.sessionTerminals?.find(t => t !== this.terminalRef && t.sessionId === sid);
+  }
+
   ngOnInit(): void {
+    installTerminalTypingTracker();
     this.removeExpandedEscapeListener = captureExpandedSubAgentEscape(
       () => !!this.expandedSubAgentId(),
       () => this.onEscapeKey(),
@@ -4798,7 +4990,11 @@ export class SessionViewComponent implements OnInit, OnDestroy {
               const subs = this.subAgentService.activeSubAgents();
               const saMatch = subs.find((sa: any) => sa.role === focusedRole);
               if (saMatch) {
+                // Tab and IDE selection follow the pane: in tab mode the
+                // focused but hidden pane was not visible.
                 this.focusedPaneId.set('sa:' + saMatch.id);
+                this.activeSubAgentTab.set(saMatch.id);
+                this.ideTerminalTab.set(saMatch.id);
               }
             }, 300);
           }
@@ -4924,13 +5120,21 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     const delays = opts.delays ?? [200, 700, 1500];
     const fallbackToMain = opts.fallbackToMain ?? true;
     this.cancelAutoFocusOnOpen();
-    delays.forEach((delay, i) => {
+    // The fallback to the main applies to the first pass NOT blocked by the
+    // guard: if a modal is still open (or the caret is in a field) on open,
+    // the next pass retries instead of losing it.
+    let fallbackPending = fallbackToMain;
+    delays.forEach((delay) => {
       const timer = setTimeout(() => {
         if (this.activeSessionId() !== sessionId) {
           this.cancelAutoFocusOnOpen();
           return;
         }
-        if (this.tryFocusInputRequired(i === 0 && fallbackToMain)) {
+        // Never steal the caret from a text field or an open modal.
+        if (!canAutoFocus('open')) return;
+        const applyFallback = fallbackPending;
+        fallbackPending = false;
+        if (this.tryFocusInputRequired(applyFallback)) {
           this.cancelAutoFocusOnOpen();
         }
       }, delay);
@@ -4981,7 +5185,12 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
 
     if (applyMainFallback) {
-      this.terminalRef?.focus();
+      // Nobody waiting: the caret goes to the current pane (lead/main or the
+      // restored one), not necessarily the classic main — which does not
+      // exist when the main is demoted.
+      const current = this.focusedPaneId();
+      if (current) this.focusPaneTerminal(current);
+      else this.terminalRef?.focus();
     }
     return false;
   }
@@ -7386,7 +7595,8 @@ export class SessionViewComponent implements OnInit, OnDestroy {
           this.cancelSidebarSubAgentFocus();
           return;
         }
-        const agents = this.subAgentService.activeSubAgents();
+        // Main/lead: it lives in the pane roster, not among the service's sub-agents.
+        const agents = this.isMainPane(sa.id) ? this.fullPaneRoster() : this.subAgentService.activeSubAgents();
         const match = agents.find(a => a.id === sa.id)
           ?? agents.find(a => a.role === sa.role && a.title === sa.title);
         if (!match) return; // not loaded yet — retry on the next pass
@@ -7410,9 +7620,10 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
     this.switchSubAgentTab(sa.id);
     setTimeout(() => {
-      const terminal = this.subAgentTerminals?.find(t => t.subAgentId === sa.id);
-      (terminal as any)?.containerRef?.nativeElement
-        ?.closest('.subagent-pane')
+      const el: HTMLElement | undefined = this.isMainPane(sa.id)
+        ? (this.flattenedMainTerminal() as any)?.containerEl
+        : (this.subAgentTerminals?.find(t => t.subAgentId === sa.id) as any)?.containerRef?.nativeElement;
+      el?.closest('.subagent-pane')
         ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }, 200);
   }
@@ -7856,16 +8067,18 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     // Alt/⌥ + 0 = focus main terminal
     if (action === 'focusMain') {
       handled();
+      const mainTile = this.mainIsFlattened() && agents.some(a => this.isMainPane(a.id));
       if (this.currentLayoutMode() === 'code') {
-        this.selectIdeTerminal(this.mainIsFlattened() ? SessionViewComponent.MAIN_PANE_ID : 'main');
+        this.selectIdeTerminal(mainTile ? SessionViewComponent.MAIN_PANE_ID : 'main');
         return;
       }
-      if (this.mainIsFlattened()) {
-        // The main is a tile in the grid: #terminalRef does not exist then.
+      if (mainTile) {
         this.subAgentsExpanded.set(true);
         this.switchSubAgentTab(SessionViewComponent.MAIN_PANE_ID);
         return;
       }
+      // Flattened main with no tile on screen (benched lead): nothing to focus.
+      if (this.mainIsFlattened()) return;
       this.focusedPaneId.set('main');
       this.terminalRef?.focus();
       this.nudgeLayoutForRefit();
@@ -8135,7 +8348,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     const session = this.activeSession();
     if (!session) return;
 
-    const script = buildInstallScript(session.provider, this.providerPlatform());
+    const script = await this.resolveInstallScript(session.provider, this.providerPlatform());
     if (!script) return;
 
     if (this.installerTerminalId()) {
@@ -8144,6 +8357,22 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       this.pendingInstallCmd = script;
       await this.ensureInstallTerminal();
     }
+  }
+
+  /**
+   * macOS/Linux host: the bash script goes to a file and the PTY only gets
+   * `bash '<path>'` (typed whole, ~2 KB overflows the tty input queue and
+   * bash drops characters). Windows hosts (incl. WSL shells) or a failed
+   * write fall back to typing the script.
+   */
+  private async resolveInstallScript(provider: string, platform: string): Promise<string> {
+    const hostPlatform = (window as any).promptops?.platform;
+    const file = hostPlatform === 'win32' ? '' : buildInstallScriptFile(provider, platform);
+    if (file) {
+      const path = await this.sessionService.installerWriteScript(file);
+      if (path) return installerRunCommand(path);
+    }
+    return buildInstallScript(provider, platform);
   }
 
   async runInstallCommand(cmd: string): Promise<void> {
@@ -8167,6 +8396,48 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       this.policyAdminCmdCopied = true;
       setTimeout(() => this.policyAdminCmdCopied = false, 2000);
     });
+  }
+
+  /** Copies the selection, or the whole install terminal output when nothing is selected. */
+  installOutputCopied = false;
+  async copyInstallOutput(): Promise<void> {
+    const term = this.installXterm;
+    if (!term) return;
+    let text = term.getSelection();
+    if (!text) {
+      const buffer = term.buffer.active;
+      const lines: string[] = [];
+      for (let i = 0; i < buffer.length; i++) {
+        const line = buffer.getLine(i);
+        if (!line) continue;
+        // Wrapped rows continue the previous logical line.
+        if (line.isWrapped && lines.length) lines[lines.length - 1] += line.translateToString(true);
+        else lines.push(line.translateToString(true));
+      }
+      text = lines.join('\n').replace(/\s+$/, '');
+    }
+    if (!text) return;
+    await this.writeInstallClipboard(text);
+    this.installOutputCopied = true;
+    setTimeout(() => this.installOutputCopied = false, 2000);
+  }
+
+  private async writeInstallClipboard(text: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      await this.sessionService.clipboardWrite(text);
+    }
+  }
+
+  private async pasteIntoInstallTerminal(terminalId: string): Promise<void> {
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = (await this.sessionService.clipboardRead()).text ?? '';
+    }
+    if (text) this.sessionService.writeTerminal(terminalId, text);
   }
 
   closeInstallTerminal(): void {
@@ -8227,6 +8498,28 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
     const terminalId = this.installerTerminalId()!;
 
+    // Clipboard shortcuts (same rules as the other terminals): without this
+    // xterm sends Ctrl+C/V to the PTY and Ctrl+Shift+C reaches the webview
+    // (devtools inspector) — the output could not be copied at all.
+    this.installXterm.attachCustomKeyEventHandler((ev) => {
+      if (ev.type !== 'keydown') return true;
+      const action = decideTerminalClipboardAction(
+        ev,
+        (window as any).promptops?.platform,
+        () => !!this.installXterm?.getSelection(),
+        this.sessionService.isTauri,
+      );
+      if (!action) return true;
+      ev.preventDefault();
+      if (action === 'copy') {
+        const text = this.installXterm?.getSelection();
+        if (text) void this.writeInstallClipboard(text);
+      } else {
+        void this.pasteIntoInstallTerminal(terminalId);
+      }
+      return false;
+    });
+
     // User input (for sudo password, gh auth, etc.)
     this.installXterm.onData((data) => {
       this.sessionService.writeTerminal(terminalId, data);
@@ -8258,6 +8551,13 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       }
     }, 150);
   }
+
+  readonly claudeNativeInstall = CLAUDE_NATIVE_INSTALL;
+  /** Linux EACCES fix: user npm prefix instead of sudo (Node from apt → prefix /usr). */
+  readonly npmUserPrefixCmds = [
+    'npm config set prefix ~/.npm-global',
+    `echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.bashrc && export PATH="$HOME/.npm-global/bin:$PATH"`,
+  ];
 
   /** Manual-tab npm install one-liner for the current platform pill. */
   npmInstallCmd(pkg: string): string {

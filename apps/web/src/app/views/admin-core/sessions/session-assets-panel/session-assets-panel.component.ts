@@ -20,7 +20,7 @@ import { SessionAssetsService, AssetInfo, AssetIntent } from '../services/sessio
 import { IntentService, EnhanceDepth } from '../services/intent.service';
 import { SubAgentProvider } from '../services/sub-agent.service';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
-import { FileDropZoneDirective } from '../../../../common/file-drop-zone.directive';
+import { FileDropZoneDirective, fileUrisFromDrop } from '../../../../common/file-drop-zone.directive';
 import { KebabMenuComponent, KebabMenuItem } from '../../../../common/kebab-menu/kebab-menu.component';
 import { EscCloseDirective } from '../../../../common/esc-close.directive';
 
@@ -1006,8 +1006,35 @@ export class SessionAssetsPanelComponent {
 
   async onDrop(event: DragEvent): Promise<void> {
     const files = event.dataTransfer?.files;
-    if (!files?.length) return;
-    await this.handleUpload(Array.from(files));
+    if (files?.length) {
+      await this.handleUpload(Array.from(files));
+      return;
+    }
+    // Linux/WebKitGTK: drop dal file manager con solo text/uri-list.
+    const paths = fileUrisFromDrop(event);
+    if (paths.length) await this.handlePathUpload(paths);
+  }
+
+  private async handlePathUpload(paths: string[]): Promise<void> {
+    const ws = this.workspacePath();
+    if (!ws) return;
+    if (this.collapsed()) {
+      this.expandPanel();
+    }
+    this.uploading.set(true);
+    try {
+      const added = await this.assetsService.importPaths(ws, paths);
+      if (!added) return;
+      await this.loadThumbnails();
+      const names = added.map(a => a.name);
+      if (names.length > 0) {
+        this.highlightedAssets.set(new Set(names));
+        setTimeout(() => this.highlightedAssets.set(new Set()), 1600);
+      }
+    } catch (err) {
+    } finally {
+      this.uploading.set(false);
+    }
   }
 
   openFilePicker(): void {

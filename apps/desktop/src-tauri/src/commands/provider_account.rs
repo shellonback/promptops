@@ -1007,6 +1007,70 @@ pub(crate) fn config_dirs_for(provider: &str) -> Vec<String> {
         .collect()
 }
 
+/// (id, name) of the account an unpinned spawn would use NOW.
+pub(crate) fn active_account(provider: &str) -> Option<(String, String)> {
+    let manager = GLOBAL_MANAGER.get()?;
+    let account = manager.resolve_for_spawn(provider, None).account?;
+    Some((account.id, account.name))
+}
+
+pub(crate) fn account_name(id: &str) -> Option<String> {
+    let manager = GLOBAL_MANAGER.get()?;
+    let guard = manager.state.lock();
+    guard
+        .accounts
+        .iter()
+        .find(|a| a.id == id)
+        .map(|a| a.name.clone())
+}
+
+/// Known claude config dirs: (account id, dir). "" = `~/.claude` (default
+/// login), then every PromptOps account with its own config dir. Whoever reads
+/// transcripts/usage must look at all of them: after an account switch new
+/// conversations end up in the active account's dir.
+pub(crate) fn claude_config_roots() -> Vec<(String, PathBuf)> {
+    let mut dirs: Vec<(String, PathBuf)> =
+        vec![(String::new(), PathBuf::from(home_dir()).join(".claude"))];
+    if let Some(manager) = GLOBAL_MANAGER.get() {
+        let guard = manager.state.lock();
+        for a in guard.accounts.iter() {
+            if a.provider == "claude-code-cli"
+                && a.command_alias.is_none()
+                && !a.config_dir.is_empty()
+            {
+                dirs.push((a.id.clone(), PathBuf::from(&a.config_dir)));
+            }
+        }
+    }
+    dirs
+}
+
+/// Claude config dir of the active account (`~/.claude` without an account).
+pub(crate) fn active_claude_root() -> PathBuf {
+    resolve_account_env("claude-code-cli", None)
+        .filter(|(var, dir, _)| *var == Some("CLAUDE_CONFIG_DIR") && !dir.is_empty())
+        .map(|(_, dir, _)| PathBuf::from(dir))
+        .unwrap_or_else(|| PathBuf::from(home_dir()).join(".claude"))
+}
+
+/// Which account the claude transcript `<sid>.jsonl` belongs to ("" = default
+/// config `~/.claude`). Needed for sessions launched before the launch account
+/// was recorded. The preferred config dir first: if the transcript is there,
+/// the others are not scanned.
+pub(crate) fn claude_transcript_owner(sid: &str, preferred: Option<&str>) -> Option<String> {
+    let mut dirs = claude_config_roots();
+    let preferred = preferred.unwrap_or("");
+    dirs.sort_by_key(|(id, _)| id != preferred);
+    let file = format!("{sid}.jsonl");
+    dirs.into_iter()
+        .find(|(_, dir)| {
+            std::fs::read_dir(dir.join("projects"))
+                .map(|it| it.flatten().any(|e| e.path().join(&file).is_file()))
+                .unwrap_or(false)
+        })
+        .map(|(id, _)| id)
+}
+
 /// An alias is a single shell word, never a shell command or definition.
 pub(crate) fn validate_command_alias(alias: &str) -> Result<(), String> {
     if alias.is_empty()
@@ -1136,6 +1200,126 @@ pub(crate) fn apply_account_env(cmd: &mut portable_pty::CommandBuilder, vars: &[
     for (key, value) in vars {
         cmd.env(key, value);
     }
+}
+
+// ── Utility CLI calls (AI message, commit message, smart context,
+// plugin generation, speed test, summarizer/evaluator/review) ──
+// They run outside sessions: without this they use the default login even
+// after an account switch from AI Accounts. They always follow the ACTIVE account.
+
+/// Env of the active account for `provider` ("claude" = claude-code-cli).
+pub(crate) fn utility_account_vars(provider: &str) -> Vec<(String, String)> {
+    let provider = if provider == "claude" {
+        "claude-code-cli"
+    } else {
+        provider
+    };
+    resolve_account_env(provider, None)
+        .map(|(var, dir, id)| account_env_vars(var, &dir, &id))
+        .unwrap_or_default()
+}
+
+/// (id, name) of the active account `provider` runs on, if managed.
+pub(crate) fn utility_account_ref(provider: &str) -> Option<(String, String)> {
+    let provider = if provider == "claude" {
+        "claude-code-cli"
+    } else {
+        provider
+    };
+    let (_, _, id) = resolve_account_env(provider, None)?;
+    let manager = GLOBAL_MANAGER.get()?;
+    let name = manager
+        .state
+        .lock()
+        .accounts
+        .iter()
+        .find(|a| a.id == id)
+        .map(|a| a.name.clone())?;
+    Some((id, name))
+}
+
+/// CODEX_HOME of the active Codex account (None = default installation).
+pub(crate) fn active_codex_home() -> Option<String> {
+    resolve_account_env("codex", None)
+        .and_then(|(var, dir, _)| (var == Some("CODEX_HOME")).then_some(dir))
+}
+
+/// Provider from the first word of a fixed CLI command line.
+pub(crate) fn utility_provider_of(command_line: &str) -> &str {
+    match command_line.split_whitespace().next().unwrap_or("") {
+        "codex" => "codex",
+        "gemini" => "gemini-cli",
+        "grok" => "grok",
+        "gh" | "copilot" => "copilot",
+        _ => "claude-code-cli",
+    }
+}
+
+/// Provider whose account applies to `command_line`. Providers without their
+/// own CLI here (cursor, opencode, hermes, …) fall back to `claude -p` and must
+/// use the Claude account; zai/kimi/promptops-cli share Claude's config dir and
+/// keep their own.
+pub(crate) fn utility_account_provider<'a>(provider: &'a str, command_line: &'a str) -> &'a str {
+    let runs = utility_provider_of(command_line);
+    let provider = if provider == "claude" {
+        "claude-code-cli"
+    } else {
+        provider
+    };
+    let env_of = |p: &str| capability_for(p).and_then(|c| c.env_var);
+    if provider == runs || (env_of(provider).is_some() && env_of(provider) == env_of(runs)) {
+        provider
+    } else {
+        runs
+    }
+}
+
+/// Inherited variables to remove before applying `vars` (managed login).
+pub(crate) fn utility_env_removals(vars: &[(String, String)]) -> &'static [&'static str] {
+    if vars
+        .iter()
+        .any(|(k, _)| k == "CLAUDE_SECURESTORAGE_CONFIG_DIR")
+    {
+        CLAUDE_AUTH_OVERRIDES
+    } else {
+        &[]
+    }
+}
+
+/// Base command with the account alias ("alias" account) in place of the binary.
+pub(crate) fn utility_base_command(base: String, vars: &[(String, String)]) -> String {
+    let alias = vars
+        .iter()
+        .find(|(k, _)| k == "PROMPTOPS_PROVIDER_COMMAND")
+        .map(|(_, v)| v.as_str());
+    override_launch_command(base, alias.filter(|a| validate_command_alias(a).is_ok()))
+}
+
+/// Line for the login shell: startup files can rewrite the env, so the account
+/// is reasserted at the start (POSIX shells only, like sessions).
+pub(crate) fn utility_shell_line(line: String, vars: &[(String, String)], shell: &str) -> String {
+    match account_shell_prefix(vars, shell).or_else(|| provider_home_prefix(vars, shell)) {
+        Some(prefix) => format!("{prefix} && {line}"),
+        None => line,
+    }
+}
+
+/// Non-Claude providers (CODEX_HOME, GEMINI_CLI_HOME, …): an export in the
+/// shell startup files would win over the account. Utility calls only.
+fn provider_home_prefix(vars: &[(String, String)], shell: &str) -> Option<String> {
+    let shell_name = Path::new(shell).file_name().and_then(|n| n.to_str());
+    if cfg!(windows)
+        || !matches!(shell_name, Some("sh" | "bash" | "zsh" | "dash" | "ksh"))
+        || !vars.iter().any(|(k, _)| !k.starts_with("PROMPTOPS_"))
+    {
+        return None;
+    }
+    let exports = vars
+        .iter()
+        .map(|(key, value)| format!("{key}={}", crate::commands::remote::sh_quote(value)))
+        .collect::<Vec<_>>()
+        .join(" ");
+    Some(format!("export {exports}"))
 }
 
 /// Reassert the managed Claude account after Unix login-shell startup files.
@@ -1455,6 +1639,75 @@ async fn pick_directory(app: &AppHandle, provider: &str) -> Option<String> {
 #[cfg(test)]
 mod account_launch_tests {
     use super::*;
+
+    #[test]
+    fn utility_calls_follow_the_active_account() {
+        assert_eq!(
+            utility_provider_of("claude -p --output-format text"),
+            "claude-code-cli"
+        );
+        assert_eq!(utility_provider_of("codex exec -"), "codex");
+        // Fallback to `claude -p`: Claude account, except providers sharing its config dir.
+        assert_eq!(
+            utility_account_provider("cursor", "claude -p"),
+            "claude-code-cli"
+        );
+        assert_eq!(
+            utility_account_provider("opencode", "claude -p"),
+            "claude-code-cli"
+        );
+        assert_eq!(utility_account_provider("zai", "claude -p"), "zai");
+        assert_eq!(
+            utility_account_provider("claude", "claude -p"),
+            "claude-code-cli"
+        );
+        assert_eq!(utility_account_provider("codex", "codex exec -"), "codex");
+        assert_eq!(
+            utility_account_provider("copilot", "gh copilot suggest"),
+            "copilot"
+        );
+        assert_eq!(utility_account_provider("copilot", "copilot -s"), "copilot");
+        let managed = account_env_vars(Some("CLAUDE_CONFIG_DIR"), "/accounts/work", "work");
+        assert_eq!(utility_env_removals(&managed), CLAUDE_AUTH_OVERRIDES);
+        assert!(utility_env_removals(&[]).is_empty());
+        // No account: command and line unchanged.
+        assert_eq!(utility_base_command("claude -p".into(), &[]), "claude -p");
+        assert_eq!(
+            utility_shell_line("cat f | claude -p".into(), &[], "/bin/zsh"),
+            "cat f | claude -p"
+        );
+        // Alias account: the binary becomes the alias.
+        let alias = vec![(
+            "PROMPTOPS_PROVIDER_COMMAND".to_string(),
+            "claude-work".to_string(),
+        )];
+        assert_eq!(
+            utility_base_command("claude -p --x".into(), &alias),
+            "claude-work -p --x"
+        );
+        // Managed account: the login shell reasserts the account before the CLI.
+        if !cfg!(windows) {
+            let line = utility_shell_line("claude -p".into(), &managed, "/bin/zsh");
+            assert!(line.starts_with("unset ANTHROPIC_API_KEY"));
+            assert!(line.contains("CLAUDE_CONFIG_DIR=") && line.contains("/accounts/work"));
+            assert!(line.ends_with(" && claude -p"));
+            // Non-Claude provider: the account home is reasserted the same way.
+            let codex = account_env_vars(Some("CODEX_HOME"), "/accounts/codex-work", "cw");
+            let line = utility_shell_line("codex exec -".into(), &codex, "/bin/zsh");
+            assert!(
+                line.starts_with("export ")
+                    && line.contains("CODEX_HOME=")
+                    && line.contains("/accounts/codex-work")
+            );
+            assert!(line.ends_with(" && codex exec -"));
+            // Account id only (alias without config dir): no prefix.
+            let only_id = vec![("PROMPTOPS_PROVIDER_ACCOUNT_ID".to_string(), "x".to_string())];
+            assert_eq!(
+                utility_shell_line("codex".into(), &only_id, "/bin/zsh"),
+                "codex"
+            );
+        }
+    }
 
     fn account(id: &str) -> ProviderAccount {
         ProviderAccount {

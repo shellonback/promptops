@@ -3068,14 +3068,23 @@ fn scan_claude_code(index: &mut ScanIndex) -> (Vec<UsageEntry>, SourceReport) {
     };
     let mut entries: Vec<UsageEntry> = Vec::new();
 
-    let root = PathBuf::from(home_dir()).join(".claude").join("projects");
-    if !root.exists() {
+    // Every claude config dir (default + AI Accounts accounts): after an
+    // account switch new usage ends up in the active account's dir.
+    let mut seen = std::collections::HashSet::new();
+    let roots: Vec<PathBuf> = crate::commands::provider_account::claude_config_roots()
+        .into_iter()
+        .map(|(_, dir)| dir.join("projects"))
+        .filter(|root| root.exists() && seen.insert(root.clone()))
+        .collect();
+    if roots.is_empty() {
         report.duration_ms = now_ms() - started;
         return (entries, report);
     }
 
     let mut files = Vec::new();
-    walk_jsonl(&root, 0, &mut files);
+    for root in &roots {
+        walk_jsonl(root, 0, &mut files);
+    }
 
     for file_path in files {
         let Ok(meta) = std::fs::metadata(&file_path) else {
@@ -3569,6 +3578,11 @@ pub struct ProviderUsageSnapshot {
     timestamp: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     activity_metrics: Option<ActivityMetrics>,
+    /// AI Accounts account the quota was read with (None = default login).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    account_name: Option<String>,
 }
 
 /// ParsedUsage — output of the strategy parsers.
@@ -3635,6 +3649,9 @@ struct ProbeState {
     codex_homes: HashMap<String, String>,
     /// Root of the last Codex snapshot: avoids a cache shared across accounts.
     disk_probe_root: Option<String>,
+    /// Active account (AI Accounts) of the last probe per provider: when it
+    /// changes, that provider's cache is no longer valid.
+    probe_accounts: HashMap<String, Option<String>>,
 }
 
 /// ProviderUsageProbe — reads provider rate limits and usage.
@@ -3697,6 +3714,21 @@ impl ProviderUsageProbe {
             st.disk_probe_time.remove("codex");
             st.disk_probe_root = None;
         }
+    }
+
+    /// Clears the cache of `provider` if the active account changed.
+    fn sync_probe_account(&self, provider: &str, account_id: Option<String>) {
+        let mut st = self.state.lock();
+        if st.probe_accounts.get(provider) == Some(&account_id) {
+            return;
+        }
+        st.snapshots.remove(provider);
+        st.last_probe_time.remove(provider);
+        st.disk_probe_time.remove(provider);
+        if provider == "codex" {
+            st.disk_probe_root = None;
+        }
+        st.probe_accounts.insert(provider.to_string(), account_id);
     }
 
     fn resolve_provider(&self, session_id: &str) -> String {
@@ -3782,6 +3814,8 @@ impl ProviderUsageProbe {
             extra_usage_enabled: parsed.extra_usage_enabled,
             timestamp: now_iso(),
             activity_metrics: parsed.activity_metrics,
+            account_id: None,
+            account_name: None,
         })
     }
 
@@ -3817,6 +3851,9 @@ impl ProviderUsageProbe {
     ) -> Option<ProviderUsageSnapshot> {
         let provider = self.resolve_provider(session_id);
         let strategy = resolve_strategy(&provider);
+        let account_id =
+            crate::commands::provider_account::utility_account_ref(&provider).map(|(id, _)| id);
+        self.sync_probe_account(&provider, account_id);
 
         // Sub-agent: never a PTY — CLI cache or instant token-based snapshot.
         if self.is_sub_agent(session_id) {
@@ -3949,6 +3986,7 @@ impl ProviderUsageProbe {
         let now = now_ms();
         match outcome {
             ProbeOutcome::Ok(snapshot) => {
+                let snapshot = stamp_account(snapshot, &provider);
                 {
                     let mut st = self.state.lock();
                     st.last_probe_time.insert(provider.clone(), now);
@@ -3996,6 +4034,10 @@ impl ProviderUsageProbe {
             .codex_homes
             .get(session_id)
             .map(|home| std::path::Path::new(home).join("sessions"))
+            .or_else(|| {
+                crate::commands::provider_account::active_codex_home()
+                    .map(|home| std::path::Path::new(&home).join("sessions"))
+            })
             .unwrap_or_else(|| codex_rollout::resolve_sessions_root(&home_dir()));
         let root_key = root.to_string_lossy().to_string();
         {
@@ -4059,7 +4101,10 @@ impl ProviderUsageProbe {
             extra_usage_enabled: true, // Codex has no concept of "extra usage"
             timestamp: now_iso(),
             activity_metrics: None,
+            account_id: None,
+            account_name: None,
         };
+        let snapshot = stamp_account(snapshot, "codex");
         {
             let mut st = self.state.lock();
             st.snapshots.insert("codex".to_string(), snapshot.clone());
@@ -4163,6 +4208,15 @@ fn build_token_based_snapshot(
     }
 }
 
+/// Stamps the snapshot with the active account used to read it.
+fn stamp_account(mut snapshot: ProviderUsageSnapshot, provider: &str) -> ProviderUsageSnapshot {
+    if let Some((id, name)) = crate::commands::provider_account::utility_account_ref(provider) {
+        snapshot.account_id = Some(id);
+        snapshot.account_name = Some(name);
+    }
+    snapshot
+}
+
 enum ProbeOutcome {
     Ok(ProviderUsageSnapshot),
     Failed {
@@ -4225,6 +4279,19 @@ fn spawn_ephemeral_probe(session_id: &str, strategy: &ProbeStrategy) -> ProbeOut
     }
     cmd.env_remove("CLAUDECODE");
     cmd.env_remove("CLAUDE_CODE");
+    // Active account (AI Accounts): the quota is the selected login's,
+    // not the default installation's.
+    let account_vars = crate::commands::provider_account::utility_account_vars(provider);
+    crate::commands::provider_account::apply_account_env(&mut cmd, &account_vars);
+    let cli_command = crate::commands::provider_account::utility_base_command(
+        strategy.command.to_string(),
+        &account_vars,
+    );
+    let launch_line = crate::commands::provider_account::utility_shell_line(
+        cli_command.clone(),
+        &account_vars,
+        &get_shell(),
+    );
 
     let mut child = match pair.slave.spawn_command(cmd) {
         Ok(c) => c,
@@ -4329,13 +4396,13 @@ fn spawn_ephemeral_probe(session_id: &str, strategy: &ProbeStrategy) -> ProbeOut
             ProbePhase::ShellWait => {
                 if start.elapsed() >= shell_wait {
                     phase = ProbePhase::CliInit;
-                    write_str(&format!("{}\r", strategy.command));
+                    write_str(&format!("{launch_line}\r"));
                     cli_launched_at = Some(Instant::now());
                 }
             }
             ProbePhase::CliInit => {
                 // command-not-found detection.
-                if forced_reason.is_none() && command_not_found(strategy.command, &stripped) {
+                if forced_reason.is_none() && command_not_found(&cli_command, &stripped) {
                     forced_reason = Some("command-not-found".into());
                     forced_detail = Some(format!(
                         "{} CLI not found in the spawned shell PATH",
@@ -4511,6 +4578,8 @@ fn spawn_ephemeral_probe(session_id: &str, strategy: &ProbeStrategy) -> ProbeOut
                 extra_usage_enabled: p.extra_usage_enabled,
                 timestamp: now_iso(),
                 activity_metrics: p.activity_metrics,
+                account_id: None,
+                account_name: None,
             })
         }
         _ => ProbeOutcome::Failed {
@@ -5589,9 +5658,9 @@ pub async fn provider_usage_probe(
         .map(str::to_string)
         .unwrap_or_else(|| probe.resolve_provider(&session_id));
     if effective_provider == "codex" {
-        let explicit = sessions.provider_account_for(&session_id, "codex");
-        let home = crate::commands::provider_account::resolve_account_env("codex", explicit)
-            .and_then(|(env_var, dir, _)| (env_var == Some("CODEX_HOME")).then_some(dir));
+        // Always the account selected in AI Accounts, even if the session
+        // pinned another one.
+        let home = crate::commands::provider_account::active_codex_home();
         probe.set_codex_home(&session_id, home);
     }
     let user_initiated = user_initiated == Some(true);
@@ -5635,6 +5704,61 @@ impl OkResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn usage_snapshot(provider: &str) -> ProviderUsageSnapshot {
+        ProviderUsageSnapshot {
+            session_id: "s".into(),
+            provider: provider.into(),
+            model: String::new(),
+            sections: Vec::new(),
+            session_percent: 40,
+            session_resets: String::new(),
+            weekly_percent: 10,
+            weekly_resets: String::new(),
+            model_weekly_label: String::new(),
+            model_weekly_percent: 0,
+            model_weekly_resets: String::new(),
+            extra_usage_enabled: true,
+            timestamp: String::new(),
+            activity_metrics: None,
+            account_id: None,
+            account_name: None,
+        }
+    }
+
+    #[test]
+    fn usage_cache_resets_when_the_selected_account_changes() {
+        let probe = ProviderUsageProbe::new();
+        probe.sync_probe_account("claude-code-cli", Some("work".into()));
+        {
+            let mut st = probe.state.lock();
+            st.snapshots
+                .insert("claude-code-cli".into(), usage_snapshot("claude-code-cli"));
+            st.last_probe_time.insert("claude-code-cli".into(), 1);
+            st.snapshots.insert("codex".into(), usage_snapshot("codex"));
+        }
+        // Same account: the cache stays.
+        probe.sync_probe_account("claude-code-cli", Some("work".into()));
+        assert!(probe.state.lock().snapshots.contains_key("claude-code-cli"));
+        // Account switch (also back to the default login): only that provider's cache goes.
+        probe.sync_probe_account("claude-code-cli", None);
+        let st = probe.state.lock();
+        assert!(!st.snapshots.contains_key("claude-code-cli"));
+        assert!(!st.last_probe_time.contains_key("claude-code-cli"));
+        assert!(st.snapshots.contains_key("codex"));
+    }
+
+    #[test]
+    fn usage_snapshot_omits_account_fields_for_the_default_login() {
+        let json = serde_json::to_value(usage_snapshot("codex")).unwrap();
+        assert!(json.get("accountId").is_none() && json.get("accountName").is_none());
+        let mut snap = usage_snapshot("codex");
+        snap.account_id = Some("cw".into());
+        snap.account_name = Some("Work".into());
+        let json = serde_json::to_value(snap).unwrap();
+        assert_eq!(json["accountId"], "cw");
+        assert_eq!(json["accountName"], "Work");
+    }
 
     fn usage_entry(
         session: &str,

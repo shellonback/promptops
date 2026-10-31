@@ -80,14 +80,22 @@ test('real bridge exposes raw offsets and a buffer read never mutes another subs
   await api.createSession({});
   const received = [];
   api.onSessionOutput((_, event) => received.push(event));
+  // Live frames carry their start offset (u64 LE) before the PTY bytes.
+  const frame = (start, text) => {
+    const body = enc.encode(text);
+    const out = new Uint8Array(8 + body.length);
+    new DataView(out.buffer).setUint32(0, start, true);
+    out.set(body, 8);
+    return out;
+  };
   const request = api.getSessionBuffer('s');
-  channel.onmessage(enc.encode('abc'));
+  channel.onmessage(frame(0, 'abc'));
   const payload = new Uint8Array(14);
   new DataView(payload.buffer).setUint32(0, 6, true);
   payload.set(enc.encode('abcdef'), 8);
   resolveBuffer(payload);
   const snapshot = await request;
-  channel.onmessage(enc.encode('def'));
+  channel.onmessage(frame(3, 'def'));
   assert.equal(received.map(event => event.data).join(''), 'abcdef');
   assert.equal(snapshot.endOffset, 6);
   assert.equal(received[1].endOffset, 6);

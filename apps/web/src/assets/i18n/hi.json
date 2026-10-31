@@ -967,7 +967,13 @@
       "Install terminal": "इंस्टॉलेशन टर्मिनल",
       "Close terminal": "टर्मिनल बंद करें",
       "Install copilot": "GitHub Copilot CLI इंस्टॉल करें",
-      "Copilot npm desc": "macOS, Windows या Linux पर npm से इंस्टॉल करें (Node.js 22 या नया चाहिए):"
+      "Copilot npm desc": "macOS, Windows या Linux पर npm से इंस्टॉल करें (Node.js 22 या नया चाहिए):",
+      "Copy output": "आउटपुट कॉपी करें",
+      "Output copied": "आउटपुट कॉपी हो गया",
+      "Native install title": "आधिकारिक नेटिव इंस्टॉलर (अनुशंसित)",
+      "Native install desc": "Node.js, npm या sudo के बिना Claude Code इंस्टॉल करता है। नीचे दिए npm चरण छोड़ सकते हैं।",
+      "Linux eacces title": "npm install पर \"EACCES: permission denied\"?",
+      "Linux eacces desc": "apt से इंस्टॉल Node.js ग्लोबल पैकेज /usr में रखता है, जिसमें सिर्फ root लिख सकता है। sudo का उपयोग न करें: npm को अपने होम के किसी फ़ोल्डर पर सेट करें और उसे PATH में जोड़ें।"
     },
     "DEVICE_WORKSPACE": {
       "Title": "इस डिवाइस पर Workspace कॉन्फ़िगर नहीं है",
@@ -1608,6 +1614,14 @@
       "Tailer detected": "पहचाना गया",
       "Tailer response": "जवाब",
       "Close": "बंद करें"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "दूसरे खाते का सत्र",
+      "DefaultAccount": "डिफ़ॉल्ट खाता",
+      "Message": "यह सत्र {{oldName}} खाते से खोला गया था, लेकिन अब सक्रिय खाता {{newName}} है। बातचीत किसी दूसरे खाते पर फिर से शुरू नहीं हो सकती: {{newName}} से दोबारा खोलने पर नई बातचीत शुरू होगी।",
+      "MessageMany": "{{count}} खुले सत्र {{oldName}} खाते से शुरू हुए थे, लेकिन अब सक्रिय खाता {{newName}} है। बातचीत किसी दूसरे खाते पर फिर से शुरू नहीं हो सकती: {{newName}} से दोबारा खोलने पर नई बातचीत शुरू होंगी।",
+      "Reopen": "{{newName}} से फिर खोलें",
+      "Keep": "{{oldName}} रखें"
     }
   },
   "SUBAGENTS": {
@@ -2166,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Accessibility",
     "Terminal Default Shell": "नए सत्रों के लिए डिफ़ॉल्ट शेल",
-    "Terminal Default Shell Hint": "नए सत्र किस Windows शेल में शुरू होते हैं (PowerShell, cmd, WSL, ...)।"
+    "Terminal Default Shell Hint": "नए सत्र किस Windows शेल में शुरू होते हैं (PowerShell, cmd, WSL, ...)।",
+    "Terminal Persistent Agents": "क्रैश और अपडेट के बाद भी एजेंट चलते रहें",
+    "Terminal Persistent Agents Hint": "एजेंट एक अलग टर्मिनल प्रोसेस में चलते हैं: अगर ऐप क्रैश हो या अपडेट के लिए रीस्टार्ट हो, वे काम जारी रखते हैं और आप उन्हें वहीं पाते हैं जहाँ छोड़ा था। ऐप बंद करने पर वे फिर भी रुक जाते हैं। नए एजेंट पर लागू।",
+    "Terminal Host Screen": "तेज़ सेशन स्विच",
+    "Terminal Host Screen Hint": "ऐप हर टर्मिनल की स्क्रीन रखता है और सेशन या वर्कस्पेस बदलते ही उसे तुरंत फिर से दिखाता है। केवल तभी बंद करें जब स्विच के बाद कोई टर्मिनल गलत दिखे।"
   },
   "SSH": {
     "Security note": "सभी SSH कनेक्शन आपकी मशीन पर लोकली, एन्क्रिप्टेड (AES-256-GCM), PromptOps एप्लिकेशन फ़ोल्डर में स्टोर होते हैं। कोई डेटा बाहर नहीं जाता।",

@@ -30,6 +30,8 @@ const LOCAL_TERMINAL_FLAG_KEYS: (keyof UiPreferences)[] = [
   "terminal_input_detection",
   "terminal_activity_tail",
   "terminal_safe_mode",
+  "terminal_host_screen",
+  "terminal_persistent_agents",
 ];
 /** Device-local string prefs (same localStorage routing as the boolean flags). */
 const LOCAL_TERMINAL_STRING_KEYS: (keyof UiPreferences)[] = [
@@ -52,6 +54,9 @@ const DEFAULTS: ResolvedUiPreferences = {
   terminal_input_detection: true,
   terminal_activity_tail: true,
   terminal_safe_mode: false,
+  terminal_host_screen: true,
+  // On by default on macOS/Linux; Windows waits for real-machine testing.
+  terminal_persistent_agents: !isWindowsDesktop(),
   terminal_default_shell: "powershell",
   sidebar_size: "sm-hover-active",
 };
@@ -229,6 +234,16 @@ export class UiPreferencesService {
     // Pause/resume the tailer poll loop (main process hard-gates on Windows too).
     if (api?.setTerminalSafeMode) {
       api.setTerminalSafeMode(safe).catch(() => { /* older build — ignore */ });
+    }
+    // Agents in the separate terminal host (desktop v2 beta). Safe terminal turns it off.
+    if (api?.setTerminalPersistentAgents) {
+      api.setTerminalPersistentAgents(!safe && prefs.terminal_persistent_agents !== false)
+        .catch(() => { /* older build — ignore */ });
+    }
+    // Host-kept terminal screens (desktop v2). Safe terminal turns it off too.
+    if (api?.setTerminalHostScreen) {
+      api.setTerminalHostScreen(!safe && prefs.terminal_host_screen !== false)
+        .catch(() => { /* older build — ignore */ });
     }
   }
 

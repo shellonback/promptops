@@ -967,7 +967,13 @@
       "Install terminal": "Installatie Terminal",
       "Close terminal": "Terminal sluiten",
       "Install copilot": "Installeer de GitHub Copilot CLI",
-      "Copilot npm desc": "Installeer met npm op macOS, Windows of Linux (vereist Node.js 22 of nieuwer):"
+      "Copilot npm desc": "Installeer met npm op macOS, Windows of Linux (vereist Node.js 22 of nieuwer):",
+      "Copy output": "Uitvoer kopiëren",
+      "Output copied": "Uitvoer gekopieerd",
+      "Native install title": "Officiële native installer (aanbevolen)",
+      "Native install desc": "Installeert Claude Code zonder Node.js, npm of sudo. Je kunt de npm-stappen hieronder overslaan.",
+      "Linux eacces title": "\"EACCES: permission denied\" bij npm install?",
+      "Linux eacces desc": "Node.js via apt zet globale pakketten in /usr, waar alleen root kan schrijven. Gebruik geen sudo: laat npm een map in je home gebruiken en voeg die toe aan het PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Workspace niet geconfigureerd op dit apparaat",
@@ -1608,6 +1614,14 @@
       "Tailer detected": "Gedetecteerd",
       "Tailer response": "Antwoord",
       "Close": "Sluiten"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Sessie van een ander account",
+      "DefaultAccount": "Standaardaccount",
+      "Message": "Deze sessie is geopend met het account {{oldName}}, maar het actieve account is nu {{newName}}. Het gesprek kan niet op een ander account worden hervat: opnieuw openen met {{newName}} start een nieuw gesprek.",
+      "MessageMany": "{{count}} open sessies zijn gestart met het account {{oldName}}, maar het actieve account is nu {{newName}}. Gesprekken kunnen niet op een ander account worden hervat: opnieuw openen met {{newName}} start nieuwe gesprekken.",
+      "Reopen": "Opnieuw openen met {{newName}}",
+      "Keep": "{{oldName}} behouden"
     }
   },
   "SUBAGENTS": {
@@ -2166,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Toegankelijkheid",
     "Terminal Default Shell": "Standaardshell voor nieuwe sessies",
-    "Terminal Default Shell Hint": "In welke Windows-shell nieuwe sessies starten (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "In welke Windows-shell nieuwe sessies starten (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agents overleven crashes en updates",
+    "Terminal Persistent Agents Hint": "Agents draaien in een apart terminalproces: als de app crasht of herstart voor een update, werken ze door en vind je ze terug waar je ze liet. De app sluiten stopt ze nog steeds. Geldt voor nieuwe agents.",
+    "Terminal Host Screen": "Snel van sessie wisselen",
+    "Terminal Host Screen Hint": "De app bewaart het scherm van elke terminal en tekent het direct opnieuw als je van sessie of werkruimte wisselt. Zet alleen uit als een terminal er na een wissel verkeerd uitziet."
   },
   "SSH": {
     "Security note": "Alle SSH-verbindingen worden lokaal op je machine opgeslagen, versleuteld (AES-256-GCM), in de PromptOps applicatiemap. Er worden geen gegevens extern verzonden.",

@@ -23,7 +23,8 @@ for (const platform of ['darwin', 'linux']) {
       brew() { return 0; }
       sudo() { "$@"; }
       npm() {
-        if [ "$1" = prefix ]; then echo /tmp; return 0; fi
+        if [ "$1" = root ]; then echo "$TMPDIR_NPM/lib/node_modules"; return 0; fi
+        if [ "$1" = config ]; then [ "$2" = get ] && echo "$TMPDIR_NPM"; return 0; fi
         IFS= read -r answer || return 1
         [ "$answer" = Y ] || return 2
         echo "CONFIRMATION_RECEIVED $*"
@@ -31,9 +32,14 @@ for (const platform of ['darwin', 'linux']) {
       export -f node brew sudo npm
     `;
     const script = loaded.exports.buildInstallScript('copilot', platform).replaceAll('\r', '\n');
+    // Writable global folder and a throwaway HOME: nothing outside tmp is touched.
+    const npmDir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'po-npm-'));
+    fs.mkdirSync(path.join(npmDir, 'lib/node_modules'), { recursive: true });
     const result = spawnSync('bash', ['-c', mocks + script], {
       input: 'Y\n', encoding: 'utf8', timeout: 5000,
+      env: { ...process.env, HOME: npmDir, TMPDIR_NPM: npmDir },
     });
+    fs.rmSync(npmDir, { recursive: true, force: true });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /CONFIRMATION_RECEIVED install -g @github\/copilot/);
   });

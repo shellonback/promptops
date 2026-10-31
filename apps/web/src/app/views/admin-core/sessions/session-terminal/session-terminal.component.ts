@@ -24,6 +24,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { attachUnicode11, attachWebglRenderer, clearTextureAtlasShared, readTerminalPerfPrefs } from '../../../../core/helper/xterm-renderer';
 import { createFileLinkProvider } from '@core/helper/terminal-file-link-provider';
 import { attachBangCommandRunner } from '@core/helper/terminal-bang-command-runner';
+import { canAutoFocus } from '@core/helper/terminal-focus-guard';
 import { attachLinkCopier } from '@core/helper/terminal-link-copier';
 import { attachOsc52Clipboard } from '@core/helper/terminal-osc52-clipboard';
 import { SessionService } from '../services/session.service';
@@ -37,7 +38,7 @@ import { PtyDimsRegistry } from '../services/pty-dims-registry.service';
 import { TerminalCommandGuard } from '../services/terminal-command-guard';
 import { createTerminalLinkHandler, joinWrappedUrl, openTerminalLink } from '@core/helper/terminal-link-handler';
 import { decideTerminalClipboardAction } from '@core/helper/terminal-clipboard';
-import { decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
+import { decideTerminalLinuxUndoKey, decideTerminalMacLineKey } from '@core/helper/terminal-mac-line-keys';
 import { TerminalReplayStream, TerminalReplayChunk } from '@core/helper/terminal-replay-stream';
 import { readClipboardImageAsFile } from '@core/helper/terminal-clipboard-image';
 import { buildTerminalOptions, watchTerminalAppearance } from '@core/helper/terminal-appearance';
@@ -232,6 +233,9 @@ interface DetachedTerminal {
 export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input({ required: true }) sessionId!: string;
   @Input() workspacePath?: string | null;
+  /** Pane expanded in the roster: Esc collapses it, same as sub-agents. */
+  @Input() expanded = false;
+  @Output() escapePressed = new EventEmitter<void>();
   /** Emits a file path (no `:line` suffix) when the user clicks a CLI file link. */
   @Output() openFileRequest = new EventEmitter<string>();
   @ViewChild('slotA', { static: true }) slotARef!: ElementRef<HTMLDivElement>;
@@ -247,6 +251,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     return (this.activeSlot() === 'a' ? this.slotARef : this.slotBRef).nativeElement;
   }
 
+  private hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private sessionService = inject(SessionService);
   private translate = inject(TranslateService);
   private sessionModels = inject(SessionModelService);
@@ -292,7 +297,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
       if (this.xterm) this.xterm.options.disableStdin = true;
     } else if (!this.resuming()) {
       if (this.spinnerTimer !== null) { clearInterval(this.spinnerTimer); this.spinnerTimer = null; }
-      if (this.xterm) { this.xterm.options.disableStdin = false; this.xterm.focus(); }
+      if (this.xterm) { this.xterm.options.disableStdin = false; this.autoFocusXterm(); }
     }
   });
   /** Quiet-period debounce: live output stopped = resume painted. */
@@ -452,8 +457,15 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     }
     try {
       const res = await this.sessionService.clipboardRead();
-      return res?.text ?? '';
-    } catch { return ''; }
+      if (res?.text) return res.text;
+    } catch { /* fall through */ }
+    // Tauri on Linux: under Wayland arboard goes through XWayland and can come
+    // back empty even with text on the clipboard. WebKitGTK has no "Allow
+    // Paste" prompt like WKWebView, so the web API is a safe fallback.
+    if (this.sessionService.isTauri && (window as any).promptops?.platform === 'linux') {
+      try { return (await navigator.clipboard.readText()) || ''; } catch { /* empty */ }
+    }
+    return '';
   }
   private resizeObserver: ResizeObserver | null = null;
   private unsubOutput: (() => void) | null = null;
@@ -653,6 +665,18 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     this.resumeCapTimer = setTimeout(() => this.endResumeVeil(), 20_000);
   }
 
+  /**
+   * AUTOMATIC focus (init, end of veil, end of provider switch): does not steal
+   * the caret from a text field/modal or from another terminal — e.g. the main
+   * session remounting as a tile while the user types to a sub-agent.
+   */
+  private autoFocusXterm(): void {
+    if (!this.xterm || !canAutoFocus('open')) return;
+    const active = document.activeElement;
+    if (active?.closest?.('.xterm') && !this.hostRef.nativeElement.contains(active)) return;
+    this.xterm.focus();
+  }
+
   private endResumeVeil(): void {
     if (this.resumeQuietTimer !== null) { clearTimeout(this.resumeQuietTimer); this.resumeQuietTimer = null; }
     if (this.resumeCapTimer !== null) { clearTimeout(this.resumeCapTimer); this.resumeCapTimer = null; }
@@ -661,7 +685,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     this.resuming.set(false);
     if (this.xterm) {
       this.xterm.options.disableStdin = false;
-      this.xterm.focus();
+      this.autoFocusXterm();
     }
   }
 
@@ -783,8 +807,16 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
    * Guarded by `gen` instead of a disposed flag (this component re-inits in
    * place on session switch).
    */
-  private writeReplay(gen: number, sessionId: string, buffer: string): void {
+  private writeReplay(
+    gen: number, sessionId: string, buffer: string, vtSnapshot = false,
+    vtDims?: { cols: number; rows: number },
+  ): void {
     if (!this.xterm) return;
+    // A VT snapshot carries the PTY grid itself: first attach after a start or
+    // reload replays at the right size instead of blind.
+    if (vtDims && !this.dimsRegistry.get(`session:${sessionId}`)) {
+      this.dimsRegistry.set(`session:${sessionId}`, vtDims.cols, vtDims.rows);
+    }
     const known = this.dimsRegistry.get(`session:${sessionId}`);
     this.replayInFlight = true;
     if (this.ptyResizeTimer !== null) {
@@ -797,11 +829,11 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     // Safety valve: never leave the fit gate stuck if the write callback is
     // lost (e.g. terminal disposed mid-parse).
     if (this.replayGateTimer !== null) clearTimeout(this.replayGateTimer);
-    this.replayGateTimer = setTimeout(() => this.finishReplay(gen, sessionId, !!known), 10_000);
-    this.xterm.write(buffer, () => this.finishReplay(gen, sessionId, !!known));
+    this.replayGateTimer = setTimeout(() => this.finishReplay(gen, sessionId, !!known, vtSnapshot), 10_000);
+    this.xterm.write(buffer, () => this.finishReplay(gen, sessionId, !!known, vtSnapshot));
   }
 
-  private finishReplay(gen: number, sessionId: string, hadKnownDims: boolean): void {
+  private finishReplay(gen: number, sessionId: string, hadKnownDims: boolean, vtSnapshot = false): void {
     if (gen !== this.setupGeneration || !this.xterm || !this.replayInFlight) return;
     this.replayInFlight = false;
     // The incoming terminal now shows the same content the frozen frame does:
@@ -822,7 +854,11 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     // → the TUI repaints itself. A same-size resize never signals, so when
     // nothing changed (or we replayed blind) the TUI must be bounced.
     const dimsUnchanged = this.xterm.cols === replayCols && this.xterm.rows === replayRows;
-    if ((dimsUnchanged || !hadKnownDims)
+    // A VT snapshot replayed at the PTY's own grid is already the exact screen:
+    // bouncing the PTY would only make the TUI redraw twice (the visible jolt
+    // after a switch). Blind replays (unknown dims) still bounce.
+    const exactPicture = vtSnapshot && hadKnownDims && dimsUnchanged;
+    if ((dimsUnchanged || !hadKnownDims) && !exactPicture
         && !(window as unknown as Record<string, unknown>)['__PO_SAFE_TERMINAL__']) {
       if (this.tuiRepaintTimer !== null) clearTimeout(this.tuiRepaintTimer);
       this.tuiRepaintTimer = setTimeout(() => void this.forceTuiRepaint(gen, sessionId), 300);
@@ -983,6 +1019,12 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     this.xterm.attachCustomKeyEventHandler((ev) => {
       if (gen !== this.setupGeneration) return false;
       if (ev.type !== 'keydown') return true;
+      if (ev.key === 'Escape' && this.expanded) {
+        ev.preventDefault();
+        ev.stopImmediatePropagation();
+        this.escapePressed.emit();
+        return false;
+      }
       if (TerminalAssistComponent.isSearchShortcut(ev, (window as any).promptops?.platform)) {
         ev.preventDefault();
         ev.stopImmediatePropagation();
@@ -1003,7 +1045,9 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
       // the sequence Claude Code (and Option+Enter) reads as "newline, no submit".
       // Cmd as line modifier (macOS): Cmd+←/→ → Ctrl+A/E, Cmd+Backspace → Ctrl+U.
       // xterm drops Cmd+arrow, so without this nothing would reach the PTY.
-      const seq = decideTerminalMacLineKey(ev, (window as any).promptops?.platform);
+      // Linux: Ctrl+Z → Ctrl+_ (undo), otherwise SIGTSTP suspends the agent.
+      const platform = (window as any).promptops?.platform;
+      const seq = decideTerminalMacLineKey(ev, platform) ?? decideTerminalLinuxUndoKey(ev, platform);
       if (seq) {
         ev.preventDefault();
         this.sessionService.writeSession(sessionId, seq);
@@ -1096,7 +1140,10 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
         // callback can refit before these already-produced ANSI bytes are parsed.
         for (const chunk of queuedOutput) replay += replayStream.output(chunk);
         queuedOutput.length = 0;
-        this.writeReplay(gen, sessionId, replay);
+        this.writeReplay(
+          gen, sessionId, replay, !!result.vtSnapshot,
+          result.cols && result.rows ? { cols: result.cols, rows: result.rows } : undefined,
+        );
         replayed = true;
       }
     } catch {
@@ -1218,7 +1265,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     // Trigger a resize to force shell/program to redraw, then focus
     setTimeout(() => {
       if (gen !== this.setupGeneration) return;
-      if (this.replayInFlight) { this.xterm?.focus(); return; }
+      if (this.replayInFlight) { this.autoFocusXterm(); return; }
       // Re-check: container may have gained dimensions after a render cycle
       if (this.needsVisibilityRefresh && el.offsetWidth > 0 && el.offsetHeight > 0) {
         this.needsVisibilityRefresh = false;
@@ -1226,7 +1273,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
         this.xterm?.refresh(0, this.xterm.rows - 1);
       }
       this.schedulePtyResize();
-      this.xterm?.focus();
+      this.autoFocusXterm();
     }, 100);
 
     // Custom font (--po-terminal-font) may not be loaded when xterm opens.

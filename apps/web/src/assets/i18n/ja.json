@@ -967,7 +967,13 @@
       "Install terminal": "インストールターミナル",
       "Close terminal": "ターミナルを閉じる",
       "Install copilot": "GitHub Copilot CLI をインストール",
-      "Copilot npm desc": "macOS・Windows・Linux で npm からインストールします（Node.js 22 以降が必要）："
+      "Copilot npm desc": "macOS・Windows・Linux で npm からインストールします（Node.js 22 以降が必要）：",
+      "Copy output": "出力をコピー",
+      "Output copied": "出力をコピーしました",
+      "Native install title": "公式ネイティブインストーラー（推奨）",
+      "Native install desc": "Node.js、npm、sudo なしで Claude Code をインストールします。下の npm の手順は省略できます。",
+      "Linux eacces title": "npm install で \"EACCES: permission denied\" が出る場合",
+      "Linux eacces desc": "apt でインストールした Node.js はグローバルパッケージを /usr に置き、root しか書き込めません。sudo は使わず、npm にホーム内のフォルダーを指定して PATH に追加してください。"
     },
     "DEVICE_WORKSPACE": {
       "Title": "このデバイスでワークスペースが設定されていません",
@@ -1608,6 +1614,14 @@
       "Tailer detected": "検出内容",
       "Tailer response": "応答",
       "Close": "閉じる"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "別のアカウントのセッション",
+      "DefaultAccount": "デフォルトアカウント",
+      "Message": "このセッションはアカウント {{oldName}} で開かれましたが、現在のアクティブアカウントは {{newName}} です。会話は別のアカウントでは再開できません。{{newName}} で開き直すと新しい会話が始まります。",
+      "MessageMany": "{{count}} 件の開いているセッションはアカウント {{oldName}} で開始されましたが、現在のアクティブアカウントは {{newName}} です。会話は別のアカウントでは再開できません。{{newName}} で開き直すと新しい会話が始まります。",
+      "Reopen": "{{newName}} で開き直す",
+      "Keep": "{{oldName}} のまま続ける"
     }
   },
   "SUBAGENTS": {
@@ -2166,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "アクセシビリティ",
     "Terminal Default Shell": "新しいセッションのデフォルトシェル",
-    "Terminal Default Shell Hint": "新しいセッションを起動するWindowsシェル（PowerShell、cmd、WSLなど）。"
+    "Terminal Default Shell Hint": "新しいセッションを起動するWindowsシェル（PowerShell、cmd、WSLなど）。",
+    "Terminal Persistent Agents": "クラッシュや更新でもエージェントが止まらない",
+    "Terminal Persistent Agents Hint": "エージェントは別のターミナルプロセスで動作します。アプリがクラッシュしたり更新のために再起動したりしても作業を続け、元の場所でそのまま再開できます。アプリを閉じると停止します。新しいエージェントに適用されます。",
+    "Terminal Host Screen": "セッションの高速切り替え",
+    "Terminal Host Screen Hint": "アプリが各ターミナルの画面を保持し、セッションやワークスペースを切り替えるとすぐに再描画します。切り替え後にターミナルの表示がおかしい場合のみオフにしてください。"
   },
   "SSH": {
     "Security note": "すべてのSSH接続はPromptOpsアプリケーションフォルダ内に暗号化（AES-256-GCM）されてローカルに保存されます。データが外部に送信されることはありません。",

@@ -102,6 +102,11 @@ pub struct SessionConfig {
     /// `Some(Some(id))` = specific account, `Some(None)` = opt-out, `None` = inherit.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_account_id: Option<Option<String>>,
+    /// Account the last CLI actually started with ("" = no account,
+    /// default config). The transcript lives in THAT account's config dir:
+    /// if the global active account changes, a resume on the new one would not find it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub launched_provider_account_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
     /// Chosen Windows shell: 'powershell'|'pwsh'|'cmd'|'gitbash'|'wsl:<distro>'.
@@ -224,6 +229,12 @@ pub struct SessionSummary {
     /// it is attached by whoever holds `db_ids`, via `with_db_id`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub db_id: Option<String>,
+    /// session_wake only: Some(true) = new PTY, Some(false) = no-op wake
+    /// (already awake or lead closed). The bridge does NOT rebind the channel
+    /// on no-ops: the rebind reset the offset counter and the terminal replay
+    /// dropped the live output (invisible shell prompt).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub respawned: Option<bool>,
 }
 
 /// ProviderCheckResult — result of provider:check.
@@ -295,18 +306,23 @@ struct OutputBuffer {
     /// contract, like ReplayBuf.total in terminal.rs): the bridge uses it to
     /// byte-precisely dedup the replay against the live stream on attach.
     total: usize,
+    /// Host-side emulated screen (term_state), fed the same bytes under the
+    /// same lock: snapshot and endOffset are always consistent.
+    vt: crate::commands::term_state::TermState,
 }
 
 impl OutputBuffer {
-    fn new() -> Self {
+    fn new(cols: u16, rows: u16) -> Self {
         Self {
             data: Vec::new(),
             total: 0,
+            vt: crate::commands::term_state::TermState::new(cols, rows),
         }
     }
 
     /// handleOutput: accumulates the raw chunk, dropping the head beyond the cap.
     fn push(&mut self, data: &[u8]) {
+        self.vt.feed(data);
         self.data.extend_from_slice(data);
         self.total += data.len();
         if self.data.len() > MAX_RAW_BYTES {
@@ -318,6 +334,17 @@ impl OutputBuffer {
     /// getRawBuffer.
     fn raw(&self) -> String {
         String::from_utf8_lossy(&self.data).into_owned()
+    }
+
+    /// Screen saved on park and on disk: with VT replay it is the snapshot of
+    /// the host screen (exact, a fraction of the bytes), otherwise the raw tail.
+    /// It stays ANSI text in both cases: readers do not change.
+    fn park_picture(&mut self) -> String {
+        if crate::commands::term_state::vt_replay_enabled() && self.total > 0 {
+            String::from_utf8_lossy(&self.vt.snapshot()).into_owned()
+        } else {
+            self.raw()
+        }
     }
 
     fn len(&self) -> usize {
@@ -365,6 +392,8 @@ struct AgentSession {
 enum PtyBacking {
     Local(PtyPair),
     Remote(crate::commands::remote::RemoteShellCtl),
+    /// PTY owned by termd (key = the session's dbId).
+    Termd(String),
 }
 
 /// PTY of a session + buffer. Mirror of Terminal in terminal.rs but with a
@@ -405,6 +434,7 @@ impl AgentSession {
             view_state: self.view_state.clone(),
             standby_at: self.standby_at.clone(),
             db_id: None,
+            respawned: None,
         }
     }
 }
@@ -413,6 +443,12 @@ impl SessionSummary {
     /// Attaches the stored record id (dbId) (lives in `SessionState::db_ids`, not in the session).
     fn with_db_id(mut self, db_id: Option<String>) -> Self {
         self.db_id = db_id;
+        self
+    }
+
+    /// Wake outcome (see `respawned`).
+    fn with_respawned(mut self, respawned: bool) -> Self {
+        self.respawned = Some(respawned);
         self
     }
 }
@@ -507,6 +543,9 @@ struct ManagerState {
     /// finished: the record that save creates must be deleted, or the closed
     /// session comes back at the next start.
     closed_unsynced: std::collections::HashSet<String>,
+    /// Sessions to relaunch at the next wake with a NEW conversation
+    /// (no resume): account switch, the transcript stays on the old account.
+    fresh_relaunch: std::collections::HashSet<String>,
 }
 
 /// Secondary tap on PTY output (remote access): (sessionId, chunk).
@@ -678,19 +717,6 @@ impl SessionManager {
         })
     }
 
-    pub(crate) fn provider_account_for(
-        &self,
-        session_id: &str,
-        provider: &str,
-    ) -> Option<Option<String>> {
-        self.state
-            .lock()
-            .sessions
-            .get(session_id)
-            .filter(|s| s.provider == provider)
-            .and_then(|s| s.config.provider_account_id.clone())
-    }
-
     /// getSessionBuffer — raw PTY output for replay + endOffset (total bytes
     /// seen by the live PTY; 0 for parked/restored, where there is no
     /// live stream to dedup against). Falls back to "" if empty.
@@ -733,6 +759,43 @@ impl SessionManager {
                 0,
             )),
         }
+    }
+
+    /// Replay for the renderer (session_buffer). With VT replay on, the
+    /// bytes are a snapshot of the host screen (term_state) instead of the raw
+    /// tail: same [endOffset][bytes] contract, nothing changes downstream.
+    /// Snapshot taken outside the state lock (up to ~10 ms on full screens).
+    fn replay_payload(&self, session_id: &str) -> Result<Vec<u8>, String> {
+        let raw = |(bytes, end_offset): (Vec<u8>, u64)| {
+            let mut payload = Vec::with_capacity(8 + bytes.len());
+            payload.extend_from_slice(&end_offset.to_le_bytes());
+            payload.extend_from_slice(&bytes);
+            payload
+        };
+        if !crate::commands::term_state::vt_replay_enabled() {
+            return self.buffer_bytes(session_id).map(raw);
+        }
+        let live = {
+            let guard = self.state.lock();
+            let session = guard
+                .sessions
+                .get(session_id)
+                .ok_or_else(|| format!("Session not found: {session_id}"))?;
+            session
+                .pty
+                .as_ref()
+                .filter(|_| session.has_terminal)
+                .map(|p| p.buffer.clone())
+        };
+        let Some(buffer) = live else {
+            return self.buffer_bytes(session_id).map(raw);
+        };
+        let mut buf = buffer.lock();
+        if buf.total == 0 {
+            drop(buf);
+            return self.buffer_bytes(session_id).map(raw);
+        }
+        Ok(crate::commands::term_state::vt_replay_payload(&mut buf.vt))
     }
 
     /// renameSession — rename + local store sync (best-effort).
@@ -824,6 +887,11 @@ impl SessionManager {
                     })
                     .map_err(|e| e.to_string())?,
                 PtyBacking::Remote(ctl) => ctl.resize(cols, rows),
+                PtyBacking::Termd(key) => crate::commands::termd_link::resize(key, cols, rows),
+            }
+            // The host screen follows the PTY: output from here on is for the new grid.
+            if cols > 0 && rows > 0 {
+                pty.buffer.lock().vt.resize(cols, rows);
             }
         }
         Ok(())
@@ -1120,6 +1188,42 @@ impl SessionManager {
         ok
     }
 
+    /// Autosave of live sessions' screens (from the scheduler, every tick):
+    /// a crash or force-quit skips the save on exit, and after a restart the
+    /// session would come back with the screen of its last park. Writes only
+    /// the sessions that produced output since the last round; the snapshot
+    /// is taken outside the state lock.
+    pub fn autosave_live_buffers(&self) {
+        static SAVED: std::sync::OnceLock<Mutex<HashMap<String, usize>>> =
+            std::sync::OnceLock::new();
+        let saved = SAVED.get_or_init(Default::default);
+        let live: Vec<(String, Arc<Mutex<OutputBuffer>>)> = {
+            let guard = self.state.lock();
+            guard
+                .sessions
+                .iter()
+                .filter_map(|(id, s)| {
+                    let pty = s.pty.as_ref()?;
+                    Some((guard.db_ids.get(id)?.clone(), pty.buffer.clone()))
+                })
+                .collect()
+        };
+        for (db_id, buffer) in live {
+            let (total, picture) = {
+                let mut buf = buffer.lock();
+                if buf.total == 0 || saved.lock().get(&db_id) == Some(&buf.total) {
+                    continue;
+                }
+                (buf.total, buf.park_picture())
+            };
+            if picture.is_empty() {
+                continue;
+            }
+            write_parked_buffer_file(&db_id, &picture);
+            saved.lock().insert(db_id, total);
+        }
+    }
+
     /// Parked buffers persisted on disk: they survive a restart so restored sessions come back with the
     /// last screen's content instead of a black terminal.
     pub fn persist_live_buffers_to_disk(&self) {
@@ -1131,7 +1235,7 @@ impl SessionManager {
                 .filter_map(|(id, s)| {
                     let db_id = guard.db_ids.get(id)?;
                     let buf = match &s.pty {
-                        Some(pty) => pty.buffer.lock().raw(),
+                        Some(pty) => pty.buffer.lock().park_picture(),
                         None => s.parked_buffer.clone().unwrap_or_default(),
                     };
                     if buf.is_empty() {
@@ -1433,7 +1537,7 @@ impl SessionManager {
         let mut parked_buf: Option<String> = None;
         let pty = session.pty.take();
         if let Some(pty) = &pty {
-            let buf = pty.buffer.lock().raw();
+            let buf = pty.buffer.lock().park_picture();
             if !buf.is_empty() {
                 parked_buf = Some(buf.clone());
                 session.parked_buffer = Some(buf);
@@ -1465,6 +1569,9 @@ impl SessionManager {
         // Read before the session's mutable borrow: needed to mark the resume
         // id as captured ON THIS device.
         let device_id = guard.api_device_id.clone();
+        // Account-switch relaunch (session_prepare_account_relaunch): consumed
+        // by this wake whatever its outcome.
+        let fresh_relaunch = guard.fresh_relaunch.remove(session_id);
         let Some(session) = guard.sessions.get_mut(session_id) else {
             return WakeStart::Unknown;
         };
@@ -1490,7 +1597,22 @@ impl SessionManager {
         // Applies to ALL providers: each launch builder interprets the flag its
         // own way (codex `resume <sid|--last>`, gemini `--resume latest`,
         // antigravity `--continue`) and providers without resume ignore it.
-        {
+        if fresh_relaunch {
+            // Account switch: new conversation on the active account. The old
+            // id is dropped (state + map), the next hook replaces it.
+            let provider = session.provider.clone();
+            session.claude_session_id = None;
+            forget_provider_session_id(&mut session.config, &provider);
+            if let Some(obj) = session
+                .config
+                .provider_options
+                .as_mut()
+                .and_then(|o| o.as_object_mut())
+            {
+                obj.insert("resume".into(), serde_json::json!(false));
+                obj.remove("claudeSessionId");
+            }
+        } else {
             let provider = session.provider.clone();
             let sid = resolve_provider_session_id_for_device(
                 &provider,
@@ -1704,7 +1826,7 @@ impl SessionManager {
         let mut parked_buf: Option<String> = None;
         let pty = session.pty.take();
         if let Some(pty) = &pty {
-            let buf = pty.buffer.lock().raw();
+            let buf = pty.buffer.lock().park_picture();
             if !buf.is_empty() {
                 parked_buf = Some(buf.clone());
                 session.parked_buffer = Some(buf);
@@ -2720,13 +2842,8 @@ pub async fn session_buffer(
     let manager = manager.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         manager
-            .buffer_bytes(&session_id)
-            .map(|(bytes, end_offset)| {
-                let mut payload = Vec::with_capacity(8 + bytes.len());
-                payload.extend_from_slice(&end_offset.to_le_bytes());
-                payload.extend_from_slice(&bytes);
-                tauri::ipc::Response::new(payload)
-            })
+            .replay_payload(&session_id)
+            .map(tauri::ipc::Response::new)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2798,8 +2915,12 @@ pub(crate) fn wake_session_impl(
 
     // The in-RAM record may be stale: if in the meantime the stored record
     // got a newer conversation id, it exists only there — and without this reconciliation the resume would point to
-    // an old conversation or not start at all.
-    manager.refresh_resume_ids_from_store(session_id);
+    // an old conversation or not start at all. Skipped for an account-switch
+    // relaunch: the conversation starts fresh (begin_wake drops the old id).
+    let fresh_relaunch = manager.state.lock().fresh_relaunch.contains(session_id);
+    if !fresh_relaunch {
+        manager.refresh_resume_ids_from_store(session_id);
+    }
 
     // Agents: lead closed by the user → wake does NOT respawn the session
     // PTY. It only clears the standby marker (memory + store) and returns the
@@ -2821,7 +2942,7 @@ pub(crate) fn wake_session_impl(
             "session:standby-changed",
             serde_json::json!({ "sessionId": session_id, "standbyAt": JsonValue::Null }),
         );
-        return Ok(Some(summary.with_db_id(db_id)));
+        return Ok(Some(summary.with_db_id(db_id).with_respawned(false)));
     }
 
     let (provider, config, prev_standby_at) = match manager.begin_wake(session_id, cols, rows) {
@@ -2835,7 +2956,7 @@ pub(crate) fn wake_session_impl(
             );
             return Ok(None);
         }
-        WakeStart::NotParked(summary) => return Ok(Some(summary)),
+        WakeStart::NotParked(summary) => return Ok(Some(summary.with_respawned(false))),
         WakeStart::Start {
             provider,
             config,
@@ -2857,8 +2978,9 @@ pub(crate) fn wake_session_impl(
             if !awake {
                 // Parked again (or closed) right after the PTY registered: the
                 // park already reported it; do not announce a wake.
-                return Ok(Some(summary));
+                return Ok(Some(summary.with_respawned(false)));
             }
+            let summary = summary.with_respawned(true);
             let db_id = summary.db_id.clone();
             if let Some(db_id) = db_id {
                 let auth = manager.snapshot_auth();
@@ -3282,6 +3404,9 @@ pub fn start_auto_standby_scheduler(
             let now_ms = epoch_ms();
             let slept = now_ms.saturating_sub(last_tick_ms) > AUTO_STANDBY_EVAL_MS * 3;
             last_tick_ms = now_ms;
+            // Autosave of live sessions' screens (crash/force-quit safety),
+            // whether auto-standby is on or off.
+            sessions.autosave_live_buffers();
             if slept {
                 let guard = sessions.state.lock();
                 for s in guard.sessions.values() {
@@ -3453,6 +3578,104 @@ pub async fn session_profile_set_active(
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// Result of session_account_check: the session follows the active account but
+/// its conversation belongs to another account (switch from AI Accounts).
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionAccountCheck {
+    pub mismatch: bool,
+    pub provider: String,
+    /// "" = default config (no PromptOps account).
+    pub session_account_id: Option<String>,
+    pub session_account_name: Option<String>,
+    pub current_account_id: Option<String>,
+    pub current_account_name: Option<String>,
+}
+
+/// Pure comparison: `pinned` = the session has an explicit account or the
+/// opt-out (the resume always uses that one, no conflict).
+pub(crate) fn account_mismatch(
+    pinned: bool,
+    session_account: Option<&str>,
+    current: Option<&str>,
+) -> bool {
+    match (pinned, session_account) {
+        (false, Some(s)) => s != current.unwrap_or(""),
+        _ => false,
+    }
+}
+
+/// session:account-check — does the conversation belong to an account other
+/// than the one the next resume would use? A claude conversation lives in the
+/// account's config dir: it cannot be reopened on another one.
+#[tauri::command]
+pub fn session_account_check(
+    manager: tauri::State<'_, Arc<SessionManager>>,
+    session_id: String,
+) -> SessionAccountCheck {
+    let resolved = manager.resolve_local_id(&session_id).unwrap_or(session_id);
+    let Some((provider, pinned, launched, sid)) =
+        manager.state.lock().sessions.get(&resolved).map(|s| {
+            (
+                s.provider.clone(),
+                s.config.provider_account_id.is_some(),
+                s.config.launched_provider_account_id.clone(),
+                s.claude_session_id.clone(),
+            )
+        })
+    else {
+        return SessionAccountCheck::default();
+    };
+    let current = crate::commands::provider_account::active_account(&provider);
+    let current_id = current.as_ref().map(|(id, _)| id.as_str());
+    let session_account = if pinned {
+        None
+    } else if launched.is_some() {
+        launched
+    } else if provider == "claude-code-cli" {
+        // Launched before the account was recorded: the transcript tells.
+        sid.filter(|s| is_safe_session_id(s)).and_then(|s| {
+            crate::commands::provider_account::claude_transcript_owner(&s, current_id)
+        })
+    } else {
+        None
+    };
+    let mismatch = account_mismatch(pinned, session_account.as_deref(), current_id);
+    SessionAccountCheck {
+        mismatch,
+        session_account_name: session_account
+            .as_deref()
+            .filter(|id| !id.is_empty())
+            .and_then(crate::commands::provider_account::account_name),
+        session_account_id: session_account,
+        current_account_id: current.as_ref().map(|(id, _)| id.clone()),
+        current_account_name: current.map(|(_, name)| name),
+        provider,
+    }
+}
+
+/// session:prepare-account-relaunch — parks the session (the PTY carries the
+/// old account's env) and marks the next wake as a new conversation: the
+/// renderer then runs the normal wake, which starts on the active account.
+#[tauri::command]
+pub fn session_prepare_account_relaunch(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, Arc<SessionManager>>,
+    session_id: String,
+) -> JsonValue {
+    let resolved = manager.resolve_local_id(&session_id).unwrap_or(session_id);
+    if !manager.has_session(&resolved) {
+        return serde_json::json!({ "ok": false, "error": "Session not found" });
+    }
+    if !manager.is_standby(&resolved) {
+        manager.standby(&app, &resolved);
+    }
+    // PTY already gone (failed spawn): without standby_at the wake would be a no-op.
+    manager.mark_for_respawn(&resolved);
+    manager.state.lock().fresh_relaunch.insert(resolved.clone());
+    serde_json::json!({ "ok": true, "sessionId": resolved })
 }
 
 /// session:apply-account-to-workspace.
@@ -3887,6 +4110,78 @@ fn persist_provider_switch(manager: &Arc<SessionManager>, session_id: &str) {
     );
 }
 
+/// Output and exit of a session PTY: the same code for the PTY in the app
+/// process and for the one in termd (TermdSink), so buffer, replay, tap and
+/// statuses do not know who owns the PTY.
+struct SessionOutputSink {
+    session_id: String,
+    buffer: Arc<Mutex<OutputBuffer>>,
+    last_output_ms: Arc<std::sync::atomic::AtomicU64>,
+    pump: Arc<crate::commands::terminal::PumpState>,
+    manager: Arc<SessionManager>,
+    app: tauri::AppHandle,
+}
+
+impl SessionOutputSink {
+    /// Accumulates into the replay buffer + streams on the pump
+    /// (handleOutput → session:output event).
+    fn chunk(&self, chunk: &[u8]) {
+        self.buffer.lock().push(chunk);
+        self.last_output_ms
+            .store(epoch_ms(), std::sync::atomic::Ordering::Relaxed);
+        // Dead channel (webview reload): silent drop toward the
+        // renderer, replay buffer and tap keep going anyway.
+        let _ = self.pump.push(chunk);
+        // Remote access tap (redaction + ring buffer on the manager side).
+        let tap = self.manager.output_tap.lock().clone();
+        if let Some(tap) = tap {
+            tap(&self.session_id, chunk);
+        }
+    }
+
+    fn exit(&self, exit_code: Option<u32>) {
+        // terminal:exit → updateStatus(sessionId, 'exited'). Skipped if the
+        // session was parked on purpose (standby: the PTY dies
+        // because of the park, not because of a provider exit).
+        //
+        // Decision under ONE lock, action outside: standby() takes the
+        // lock again (sub-agent cascade) and the parking_lot Mutex is not reentrant —
+        // calling it with the guard held would deadlock.
+        // Agents: lead closed on purpose (close_own_pty) — the EOF is
+        // intended, NOT a provider exit. Without this gate the main
+        // converged into standby(), which cascade-parked all the
+        // live sub-agents ("I close the lead and the session closes on me").
+        // Read OUTSIDE the lock: meta_key resolves the dbId via state.
+        if crate::commands::agents::is_lead_closed(&self.manager, &self.session_id) {
+            return;
+        }
+        let convert_to_standby = self.manager.note_pty_exit(
+            &self.session_id,
+            &self.buffer,
+            exit_code.map(|c| serde_json::json!({ "exitCode": c })),
+        );
+        if convert_to_standby {
+            // Unexpected exit (provider crash or the user's `exit`): the
+            // session converges into the parked state so the standby cover
+            // offers "Resume session" instead of a dead terminal with no
+            // way out. If a concurrent destroy wins the race, standby()
+            // hits the "missing session" branch and queues at most one spurious
+            // update keyed on the local uuid (harmless not_found in the store).
+            let _ = self.manager.standby(&self.app, &self.session_id);
+        }
+    }
+}
+
+impl crate::commands::termd_link::TermdSink for SessionOutputSink {
+    fn output(&self, data: &[u8]) {
+        self.chunk(data);
+    }
+    fn exited(&self, code: Option<u32>) {
+        self.pump.mark_eof();
+        self.exit(code);
+    }
+}
+
 /// Spawns the PTY for the session + output pump on session:output.
 /// Steps:
 ///   - checkProvider() pre-spawn (blocks if the binary is missing)
@@ -4009,16 +4304,6 @@ fn spawn_session_pty(
         }
     }
 
-    let pty_system = NativePtySystem::default();
-    let pair = pty_system
-        .openpty(PtySize {
-            rows,
-            cols,
-            pixel_width: 0,
-            pixel_height: 0,
-        })
-        .map_err(|e| e.to_string())?;
-
     // Chosen shell (Windows: powershell/pwsh/cmd/gitbash/wsl:*), otherwise the
     // platform's login+interactive shell (getShell + getLoginArgs).
     let resolved =
@@ -4063,6 +4348,7 @@ fn spawn_session_pty(
     for (k, v) in std::env::vars() {
         cmd.env(k, v);
     }
+    strip_inherited_agent_env(&mut cmd);
     if let Some(env) = &config.env {
         for (k, v) in env {
             cmd.env(k, v);
@@ -4162,6 +4448,7 @@ fn spawn_session_pty(
     // Skipped with the command transport: they are LOCAL config paths, on the remote
     // host they would point to nonexistent directories.
     let mut account_vars = Vec::new();
+    let mut launched_account: Option<String> = None;
     if let Some((env_var, config_dir, account_id)) = if cmd_remote.is_some() {
         None
     } else {
@@ -4173,6 +4460,13 @@ fn spawn_session_pty(
         account_vars =
             crate::commands::provider_account::account_env_vars(env_var, &config_dir, &account_id);
         crate::commands::provider_account::apply_account_env(&mut cmd, &account_vars);
+        launched_account = Some(account_id);
+    }
+    if cmd_remote.is_none() {
+        if let Some(session) = manager.state.lock().sessions.get_mut(session_id) {
+            session.config.launched_provider_account_id =
+                Some(launched_account.unwrap_or_default());
+        }
     }
 
     // Native gemini/agy hooks: the CLI's GLOBAL config (the account's
@@ -4193,32 +4487,21 @@ fn spawn_session_pty(
         }
     }
 
-    // The Child must be kept: without wait() the process stays a zombie (node-pty
-    // did it for us); the killer is needed for the explicit destroy/standby teardown.
-    let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let killer = Mutex::new(child.clone_killer());
-
-    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let writer = Arc::new(Mutex::new(
-        pair.master.take_writer().map_err(|e| e.to_string())?,
-    ));
-    let buffer = Arc::new(Mutex::new(OutputBuffer::new()));
+    let buffer = Arc::new(Mutex::new(OutputBuffer::new(cols, rows)));
     let last_output_ms = Arc::new(std::sync::atomic::AtomicU64::new(epoch_ms()));
-
-    // Output pump: dedicated thread. Accumulates into the replay buffer + streams
-    // binary on session:output (handleOutput → session:output event).
-    let pump_session_id = session_id.to_string();
-    let pump_buffer = buffer.clone();
-    let pump_last_output = last_output_ms.clone();
-    let manager_for_exit = Arc::clone(manager);
-    let exit_session_id = session_id.to_string();
-    let exit_app = app.clone();
     // Reader→flusher coalescing (same pattern as terminal.rs): the PTY's micro-reads
     // during a TUI redraw must not be sent one by one to the renderer —
     // xterm would draw partial frames (graphical glitches). The reader accumulates,
     // the flusher sends coalesced chunks at COALESCE pace.
     let pump_state = Arc::new(crate::commands::terminal::PumpState::default());
-    let rd_state = pump_state.clone();
+    let sink = Arc::new(SessionOutputSink {
+        session_id: session_id.to_string(),
+        buffer: buffer.clone(),
+        last_output_ms: last_output_ms.clone(),
+        pump: pump_state.clone(),
+        manager: Arc::clone(manager),
+        app: app.clone(),
+    });
 
     // Preventive reset of xterm "input-reporting" modes, as the FIRST output
     // chunk. The terminal view is REUSED across spawns (double
@@ -4231,84 +4514,107 @@ fn spawn_session_pty(
     // wake's cover/seed choreography already handles it on the renderer side.
     buffer.lock().push(MODE_RESET_PREAMBLE);
     pump_state.push(MODE_RESET_PREAMBLE);
-    std::thread::spawn(move || {
-        // 64KB like terminal.rs: bigger reads = fewer syscalls/locks during
-        // TUI redraw bursts.
-        let mut buf = [0u8; 65536];
-        loop {
-            match reader.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    let chunk = &buf[..n];
-                    pump_buffer.lock().push(chunk);
-                    pump_last_output.store(epoch_ms(), std::sync::atomic::Ordering::Relaxed);
-                    // Dead channel (webview reload): silent drop toward the
-                    // renderer, replay buffer and tap keep going anyway.
-                    let _ = rd_state.push(chunk);
-                    // Remote access tap (redaction + ring buffer on the manager side).
-                    let tap = manager_for_exit.output_tap.lock().clone();
-                    if let Some(tap) = tap {
-                        tap(&pump_session_id, chunk);
-                    }
+
+    // PTY in the external host (termd, beta) or in the app process.
+    let mut reattached = false;
+    let (backing, writer, killer) = if crate::commands::termd_link::enabled() {
+        // Key stable across app restarts (the dbId), so after a crash the
+        // wake finds the PTY still alive instead of launching another one.
+        let key = manager
+            .state
+            .lock()
+            .db_ids
+            .get(session_id)
+            .cloned()
+            .unwrap_or_else(|| session_id.to_string());
+        let alive = crate::commands::termd_link::list()
+            .iter()
+            .any(|p| p.id == key && p.alive);
+        if alive {
+            crate::commands::termd_link::attach(&key, sink.clone())?;
+            reattached = true;
+            eprintln!("[termd] re-attached to live session {key}");
+        } else {
+            let argv = cmd.get_argv();
+            let program = argv
+                .first()
+                .map(|a| a.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            let args = argv
+                .iter()
+                .skip(1)
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect();
+            let cwd = cmd.get_cwd().map(|c| c.to_string_lossy().into_owned());
+            let env = cmd
+                .iter_full_env_as_str()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect();
+            crate::commands::termd_link::spawn(
+                &key,
+                program,
+                args,
+                cwd,
+                env,
+                cols,
+                rows,
+                sink.clone(),
+            )?;
+        }
+        let writer: Box<dyn Write + Send> =
+            Box::new(crate::commands::termd_link::TermdWriter(key.clone()));
+        let killer: Box<dyn ChildKiller + Send + Sync> =
+            Box::new(crate::commands::termd_link::TermdKiller(key.clone()));
+        (
+            PtyBacking::Termd(key),
+            Arc::new(Mutex::new(writer)),
+            Mutex::new(killer),
+        )
+    } else {
+        let pair = NativePtySystem::default()
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| e.to_string())?;
+        // The Child must be kept: without wait() the process stays a zombie (node-pty
+        // did it for us); the killer is needed for the explicit destroy/standby teardown.
+        let mut child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+        let killer = Mutex::new(child.clone_killer());
+        let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+        let writer = Arc::new(Mutex::new(
+            pair.master.take_writer().map_err(|e| e.to_string())?,
+        ));
+        let rd_sink = sink.clone();
+        std::thread::spawn(move || {
+            // 64KB like terminal.rs: bigger reads = fewer syscalls/locks during
+            // TUI redraw bursts.
+            let mut buf = [0u8; 65536];
+            loop {
+                match reader.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => rd_sink.chunk(&buf[..n]),
                 }
             }
-        }
-        rd_state.mark_eof();
-        // Reap the child: without wait() it would stay a zombie until the app
-        // closes. The exit code ends up in the exited event's history.
-        let exit_code = child.wait().ok().map(|s| s.exit_code());
-        // terminal:exit → updateStatus(sessionId, 'exited'). Skipped if the
-        // session was parked on purpose (standby: the PTY dies
-        // because of the park, not because of a provider exit).
-        //
-        // Decision under ONE lock, action outside: standby() takes the
-        // lock again (sub-agent cascade) and the parking_lot Mutex is not reentrant —
-        // calling it with the guard held would deadlock.
-        // Agents: lead closed on purpose (close_own_pty) — the EOF is
-        // intended, NOT a provider exit. Without this gate the main
-        // converged into standby(), which cascade-parked all the
-        // live sub-agents ("I close the lead and the session closes on me").
-        // Read OUTSIDE the lock: meta_key resolves the dbId via state.
-        if crate::commands::agents::is_lead_closed(&manager_for_exit, &exit_session_id) {
-            return;
-        }
-        let convert_to_standby = manager_for_exit.note_pty_exit(
-            &exit_session_id,
-            &pump_buffer,
-            exit_code.map(|c| serde_json::json!({ "exitCode": c })),
-        );
-        if convert_to_standby {
-            // Unexpected exit (provider crash or the user's `exit`): the
-            // session converges into the parked state so the standby cover
-            // offers "Resume session" instead of a dead terminal with no
-            // way out. If a concurrent destroy wins the race, standby()
-            // hits the "missing session" branch and queues at most one spurious
-            // update keyed on the local uuid (harmless not_found in the store).
-            let _ = manager_for_exit.standby(&exit_app, &exit_session_id);
-        }
-    });
+            rd_sink.pump.mark_eof();
+            // Reap the child: without wait() it would stay a zombie until the app
+            // closes. The exit code ends up in the exited event's history.
+            let exit_code = child.wait().ok().map(|s| s.exit_code());
+            rd_sink.exit(exit_code);
+        });
+        (PtyBacking::Local(pair), writer, killer)
+    };
 
-    // Flusher: drains the coalesced chunks and sends them RAW on the renderer channel
-    // (the channel is per-session: no id or envelope, like terminal.rs).
-    // Also copies to child windows watching this session (output_watchers).
-    let fl_session_id = session_id.to_string();
-    std::thread::spawn(move || {
-        while let Some(chunk) = pump_state.next_chunk() {
-            crate::commands::output_watchers::send_session(&fl_session_id, &chunk);
-            if on_output.send(InvokeResponseBody::Raw(chunk)).is_err() {
-                break;
-            }
-            std::thread::sleep(crate::commands::terminal::COALESCE);
-        }
-        pump_state.mark_dead();
-    });
+    crate::commands::term_host::spawn_session_flusher(session_id, pump_state, on_output);
 
     // Register the PTY on the session (refused, and the process stopped,
     // when the session was closed or parked meanwhile).
     manager.register_pty(
         session_id,
         SessionPty {
-            backing: PtyBacking::Local(pair),
+            backing,
             writer,
             buffer: buffer.clone(),
             last_output_ms,
@@ -4322,6 +4628,12 @@ fn spawn_session_pty(
         if let Some(tailer) = crate::commands::session_tailer::global_tailer() {
             tailer.start_tailing(session_id, provider, &cwd);
         }
+    }
+
+    // Re-attach to an agent still alive in termd (app crash/restart): the
+    // provider is already running, the launch line would land INSIDE the TUI.
+    if reattached {
+        return Ok(());
     }
 
     // The provider's launch command, injected when the shell is ready —
@@ -4350,7 +4662,7 @@ fn spawn_session_pty(
             config,
             true,
             crate::commands::provider_account::account_shell_prefix(&account_vars, &shell),
-            InjectPacing::Shell,
+            InjectPacing::LocalShell,
         ),
     }
 
@@ -4402,9 +4714,12 @@ fn schedule_launch_injection(
 /// parameters); `SlowConnect` = the PTY is STILL establishing a remote
 /// connection (ssh/SSM) — wide floor and quiet, ceiling at 45s, so the line does not
 /// land mid-handshake (or inside a password prompt).
+/// `LocalShell` = same parameters as `Shell`, but the PTY is local: enables
+/// the soft ceiling and launch confirmation (LAUNCH_CONFIRM, Linux only).
 #[derive(Clone, Copy, PartialEq)]
 enum InjectPacing {
     Shell,
+    LocalShell,
     SlowConnect,
 }
 
@@ -4412,11 +4727,29 @@ impl InjectPacing {
     /// (floor_ms, quiet_ms, ceiling_ms)
     fn params(self) -> (u128, u128, u128) {
         match self {
-            InjectPacing::Shell => (250, 250, 4_000),
+            InjectPacing::Shell | InjectPacing::LocalShell => (250, 250, 4_000),
             InjectPacing::SlowConnect => (2_000, 1_500, 45_000),
         }
     }
 }
+
+/// Linux: the provider launch on a local PTY is CONFIRMED. On the first
+/// start after a reboot `bash -l -i` can exceed the 4s ceiling without
+/// printing anything: the line injected into a shell that is not reading yet
+/// is lost and the session stays a bare shell without Claude. With the gate:
+/// (1) with no visible output we wait for the shell up to
+/// LAUNCH_HARD_CEILING_MS instead of injecting blindly at 4s; (2) if after
+/// the injection the provider never comes to the foreground and the shell
+/// sits on its prompt, the line is re-injected ONCE. macOS/Windows
+/// unchanged (same policy as RESTORE_STABLE_ORDER).
+const LAUNCH_CONFIRM: bool = cfg!(target_os = "linux");
+/// Soft ceiling: past the pacing ceiling we inject only when the shell is
+/// ready (visible output + quiet), up to this absolute limit.
+const LAUNCH_HARD_CEILING_MS: u128 = 12_000;
+/// Post-launch watchdog window.
+const LAUNCH_CONFIRM_WINDOW_MS: u128 = 10_000;
+/// Shell idle for at least this long = waiting for input at its prompt.
+const LAUNCH_CONFIRM_QUIET_MS: u128 = 1_500;
 
 /// Full variant: `launch_prefix` (e.g. `cd '<remote path>'`) is
 /// prepended to the launch line with `&&`; if the provider has no launch
@@ -4549,17 +4882,35 @@ fn schedule_launch_injection_ex(
                 ),
             });
         let (floor_ms, quiet_ms, ceiling_ms) = pacing.params();
+        // Confirm only when there really is a provider to launch (not just
+        // generic-shell's `cd`) on a local PTY.
+        let confirm = LAUNCH_CONFIRM && pacing == InjectPacing::LocalShell && built.is_some();
+        let hard_ceiling_ms = if confirm {
+            LAUNCH_HARD_CEILING_MS
+        } else {
+            ceiling_ms
+        };
         std::thread::spawn(move || {
-            inject_when_ready(
+            let baseline = inject_when_ready(
                 &inject_manager,
                 &inject_session_id,
                 &launch,
                 floor_ms,
                 quiet_ms,
                 ceiling_ms,
+                hard_ceiling_ms,
             );
+            if confirm {
+                if let Some(baseline) = baseline {
+                    confirm_launch_took(&inject_manager, &inject_session_id, &launch, baseline);
+                }
+            }
             if let Some(recovery) = recovery {
-                recover_failed_resume(&inject_manager, &inject_session_id, &recovery);
+                // With confirmation the recovery starts after the watchdog: it
+                // must evaluate the output since the injection, not from now, or
+                // an already printed "No conversation found" would be missed.
+                let from = if confirm { baseline } else { None };
+                recover_failed_resume(&inject_manager, &inject_session_id, &recovery, from);
             }
         });
     }
@@ -4678,7 +5029,7 @@ fn spawn_remote_session_pty(
     let killer: Mutex<Box<dyn ChildKiller + Send + Sync>> = Mutex::new(Box::new(RemoteKiller {
         ctl: shell.ctl.clone(),
     }));
-    let buffer = Arc::new(Mutex::new(OutputBuffer::new()));
+    let buffer = Arc::new(Mutex::new(OutputBuffer::new(cols, rows)));
     let last_output_ms = Arc::new(std::sync::atomic::AtomicU64::new(epoch_ms()));
     let pump_state = Arc::new(crate::commands::terminal::PumpState::default());
 
@@ -4739,18 +5090,8 @@ fn spawn_remote_session_pty(
         }
     });
 
-    // Flusher: identical to local (RAW coalesced chunks on the renderer channel, copy to children).
-    let fl_session_id = session_id.to_string();
-    std::thread::spawn(move || {
-        while let Some(chunk) = pump_state.next_chunk() {
-            crate::commands::output_watchers::send_session(&fl_session_id, &chunk);
-            if on_output.send(InvokeResponseBody::Raw(chunk)).is_err() {
-                break;
-            }
-            std::thread::sleep(crate::commands::terminal::COALESCE);
-        }
-        pump_state.mark_dead();
-    });
+    // Flusher: identical to local (term_host: absolute offset, replaceable channel, copy to children).
+    crate::commands::term_host::spawn_session_flusher(session_id, pump_state, on_output);
 
     // Register the remote PTY on the session (refused, and the channel
     // closed, when the session was closed or parked meanwhile).
@@ -5314,10 +5655,13 @@ struct ResumeRecovery {
 /// bare shell. Also covers the same device with a cleaned-up history.
 /// A single attempt, short window: if nothing happens within a few seconds the
 /// CLI really started.
+/// `from_total`: baseline already taken at injection (LAUNCH_CONFIRM watchdog
+/// ran first); None = baseline taken here, historical behavior.
 fn recover_failed_resume(
     manager: &Arc<SessionManager>,
     session_id: &str,
     recovery: &ResumeRecovery,
+    from_total: Option<usize>,
 ) {
     // Two windows: the shell answers RIGHT AWAY to a corrupted line, while
     // "conversation not found" arrives only after the CLI boots — which on a
@@ -5340,7 +5684,7 @@ fn recover_failed_resume(
     let baseline_total = {
         let guard = manager.state.lock();
         match guard.sessions.get(session_id).and_then(|s| s.pty.as_ref()) {
-            Some(pty) => pty.buffer.lock().total,
+            Some(pty) => from_total.unwrap_or_else(|| pty.buffer.lock().total),
             None => return,
         }
     };
@@ -5643,6 +5987,10 @@ fn build_launch_command_inner(
 /// inject_when_ready — injects the launch command once the shell is ready.
 /// Injects `command` when the shell has produced visible output and has
 /// settled (quietMs), with floor/ceiling. Best-effort, never blocks.
+/// `hard_ceiling_ms > ceiling_ms` = soft ceiling (LAUNCH_CONFIRM): past the
+/// ceiling we inject only when the shell is ready, up to the hard ceiling.
+/// Returns the buffer `total` at the moment of the write (baseline for the
+/// post-launch watchdogs), None if the session disappeared first.
 fn inject_when_ready(
     manager: &Arc<SessionManager>,
     session_id: &str,
@@ -5650,7 +5998,8 @@ fn inject_when_ready(
     floor_ms: u128,
     quiet_ms: u128,
     ceiling_ms: u128,
-) {
+    hard_ceiling_ms: u128,
+) -> Option<usize> {
     const POLL_MS: u64 = 50;
 
     let start = Instant::now();
@@ -5676,7 +6025,7 @@ fn inject_when_ready(
                         None
                     }
                 }
-                None => return,
+                None => return None,
             }
         };
 
@@ -5689,31 +6038,36 @@ fn inject_when_ready(
         }
         let quiet_for = last_change.elapsed().as_millis();
 
-        if should_inject_launch(
+        if should_inject_launch_soft(
             elapsed,
             quiet_for,
             has_visible,
             floor_ms,
             quiet_ms,
             ceiling_ms,
+            hard_ceiling_ms,
         ) {
-            if !has_visible && elapsed >= ceiling_ms {
+            let effective_ceiling = ceiling_ms.max(hard_ceiling_ms);
+            if !has_visible && elapsed >= effective_ceiling {
                 eprintln!(
-                    "[SessionManager] launch injected at ceiling ({ceiling_ms}ms) with no visible shell output — session {session_id} may be slow or stuck"
+                    "[SessionManager] launch injected at ceiling ({effective_ceiling}ms) with no visible shell output — session {session_id} may be slow or stuck"
+                );
+            } else if elapsed >= ceiling_ms && hard_ceiling_ms > ceiling_ms {
+                eprintln!(
+                    "[SessionManager] slow shell startup: launch injected after {elapsed}ms (soft ceiling {ceiling_ms}ms) — session {session_id}"
                 );
             }
-            let writer = {
+            let (writer, baseline) = {
                 let guard = manager.state.lock();
-                guard
-                    .sessions
-                    .get(session_id)
-                    .and_then(|s| s.pty.as_ref())
-                    .map(|p| p.writer.clone())
+                match guard.sessions.get(session_id).and_then(|s| s.pty.as_ref()) {
+                    Some(p) => (p.writer.clone(), p.buffer.lock().total),
+                    None => return None,
+                }
             };
-            if let Some(w) = writer {
-                let _ = w.lock().write_all(guarded_launch_line(command).as_bytes());
-            }
-            return;
+            let _ = writer
+                .lock()
+                .write_all(guarded_launch_line(command).as_bytes());
+            return Some(baseline);
         }
         std::thread::sleep(Duration::from_millis(POLL_MS));
     }
@@ -5746,6 +6100,129 @@ pub(crate) fn should_inject_launch(
         return true;
     }
     elapsed_ms >= floor_ms && has_visible_output && quiet_for_ms >= quiet_ms
+}
+
+/// should_inject_launch with a soft ceiling: between `ceiling_ms` and
+/// `hard_ceiling_ms` we inject only when the shell is ready (visible output +
+/// quiet), never blindly. With `hard_ceiling_ms <= ceiling_ms` it is identical
+/// to should_inject_launch.
+pub(crate) fn should_inject_launch_soft(
+    elapsed_ms: u128,
+    quiet_for_ms: u128,
+    has_visible_output: bool,
+    floor_ms: u128,
+    quiet_ms: u128,
+    ceiling_ms: u128,
+    hard_ceiling_ms: u128,
+) -> bool {
+    if hard_ceiling_ms <= ceiling_ms {
+        return should_inject_launch(
+            elapsed_ms,
+            quiet_for_ms,
+            has_visible_output,
+            floor_ms,
+            quiet_ms,
+            ceiling_ms,
+        );
+    }
+    if elapsed_ms >= hard_ceiling_ms {
+        return true;
+    }
+    elapsed_ms >= floor_ms && has_visible_output && quiet_for_ms >= quiet_ms
+}
+
+/// Pure decision of the post-launch watchdog: re-inject the launch line?
+/// Only if the provider NEVER came to the foreground, the shell is (still) in
+/// the foreground, printed something AFTER the injection (= it reached the
+/// prompt and reads stdin) and has been idle for LAUNCH_CONFIRM_QUIET_MS, and
+/// no resume error is visible (recover_failed_resume handles that).
+/// A line still queued in the tty would be read by readline once ready and
+/// bring the provider to the foreground: here it cannot end up inside a TUI.
+pub(crate) fn should_retry_launch(
+    ever_busy: bool,
+    fg_is_shell: Option<bool>,
+    visible_after_inject: bool,
+    quiet_for_ms: u128,
+    failure_seen: bool,
+) -> bool {
+    !ever_busy
+        && fg_is_shell == Some(true)
+        && visible_after_inject
+        && quiet_for_ms >= LAUNCH_CONFIRM_QUIET_MS
+        && !failure_seen
+}
+
+/// Post-launch watchdog (LAUNCH_CONFIRM): if the launch line was lost — bare
+/// shell at its prompt, provider never started — re-injects it ONCE.
+/// Exits as soon as the provider comes to the foreground, if the foreground
+/// cannot be determined (None) or if the session disappears.
+fn confirm_launch_took(
+    manager: &Arc<SessionManager>,
+    session_id: &str,
+    command: &str,
+    baseline_total: usize,
+) {
+    const POLL_MS: u64 = 150;
+    const TAIL_BYTES: usize = 8 * 1024;
+
+    let start = Instant::now();
+    let mut seen_total = baseline_total;
+    let mut last_change = Instant::now();
+    let mut visible_after = false;
+    let mut failure_seen = false;
+
+    while start.elapsed().as_millis() < LAUNCH_CONFIRM_WINDOW_MS {
+        std::thread::sleep(Duration::from_millis(POLL_MS));
+        let (fg_is_shell, tail) = {
+            let guard = manager.state.lock();
+            let Some(pty) = guard.sessions.get(session_id).and_then(|s| s.pty.as_ref()) else {
+                return; // PTY gone: session closed or on standby
+            };
+            let fg = foreground_is_shell(pty);
+            let data = pty.buffer.lock();
+            let tail = (data.total != seen_total).then(|| {
+                let fresh = data.total.saturating_sub(seen_total).min(TAIL_BYTES);
+                seen_total = data.total;
+                let from = data.data.len().saturating_sub(fresh);
+                data.data[from..].to_vec()
+            });
+            (fg, tail)
+        };
+        match fg_is_shell {
+            None => return,        // undeterminable: touch nothing
+            Some(false) => return, // provider in the foreground: started
+            Some(true) => {}
+        }
+        if let Some(tail) = tail {
+            last_change = Instant::now();
+            let text = strip_ansi(&String::from_utf8_lossy(&tail));
+            if !text.trim().is_empty() {
+                visible_after = true;
+            }
+            if resume_failure_kind(&text).is_some() {
+                failure_seen = true;
+            }
+        }
+        if failure_seen {
+            return; // the provider started and exited with an error: recovery
+        }
+        let quiet_for = last_change.elapsed().as_millis();
+        if should_retry_launch(false, fg_is_shell, visible_after, quiet_for, failure_seen) {
+            let writer = {
+                let guard = manager.state.lock();
+                guard
+                    .sessions
+                    .get(session_id)
+                    .and_then(|s| s.pty.as_ref())
+                    .map(|p| p.writer.clone())
+            };
+            if let Some(w) = writer {
+                let _ = w.lock().write_all(guarded_launch_line(command).as_bytes());
+                eprintln!("[SessionManager] launch line lost — re-injecting once: {session_id}");
+            }
+            return;
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -6140,10 +6617,17 @@ fn write_parked_buffer_file(db_id: &str, buf: &str) {
     };
     let bytes = buf.as_bytes();
     let start = bytes.len().saturating_sub(MAX_RAW_BYTES);
-    // Cut on a valid UTF-8 boundary so as not to corrupt the replay.
+    // Cut on a valid UTF-8 boundary so as not to corrupt the replay, then
+    // at the start of the next line: a head cut mid escape sequence would
+    // garble the first line of the replay.
     let mut cut = start;
     while cut < bytes.len() && !buf.is_char_boundary(cut) {
         cut += 1;
+    }
+    if cut > 0 {
+        if let Some(nl) = bytes[cut..].iter().position(|&b| b == b'\n') {
+            cut += nl + 1;
+        }
     }
     let Ok(sealed) = store.seal_blob(PARKED_KIND, db_id, &bytes[cut..]) else {
         return;
@@ -6326,6 +6810,47 @@ impl SessionManager {
     }
 }
 
+/// Minimum grid for an agent's TUI to be able to draw its input box
+/// (needed by the "ready" detection during startup, see resize_agent).
+const MIN_PTY_COLS: u16 = 20;
+const MIN_PTY_ROWS: u16 = 8;
+
+pub(crate) fn pty_size_is_usable(cols: u16, rows: u16) -> bool {
+    cols >= MIN_PTY_COLS && rows >= MIN_PTY_ROWS
+}
+
+/// Session markers the app inherits when it is launched from a terminal
+/// running inside Claude Code or inside another PromptOps (dev server
+/// started by an agent, `open` from an integrated terminal). Passed on to
+/// agents they make them believe they are sub-sessions: Claude turns off
+/// transcript saving ("inherited CLAUDE_CODE_CHILD_SESSION marker") and
+/// every later `--resume` fails; hooks and the ctl point to the other app.
+/// The variables that are needed are set again later by the spawn itself.
+/// The user's own settings (CLAUDE_CODE_USE_BEDROCK…) are kept.
+const INHERITED_AGENT_MARKERS: &[&str] = &[
+    "CLAUDE_CODE_CHILD_SESSION",
+    "CLAUDE_CODE_SESSION_ID",
+    "CLAUDE_CODE_SESSION_ATTENDED",
+    "CLAUDE_CODE_ENTRYPOINT",
+    "CLAUDE_CODE_EXECPATH",
+    "CLAUDE_CODE_MESSAGING_SOCKET",
+    "CLAUDE_CODE_MESSAGING_TOKEN",
+    "CLAUDE_PID",
+    "CLAUDE_EFFORT",
+    "PROMPTOPS_SESSION_ID",
+    "PROMPTOPS_CTL_TOKEN",
+    "PROMPTOPS_HOOK_PORT",
+    "PROMPTOPS_HOOK_HOSTS",
+    "PROMPTOPS_WORKSPACE",
+    "PROMPTOPS_PROVIDER_ACCOUNT_ID",
+];
+
+pub(crate) fn strip_inherited_agent_env(cmd: &mut portable_pty::CommandBuilder) {
+    for k in INHERITED_AGENT_MARKERS {
+        cmd.env_remove(k);
+    }
+}
+
 /// "Real" terminal env for PTYs: GUI apps launched from Finder/Dock don't
 /// have TERM/COLORTERM, and CLIs (claude included) degrade to output without
 /// colors, so TERM is set by default.
@@ -6457,8 +6982,11 @@ fn default_extra_paths() -> Vec<String> {
             format!("{home}\\.local\\bin"),
         ]
     } else {
+        // ~/.npm-global/bin: user prefix the auto-installer sets when the
+        // system one is not writable (Node from apt → /usr, EACCES).
         vec![
             format!("{home}/.local/bin"),
+            format!("{home}/.npm-global/bin"),
             "/usr/local/bin".into(),
             "/opt/homebrew/bin".into(),
         ]
@@ -6707,6 +7235,17 @@ mod tests {
     }
 
     #[test]
+    fn account_mismatch_only_for_inherited_sessions_on_another_account() {
+        assert!(account_mismatch(false, Some("old"), Some("new")));
+        assert!(account_mismatch(false, Some(""), Some("new")));
+        assert!(account_mismatch(false, Some("old"), None));
+        assert!(!account_mismatch(false, Some("new"), Some("new")));
+        assert!(!account_mismatch(false, Some(""), None));
+        assert!(!account_mismatch(false, None, Some("new")));
+        assert!(!account_mismatch(true, Some("old"), Some("new")));
+    }
+
+    #[test]
     fn resume_failure_kind_ignores_cursor_forward_and_wrap() {
         let raw =
             "No\x1b[1Cconversation\x1b[1Cfound\x1b[1Cwith\x1b[1Csession\x1b[1CID: ff8b\r\n7d35";
@@ -6733,6 +7272,85 @@ mod tests {
         assert!(should_inject_launch(300, 300, true, 250, 250, 4000));
         assert!(!should_inject_launch(300, 100, true, 250, 250, 4000));
         assert!(!should_inject_launch(300, 300, false, 250, 250, 4000));
+    }
+
+    #[test]
+    fn soft_ceiling_equals_plain_when_disabled() {
+        for &(e, q, v) in &[
+            (5000, 0, false),
+            (300, 300, true),
+            (300, 100, true),
+            (300, 300, false),
+        ] {
+            assert_eq!(
+                should_inject_launch_soft(e, q, v, 250, 250, 4000, 4000),
+                should_inject_launch(e, q, v, 250, 250, 4000)
+            );
+        }
+    }
+
+    #[test]
+    fn soft_ceiling_waits_for_ready_shell() {
+        // Past 4s with no output: wait, no blind injection.
+        assert!(!should_inject_launch_soft(
+            5000, 5000, false, 250, 250, 4000, 12_000
+        ));
+        // Output arrived late but not settled yet: wait.
+        assert!(!should_inject_launch_soft(
+            6000, 100, true, 250, 250, 4000, 12_000
+        ));
+        // Prompt printed and settled: inject.
+        assert!(should_inject_launch_soft(
+            6000, 300, true, 250, 250, 4000, 12_000
+        ));
+        // Hard ceiling: inject anyway.
+        assert!(should_inject_launch_soft(
+            12_000, 0, false, 250, 250, 4000, 12_000
+        ));
+        // Before the ceiling the normal rule applies.
+        assert!(should_inject_launch_soft(
+            300, 300, true, 250, 250, 4000, 12_000
+        ));
+    }
+
+    #[test]
+    fn retry_launch_only_on_idle_shell_prompt() {
+        let q = LAUNCH_CONFIRM_QUIET_MS;
+        assert!(should_retry_launch(false, Some(true), true, q, false));
+        // Provider came to the foreground at least once.
+        assert!(!should_retry_launch(true, Some(true), true, q, false));
+        // Provider in the foreground now / foreground undeterminable.
+        assert!(!should_retry_launch(false, Some(false), true, q, false));
+        assert!(!should_retry_launch(false, None, true, q, false));
+        // The shell has printed nothing since the injection (line queued).
+        assert!(!should_retry_launch(false, Some(true), false, q, false));
+        // Output still moving.
+        assert!(!should_retry_launch(false, Some(true), true, q - 1, false));
+        // Visible resume error: recover_failed_resume handles it.
+        assert!(!should_retry_launch(false, Some(true), true, q, true));
+    }
+
+    #[test]
+    fn respawned_is_omitted_unless_wake() {
+        let summary = SessionSummary {
+            id: "s".into(),
+            name: "n".into(),
+            provider: "claude-code-cli".into(),
+            status: "idle".into(),
+            workspace: None,
+            workspace_id: None,
+            claude_session_id: None,
+            created_at: String::new(),
+            pending_interaction_count: 0,
+            view_state: None,
+            standby_at: None,
+            db_id: None,
+            respawned: None,
+        };
+        let plain = serde_json::to_value(&summary).unwrap();
+        assert!(plain.get("respawned").is_none());
+        let woke = serde_json::to_value(summary.with_respawned(false)).unwrap();
+        assert_eq!(woke.get("respawned"), Some(&serde_json::json!(false)));
     }
 
     #[test]
@@ -7061,7 +7679,7 @@ mod tests {
         cmd.arg("30");
         let child = pair.slave.spawn_command(cmd).unwrap();
         let writer = pair.master.take_writer().unwrap();
-        let buffer = Arc::new(Mutex::new(OutputBuffer::new()));
+        let buffer = Arc::new(Mutex::new(OutputBuffer::new(120, 30)));
         buffer.lock().push(b"previous screen");
         SessionPty {
             killer: Mutex::new(child.clone_killer()),
@@ -7488,5 +8106,18 @@ mod tests {
         }
         assert_eq!(model_flag("generic-shell"), None);
         assert_eq!(model_flag("cursor"), None);
+    }
+}
+
+#[cfg(test)]
+mod pty_size_guard_tests {
+    use super::pty_size_is_usable;
+
+    #[test]
+    fn tiny_grids_never_reach_the_pty() {
+        assert!(!pty_size_is_usable(29, 3));
+        assert!(!pty_size_is_usable(10, 40));
+        assert!(pty_size_is_usable(20, 8));
+        assert!(pty_size_is_usable(120, 30));
     }
 }

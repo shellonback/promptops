@@ -65,7 +65,7 @@
       </button>
     }
     <button class="btn-expand-subagent" [disabled]="subAgentService.benchFull()"
-            (click)="subAgentService.bench(sa.id); $event.stopPropagation()"
+            (click)="benchPane(sa.id, $event)"
             [appTooltip]="(subAgentService.benchFull() ? 'SESSIONS.TOOLTIPS.Bench full' : 'SESSIONS.TOOLTIPS.Bench sub-agent') | translate">
       <iconify-icon icon="solar:bed-bold-duotone" width="13"></iconify-icon>
     </button>
@@ -521,9 +521,14 @@
                             <iconify-icon icon="solar:monitor-bold-duotone" width="14"></iconify-icon>
                             {{ 'SESSIONS.INSTALL_GUIDE.Install terminal' | translate }}
                           </span>
-                          <button class="install-terminal-close" (click)="closeInstallTerminal()" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Close terminal' | translate">
-                            <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
-                          </button>
+                          <span class="install-terminal-actions">
+                            <button class="install-terminal-close" (click)="copyInstallOutput()" [appTooltip]="(installOutputCopied ? 'SESSIONS.INSTALL_GUIDE.Output copied' : 'SESSIONS.INSTALL_GUIDE.Copy output') | translate">
+                              <iconify-icon [icon]="installOutputCopied ? 'solar:check-circle-bold' : 'solar:copy-bold'" width="14"></iconify-icon>
+                            </button>
+                            <button class="install-terminal-close" (click)="closeInstallTerminal()" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Close terminal' | translate">
+                              <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
+                            </button>
+                          </span>
                         </div>
                         <div #installTerminalContainer class="install-terminal-container"></div>
                       </div>
@@ -570,6 +575,20 @@
                       }
 
                       <ol class="install-steps">
+                        <!-- Claude on macOS/Linux: official native installer, no Node/npm/sudo -->
+                        @if (session.provider === 'claude-code-cli' && manualPlatform() !== 'win32') {
+                          <li>
+                            <strong>{{ 'SESSIONS.INSTALL_GUIDE.Native install title' | translate }}</strong>
+                            <p>{{ 'SESSIONS.INSTALL_GUIDE.Native install desc' | translate }}</p>
+                            <div class="install-code-row">
+                              <code>{{ claudeNativeInstall }}</code>
+                              <button class="install-run-btn" (click)="runInstallCommand(claudeNativeInstall)" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Run in terminal' | translate">
+                                <iconify-icon icon="solar:play-bold" width="12"></iconify-icon>
+                              </button>
+                            </div>
+                          </li>
+                        }
+
                         <!-- Step 1: Install Node.js -->
                         <li>
                           <strong>{{ 'SESSIONS.INSTALL_GUIDE.Step install node' | translate }}</strong>
@@ -630,6 +649,23 @@
                               <iconify-icon icon="solar:play-bold" width="12"></iconify-icon>
                             </button>
                           </div>
+                          @if (manualPlatform() === 'linux') {
+                            <div class="install-troubleshoot">
+                              <div class="install-troubleshoot-head">
+                                <iconify-icon icon="solar:shield-warning-bold-duotone" width="14"></iconify-icon>
+                                <strong>{{ 'SESSIONS.INSTALL_GUIDE.Linux eacces title' | translate }}</strong>
+                              </div>
+                              <p>{{ 'SESSIONS.INSTALL_GUIDE.Linux eacces desc' | translate }}</p>
+                              @for (cmd of npmUserPrefixCmds; track cmd) {
+                                <div class="install-code-row">
+                                  <code>{{ cmd }}</code>
+                                  <button class="install-run-btn" (click)="runInstallCommand(cmd)" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Run in terminal' | translate">
+                                    <iconify-icon icon="solar:play-bold" width="12"></iconify-icon>
+                                  </button>
+                                </div>
+                              }
+                            </div>
+                          }
                         </li>
 
                         <!-- Step 4: Env var (Codex/Gemini) -->
@@ -804,9 +840,14 @@
                             <iconify-icon icon="solar:monitor-bold-duotone" width="14"></iconify-icon>
                             {{ 'SESSIONS.INSTALL_GUIDE.Install terminal' | translate }}
                           </span>
-                          <button class="install-terminal-close" (click)="closeInstallTerminal()" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Close terminal' | translate">
-                            <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
-                          </button>
+                          <span class="install-terminal-actions">
+                            <button class="install-terminal-close" (click)="copyInstallOutput()" [appTooltip]="(installOutputCopied ? 'SESSIONS.INSTALL_GUIDE.Output copied' : 'SESSIONS.INSTALL_GUIDE.Copy output') | translate">
+                              <iconify-icon [icon]="installOutputCopied ? 'solar:check-circle-bold' : 'solar:copy-bold'" width="14"></iconify-icon>
+                            </button>
+                            <button class="install-terminal-close" (click)="closeInstallTerminal()" [appTooltip]="'SESSIONS.INSTALL_GUIDE.Close terminal' | translate">
+                              <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
+                            </button>
+                          </span>
                         </div>
                         <div #installTerminalContainer class="install-terminal-container"></div>
                       </div>
@@ -1048,6 +1089,7 @@
                           @for (sa of paneRoster(); track sa.id) {
                             <div class="subagent-pane"
                                  [class.pane-focused]="focusedPaneId() === 'sa:' + sa.id"
+                                 [class.pane-just-spawned]="justSpawnedId() === sa.id"
                                  [class.pane-input-needed]="sa.status === 'waiting_input'"
                                  [class.pane-done]="sa.status === 'completed'"
                                  [class.pane-aa-on]="interactionService.isAutoApproved(sa.sessionId)"
@@ -1086,7 +1128,7 @@
                               <div class="subagent-pane-terminal">
                                 @if (isMainPane(sa.id)) {
                                   <!-- The demoted main: same place, same tile, no privileges. -->
-                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
+                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" [expanded]="expandedSubAgentId() === sa.id" (escapePressed)="expandedSubAgentId.set(null)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
                                 } @else if (sa.executionMode === 'worker') {
                                   <app-worker-chat [subAgentId]="sa.id" [status]="sa.status"></app-worker-chat>
                                 } @else {
@@ -1119,13 +1161,14 @@
 
                       } @else if (subAgentColumnsMode() || subAgentRowsMode()) {
                         <!-- ── COLUMNS MODE (formerly split) / ROWS MODE (vertical): panes side by side or stacked with manual resize ── -->
-                        <div class="subagents-terminals" [class.columns-mode]="!subAgentRowsMode()" [class.rows-mode]="subAgentRowsMode()">
+                        <div class="subagents-terminals" [class.columns-mode]="!subAgentRowsMode()" [class.rows-mode]="subAgentRowsMode()" [class.has-focus]="paneRoster().length > 1 && focusedPaneVisible()">
                           @for (sa of paneRoster(); track sa.id; let i = $index) {
                             @if (i > 0) {
                               <div class="sa-h-resize-handle" (mousedown)="startSubAgentHResize($event, i - 1)"></div>
                             }
                             <div class="subagent-pane"
                                  [class.pane-focused]="focusedPaneId() === 'sa:' + sa.id"
+                                 [class.pane-just-spawned]="justSpawnedId() === sa.id"
                                  [class.pane-input-needed]="sa.status === 'waiting_input'"
                                  [class.pane-done]="sa.status === 'completed'"
                                  [class.pane-aa-on]="interactionService.isAutoApproved(sa.sessionId)"
@@ -1166,7 +1209,7 @@
                               <div class="subagent-pane-terminal">
                                 @if (isMainPane(sa.id)) {
                                   <!-- The demoted main: same place, same tile, no privileges. -->
-                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
+                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" [expanded]="expandedSubAgentId() === sa.id" (escapePressed)="expandedSubAgentId.set(null)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
                                 } @else if (sa.executionMode === 'worker') {
                                   <app-worker-chat [subAgentId]="sa.id" [status]="sa.status"></app-worker-chat>
                                 } @else {
@@ -1199,7 +1242,7 @@
                         }
                       } @else {
                         <!-- ── GRID MODE AUTO (default): columns/rows computed from the space ── -->
-                        <div class="subagents-terminals grid-mode" #saGrid
+                        <div class="subagents-terminals grid-mode" #saGrid [class.has-focus]="paneRoster().length > 1 && focusedPaneVisible()"
                              [class.sa-reordering]="saDragId() !== null || saGridResizing()"
                              [style.grid-template-columns]="saGridTemplateCols()"
                              [style.grid-template-rows]="saGridTemplateRows()">
@@ -1224,6 +1267,7 @@
                                  [class.sa-dragging]="saDragId() === sa.id"
                                  [class.sa-drop-target]="saDropTargetId() === sa.id"
                                  [class.pane-focused]="focusedPaneId() === 'sa:' + sa.id"
+                                 [class.pane-just-spawned]="justSpawnedId() === sa.id"
                                  [class.pane-input-needed]="sa.status === 'waiting_input'"
                                  [class.pane-done]="sa.status === 'completed'"
                                  [class.pane-aa-on]="interactionService.isAutoApproved(sa.sessionId)"
@@ -1263,7 +1307,7 @@
                               <div class="subagent-pane-terminal">
                                 @if (isMainPane(sa.id)) {
                                   <!-- The demoted main: same place, same tile, no privileges. -->
-                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
+                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" [expanded]="expandedSubAgentId() === sa.id" (escapePressed)="expandedSubAgentId.set(null)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
                                 } @else if (sa.executionMode === 'worker') {
                                   <app-worker-chat [subAgentId]="sa.id" [status]="sa.status"></app-worker-chat>
                                 } @else {
@@ -1329,6 +1373,7 @@
                   [aaTotalCount]="aaTotalCount()"
                   [activeSubAgentId]="activeSubAgentTab()"
                   [roster]="paneRoster()"
+                  [benchedLead]="benchedLeadPane()"
                   (onCloseAgent)="destroySubAgent($event.id)"
                   (onApprove)="handleApprove($event)"
                   (onDeny)="handleDeny($event)"
@@ -1439,6 +1484,7 @@
                     }
                               @for (sa of paneRoster(); track sa.id) {
                                 <div class="subagent-pane" [style.display]="ideSelectedTerminal() === sa.id ? null : 'none'" [class.pane-focused]="focusedPaneId() === 'sa:' + sa.id"
+                                     [class.pane-just-spawned]="justSpawnedId() === sa.id"
                                      [class.pane-input-needed]="sa.status === 'waiting_input'"
                                      [class.pane-done]="sa.status === 'completed'"
                                      [class.sa-expanded]="expandedSubAgentId() === sa.id"
@@ -1471,7 +1517,7 @@
                                         <iconify-icon [icon]="expandedSubAgentId() === sa.id ? 'solar:minimize-bold' : 'solar:maximize-bold'" width="13"></iconify-icon>
                                       </button>
                                       <button class="btn-expand-subagent" [disabled]="subAgentService.benchFull()"
-                                              (click)="subAgentService.bench(sa.id); $event.stopPropagation()"
+                                              (click)="benchPane(sa.id, $event)"
                                               [appTooltip]="(subAgentService.benchFull() ? 'SESSIONS.TOOLTIPS.Bench full' : 'SESSIONS.TOOLTIPS.Bench sub-agent') | translate">
                                         <iconify-icon icon="solar:bed-bold-duotone" width="13"></iconify-icon>
                                       </button>
@@ -1486,7 +1532,7 @@
                                   <div class="subagent-pane-terminal">
                                     @if (isMainPane(sa.id)) {
                                   <!-- The demoted main: same place, same tile, no privileges. -->
-                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
+                                  <app-session-terminal [sessionId]="sa.sessionId" [workspacePath]="$safeNavigationMigration(activeSession()?.workspace?.path)" [expanded]="expandedSubAgentId() === sa.id" (escapePressed)="expandedSubAgentId.set(null)" (openFileRequest)="onTerminalFileLink($event)"></app-session-terminal>
                                 } @else if (sa.executionMode === 'worker') {
                                   <app-worker-chat [subAgentId]="sa.id" [status]="sa.status"></app-worker-chat>
                                 } @else {
@@ -1507,17 +1553,17 @@
                     }
                   </div>
                           <!-- Panchinari (benched, still active) -->
-                          @if (subAgentService.benchedSubAgents().length > 0) {
+                          @if (benchedPanes().length > 0) {
                             <div class="ide-bench-list">
                               <div class="ide-bench-label">
                                 <iconify-icon icon="solar:bed-bold-duotone" width="13"></iconify-icon>
-                                {{ 'SESSIONS.Benched' | translate }} ({{ subAgentService.benchedSubAgents().length }}/{{ subAgentService.MAX_BENCH }})
+                                {{ 'SESSIONS.Benched' | translate }} ({{ benchedPanes().length }}/{{ subAgentService.MAX_BENCH }})
                               </div>
-                              @for (sa of subAgentService.benchedSubAgents(); track sa.id) {
+                              @for (sa of benchedPanes(); track sa.id) {
                                 <div class="ide-bench-item" (click)="switchSubAgentTab(sa.id)">
                                   <img [src]="getProviderLogo(sa.provider)" width="13" height="13" alt="" class="provider-logo" [appTooltip]="getProviderLabel(sa.provider)" />
                                   <span class="ide-bench-name" [appTooltip]="sa.userPrompt || sa.autoPrompt">{{ sa.title }}</span>
-                                  <button class="btn-expand-subagent bench-back" (click)="subAgentService.unbench(sa.id); $event.stopPropagation()"
+                                  <button class="btn-expand-subagent bench-back" (click)="unbenchPane(sa, $event)"
                                           [appTooltip]="'SESSIONS.TOOLTIPS.Bring back sub-agent' | translate">
                                     <iconify-icon icon="solar:running-round-bold" width="13"></iconify-icon>
                                   </button>

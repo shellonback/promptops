@@ -46,7 +46,7 @@ arboard = "3"
 image = "0.25"
 # ssh domain
 # ring instead of the default aws-lc-rs: no CMake/NASM needed to build on Windows.
-russh = { version = "0.60", default-features = false, features = ["flate2", "ring", "rsa"] }
+russh = { version = "0.64", default-features = false, features = ["flate2", "ring", "rsa"] }
 async-trait = "0.1"
 # db explorer domain
 sqlx = { version = "0.8", default-features = false, features = [

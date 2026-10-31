@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "개방형 추론에는 덜 효과적입니다.",
       "MICROCOPY": "무료 모델, API 키 불필요. 코드는 로컬 모델을 쓸 때만 이 기기에 남습니다. 구조화된 코드 실행에 최적.",
       "INSTALL_HINT": "감지되지 않았습니다. 설치: brew install opencode (또는 opencode.ai 참조)."
+    },
+    "KORA": {
+      "BEST_FOR": "계획과 승인 게이트가 내장된 구조화된 코딩 세션: 추론, 도구, 엄격한 읽기 전용 PLAN 모드를 갖춘 멀티 프로바이더 에이전트입니다.",
+      "LIMITATIONS": "Kora CLI가 필요합니다. 백엔드는 직접 준비하세요: kora 키(`kora key`) 또는 CLI 내부에서 추가하는 OpenAI 호환 프로바이더(`/provider add`). 모델과 추론 강도는 Kora 내부에서 선택합니다.",
+      "MICROCOPY": "내 Kora 프로필을 사용합니다. 프로바이더, 모델, 추론 강도는 CLI 내부에서 선택합니다.",
+      "INSTALL_HINT": "감지되지 않았습니다. 설치: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "일반 터미널 — AI 없음.",

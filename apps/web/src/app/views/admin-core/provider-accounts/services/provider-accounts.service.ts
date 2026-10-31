@@ -13,6 +13,8 @@ export type ProviderId =
   | "muse"
   | "zai"
   | "kimi"
+  | "opencode"
+  | "kora"
   | "promptops-cli"
   | "generic-shell";
 
@@ -46,6 +48,7 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
   cursor: "Cursor",
   grok: "Grok",
   opencode: "OpenCode",
+  kora: "Kora",
   antigravity: "Antigravity",
   hermes: "Hermes",
   muse: "Muse Code",

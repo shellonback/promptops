@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "Menos efectivo para razonamiento abierto.",
       "MICROCOPY": "Modelos gratuitos, no requiere API key. Tu código solo se queda en tu máquina con un modelo local. Ideal para ejecución estructurada de código.",
       "INSTALL_HINT": "No detectado. Instala con: brew install opencode (o consulta opencode.ai)."
+    },
+    "KORA": {
+      "BEST_FOR": "Sesiones de codificación estructuradas con planificación y compuertas de aprobación integradas: agente multiproveedor con razonamiento, herramientas y un modo PLAN estricto de solo lectura.",
+      "LIMITATIONS": "Requiere la CLI de Kora. Trae tu propio backend: la clave de kora (`kora key`) o un proveedor compatible con OpenAI añadido dentro de la CLI (`/provider add`). El modelo y el esfuerzo se eligen dentro de Kora.",
+      "MICROCOPY": "Usa tu perfil de Kora. El proveedor, el modelo y el esfuerzo se eligen dentro de la CLI.",
+      "INSTALL_HINT": "No detectado. Instalar: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Terminal sin IA.",

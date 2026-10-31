@@ -45,6 +45,7 @@ fn provider_probe_command(provider: &str) -> Option<&'static str> {
         "hermes" => Some("hermes"),
         "muse" => Some("muse"),
         "opencode" => Some("opencode"),
+        "kora" => Some("kora"),
         _ => None, // promptops-cli, generic-shell, unknown
     }
 }
@@ -752,6 +753,7 @@ mod tests {
             "hermes",
             "muse",
             "opencode",
+            "kora",
         ] {
             assert_eq!(
                 provider_probe_command(provider),

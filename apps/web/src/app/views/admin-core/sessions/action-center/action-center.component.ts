@@ -66,7 +66,7 @@ export function isImeComposing(event: KeyboardEvent): boolean {
 }
 
 /** Providers the composer chip can spawn with. */
-type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'promptops-cli' | 'generic-shell';
+type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'kora' | 'promptops-cli' | 'generic-shell';
 
 @Component({
   selector: 'app-action-center',
@@ -3793,6 +3793,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     'zai': 'assets/providers/zai.svg',
     'kimi': 'assets/providers/kimi.svg',
     'opencode': 'assets/providers/terminal.svg',
+    'kora': 'assets/providers/kora.svg',
     'generic-shell': 'assets/providers/terminal.svg',
   };
   private static readonly PROVIDER_LABEL: Record<string, string> = {
@@ -3808,6 +3809,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     'zai': 'Z.AI',
     'kimi': 'Kimi',
     'opencode': 'Opencode',
+    'kora': 'Kora',
     'generic-shell': 'Shell',
   };
   getProviderLogo(provider: string): string {

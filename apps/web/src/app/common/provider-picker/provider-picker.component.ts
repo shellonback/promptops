@@ -360,6 +360,7 @@ export class ProviderPickerComponent implements OnInit {
     'zai': 'assets/providers/zai.svg',
     'kimi': 'assets/providers/kimi.svg',
     'opencode': 'assets/providers/terminal.svg',
+    'kora': 'assets/providers/kora.svg',
     'promptops-cli': 'assets/providers/terminal.svg',
     'generic-shell': 'assets/providers/terminal.svg',
   };

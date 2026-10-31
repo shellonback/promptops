@@ -446,6 +446,40 @@ pub(crate) fn manifests() -> Vec<ProviderCapability> {
             },
         },
         ProviderCapability {
+            id: "kora",
+            display_name: "Kora",
+            tier: "local",
+            requires_api_key: false,
+            offline_capable: false,
+            cli: ProviderCli {
+                command: "kora",
+                install_hint_key: "PROVIDERS.KORA.INSTALL_HINT",
+                detectable: true,
+            },
+            capabilities: ProviderCapabilities {
+                reasoning: true,
+                execution: true,
+                long_context: false,
+                tool_use: true,
+            },
+            suggestion_weights: Some(SuggestionWeights {
+                refactor: 0.85,
+                debug: 0.7,
+                planning: 0.7,
+                explore: 0.6,
+            }),
+            i18n: ProviderI18n {
+                best_for_key: "PROVIDERS.KORA.BEST_FOR",
+                limitations_key: "PROVIDERS.KORA.LIMITATIONS",
+                microcopy_key: "PROVIDERS.KORA.MICROCOPY",
+            },
+            ui: ProviderUi {
+                icon: "ti-sparkles",
+                accent: "violet",
+                badge_key: Some("PROVIDERS.BADGE.NEW"),
+            },
+        },
+        ProviderCapability {
             id: "promptops-cli",
             display_name: "PromptOps CLI",
             tier: "local",

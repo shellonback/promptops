@@ -9,7 +9,7 @@ export interface PluginProvider { id: string; label: string; logo: string }
 const KNOWN: Record<string, [label: string, logo: string]> = {
   'claude-code-cli': ['Claude Code', 'claude'], codex: ['Codex', 'openai'], 'gemini-cli': ['Gemini', 'gemini'], antigravity: ['Antigravity', 'antigravity'],
   copilot: ['GitHub Copilot', 'copilot'], cursor: ['Cursor', 'cursor'], grok: ['Grok', 'grok'], hermes: ['Hermes', 'hermes'], muse: ['Muse Code', 'muse'], zai: ['Z.AI', 'zai'],
-  kimi: ['Kimi', 'kimi'], opencode: ['Opencode', 'terminal'],
+  kimi: ['Kimi', 'kimi'], opencode: ['Opencode', 'terminal'], kora: ['Kora', 'kora'],
 };
 
 /** How many icons fit in the catalog card. The rest become "+N". */

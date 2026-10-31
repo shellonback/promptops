@@ -865,6 +865,7 @@ export class UsageCenterComponent implements OnInit, OnDestroy {
       zai: 'Z.AI',
       kimi: 'Kimi',
       opencode: 'OpenCode',
+      kora: 'Kora',
       'promptops-cli': 'PromptOps',
       'generic-shell': 'Shell',
     };

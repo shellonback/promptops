@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "ओपन-एंडेड रीजनिंग के लिए कम प्रभावी।",
       "MICROCOPY": "मुफ़्त मॉडल, कोई API key नहीं चाहिए। आपका कोड इसी मशीन पर सिर्फ़ लोकल मॉडल के साथ रहता है। संरचित कोड execution के लिए सबसे अच्छा।",
       "INSTALL_HINT": "नहीं मिला। इंस्टॉल करें: brew install opencode (या opencode.ai देखें)।"
+    },
+    "KORA": {
+      "BEST_FOR": "अंतर्निहित योजना और अनुमोदन गेट के साथ संरचित कोडिंग सत्रें: तर्क, टूल और सख्त केवल-पढ़ने योग्य PLAN मोड वाला मल्टी-प्रोवाइडर एजेंट।",
+      "LIMITATIONS": "Kora CLI आवश्यक है। अपना बैकएंड लाएँ: kora कुंजी (`kora key`) या CLI के भीतर जोड़ा गया OpenAI-संगत प्रोवाइडर (`/provider add`)। मॉडल और प्रयास Kora के भीतर चुने जाते हैं।",
+      "MICROCOPY": "आपकी Kora प्रोफ़ाइल का उपयोग करता है। प्रोवाइडर, मॉडल और प्रयास CLI के भीतर चुने जाते हैं।",
+      "INSTALL_HINT": "नहीं मिला। इंस्टॉल करें: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "सादा टर्मिनल — कोई AI नहीं।",

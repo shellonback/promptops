@@ -884,6 +884,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   'zai': 'Z.AI',
   'kimi': 'Kimi',
   'opencode': 'Opencode',
+  'kora': 'Kora',
   'promptops-cli': 'PromptOps CLI',
   'generic-shell': 'Shell',
 };

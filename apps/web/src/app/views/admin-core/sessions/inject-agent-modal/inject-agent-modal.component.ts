@@ -351,6 +351,7 @@ export class InjectAgentModalComponent {
       'muse': 'Muse Code',
       'zai': 'Z.AI',
       'kimi': 'Kimi',
+      'kora': 'Kora',
     };
     return map[this.provider()] ?? this.provider();
   });

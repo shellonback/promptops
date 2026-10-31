@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Does the provider have a probe? (≠ "has a resume": gemini has resume but not by-id)
 pub fn has_session_probe(provider: &str) -> bool {
-    matches!(provider, "grok" | "opencode" | "hermes" | "codex")
+    matches!(provider, "grok" | "opencode" | "hermes" | "kora" | "codex")
 }
 
 /// Clock tolerance: the session may be born a moment before our
@@ -70,6 +70,7 @@ pub fn probe_provider_session_id_in_home(
             "grok" => probe_grok(cwd, spawned_at_ms),
             "opencode" => probe_opencode(cwd, spawned_at_ms),
             "hermes" => probe_hermes(cwd, spawned_at_ms),
+            "kora" => probe_kora(cwd, spawned_at_ms),
             "codex" => probe_codex(cwd, spawned_at_ms, provider_home),
             _ => None,
         };
@@ -302,6 +303,56 @@ fn probe_opencode(cwd: &str, spawned_at_ms: u128) -> Option<String> {
             .find_map(|k| row.get(k).and_then(|v| v.as_str()))
         {
             if !same_dir(dir, cwd) {
+                continue;
+            }
+        }
+        let at = row_time_ms(&row);
+        if at.is_some_and(|t| t + CLOCK_SKEW_MS < spawned_at_ms) {
+            continue;
+        }
+        let at = at.unwrap_or(0);
+        if best.as_ref().is_none_or(|(_, best_at)| at > *best_at) {
+            best = Some((id.to_string(), at));
+        }
+    }
+    best.map(|(id, _)| id)
+}
+
+/// kora — `kora sessions --json` prints `{"sessions":[{id, title, provider,
+/// model, updatedAt (unix ms), messageCount, folders[]}]}` for the whole
+/// profile, every folder included: rows are filtered to our cwd via
+/// `folders`, and `updatedAt` ties the row to our spawn. The draft is
+/// persisted at the first turn, so the probe picks the session up once the
+/// first prompt is sent — best-effort, like opencode/hermes.
+fn probe_kora(cwd: &str, spawned_at_ms: u128) -> Option<String> {
+    let out = run(cwd, "kora", &["sessions", "--json"])?;
+    parse_kora_sessions(&out, cwd, spawned_at_ms)
+}
+
+/// Pure core of `probe_kora`, split out for tests.
+fn parse_kora_sessions(out: &str, cwd: &str, spawned_at_ms: u128) -> Option<String> {
+    let parsed: serde_json::Value = serde_json::from_str(out).ok()?;
+    let rows = parsed
+        .as_array()
+        .cloned()
+        .or_else(|| parsed.get("sessions").and_then(|v| v.as_array()).cloned())?;
+
+    let mut best: Option<(String, u128)> = None;
+    for row in rows {
+        let Some(id) = row
+            .get("id")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        else {
+            continue;
+        };
+        // The listing spans every folder in the profile: keep ours only.
+        if let Some(folders) = row.get("folders").and_then(|v| v.as_array()) {
+            if !folders
+                .iter()
+                .filter_map(|v| v.as_str())
+                .any(|dir| same_dir(dir, cwd))
+            {
                 continue;
             }
         }
@@ -561,9 +612,37 @@ mod tests {
         assert!(has_session_probe("grok"));
         assert!(has_session_probe("opencode"));
         assert!(has_session_probe("hermes"));
+        assert!(has_session_probe("kora"));
         assert!(has_session_probe("codex"));
         assert!(!has_session_probe("gemini-cli"));
         assert!(!has_session_probe("claude-code-cli"));
+    }
+
+    #[test]
+    fn kora_probe_keeps_the_newest_session_of_the_cwd() {
+        let spawned = now_ms();
+        let cwd = "/work/prompt-ops";
+        let json = format!(
+            r#"{{"sessions":[
+                {{"id":"session-elsewhere","title":"other folder","provider":"kora","model":"flash","updatedAt":{upd_else},"messageCount":2,"folders":["/somewhere/else"]}},
+                {{"id":"session-ours","title":"ours","provider":"kora","model":"flash","updatedAt":{upd_ours},"messageCount":4,"folders":["{cwd0}"]}},
+                {{"id":"session-ancient","title":"too old","provider":"kora","model":"flash","updatedAt":{upd_old},"messageCount":9,"folders":["{cwd1}"]}}
+            ]}}"#,
+            upd_else = spawned + 5_000,
+            upd_ours = spawned + 1_000,
+            upd_old = spawned.saturating_sub(10_000),
+            cwd0 = cwd,
+            cwd1 = cwd
+        );
+        assert_eq!(
+            parse_kora_sessions(&json, cwd, spawned).as_deref(),
+            Some("session-ours")
+        );
+        // A row with no folders at all (legacy/empty) is not attributed to us.
+        let no_folders = r#"{"sessions":[{"id":"session-unknown","updatedAt":1700000000000}]}"#;
+        assert_eq!(parse_kora_sessions(no_folders, cwd, spawned), None);
+        // Junk in, nothing out.
+        assert_eq!(parse_kora_sessions("not json", cwd, spawned), None);
     }
 
     #[test]

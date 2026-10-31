@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "Minder effectief voor open-ended redenering.",
       "MICROCOPY": "Gratis modellen, geen API-sleutel vereist. Je code blijft alleen met een lokaal model op deze machine. Het beste voor gestructureerde code-uitvoering.",
       "INSTALL_HINT": "Niet gedetecteerd. Installeer met: brew install opencode (of zie opencode.ai)."
+    },
+    "KORA": {
+      "BEST_FOR": "Gestructureerde codeersessies met ingebouwde planning en goedkeuringspoorten: een multi-provider-agent met reasoning, tools en een strikte alleen-lezen PLAN-modus.",
+      "LIMITATIONS": "Vereist de Kora-CLI en een eigen sleutel (`kora key`). Provider, model en effort kies je in Kora, niet op de opdrachtregel.",
+      "MICROCOPY": "Gebruikt je Kora-profiel. Provider, model en effort kies je in de CLI.",
+      "INSTALL_HINT": "Niet gedetecteerd. Installeren: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Gewone terminal — geen AI.",

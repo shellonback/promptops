@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "Mindre effektiv för öppet resonemang.",
       "MICROCOPY": "Gratis modeller, ingen API-nyckel krävs. Din kod stannar på den här datorn bara med en lokal modell. Bäst för strukturerad kodkörning.",
       "INSTALL_HINT": "Hittades inte. Installera med: brew install opencode (eller se opencode.ai)."
+    },
+    "KORA": {
+      "BEST_FOR": "Strukturerade kodningssessioner med inbyggd planering och godkännandegrindar: en multi-provider-agent med resonemang, verktyg och ett strikt skrivskyddat PLAN-läge.",
+      "LIMITATIONS": "Kräver Kora CLI och sin egen nyckel (`kora key`). Leverantör, modell och ansträngning väljs inuti Kora, inte på kommandoraden.",
+      "MICROCOPY": "Använder din Kora-profil. Leverantör, modell och ansträngning väljs i CLI:n.",
+      "INSTALL_HINT": "Inte hittad. Installera: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Vanlig terminal — ingen AI.",

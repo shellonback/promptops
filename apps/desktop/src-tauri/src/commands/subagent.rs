@@ -1488,6 +1488,7 @@ fn provider_binary(provider: &str) -> String {
         "hermes" => "hermes".into(),
         "muse" => "muse".into(),
         "opencode" => "opencode".into(),
+        "kora" => "kora".into(),
         "promptops-cli" => "promptops-cli".into(),
         // generic-shell runs raw commands → the default shell.
         "generic-shell" => default_shell(),
@@ -5502,6 +5503,7 @@ mod reasoning_effort_tests {
             "hermes",
             "antigravity",
             "opencode",
+            "kora",
             "zai",
             "kimi",
             "promptops-cli",

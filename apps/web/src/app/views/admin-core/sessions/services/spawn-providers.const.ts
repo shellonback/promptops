@@ -14,6 +14,7 @@ export const SPAWN_PROVIDERS: ReadonlyArray<{ value: ProviderType; labelKey: str
   { value: 'zai', labelKey: 'SESSIONS.ZAI' },
   { value: 'kimi', labelKey: 'SESSIONS.Kimi' },
   { value: 'opencode', labelKey: 'SESSIONS.Opencode' },
+  { value: 'kora', labelKey: 'SESSIONS.Kora' },
   { value: 'promptops-cli', labelKey: 'SESSIONS.PromptOps CLI' },
   { value: 'generic-shell', labelKey: 'SESSIONS.Generic Shell' },
 ];
@@ -32,6 +33,7 @@ export const PROVIDER_LOGOS: Record<string, string> = {
   'zai': 'assets/providers/zai.svg',
   'kimi': 'assets/providers/kimi.svg',
   'opencode': 'assets/providers/terminal.svg',
+  'kora': 'assets/providers/kora.svg',
   'promptops-cli': 'assets/providers/terminal.svg',
   'generic-shell': 'assets/providers/terminal.svg',
 };

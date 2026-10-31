@@ -32,6 +32,7 @@ const PROVIDERS: { value: SubAgentProvider; label: string; icon: string }[] = [
   { value: 'zai', label: 'Z.AI', icon: 'solar:planet-bold-duotone' },
   { value: 'kimi', label: 'Kimi', icon: 'solar:moon-bold-duotone' },
   { value: 'opencode', label: 'Opencode', icon: 'solar:bolt-bold-duotone' },
+  { value: 'kora', label: 'Kora', icon: 'solar:sparkles-bold-duotone' },
 ];
 
 const ROLE_COLORS: Record<string, string> = {

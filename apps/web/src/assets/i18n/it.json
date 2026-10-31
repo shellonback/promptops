@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2302,6 +2303,12 @@
       "LIMITATIONS": "Meno efficace su task di ragionamento aperto.",
       "MICROCOPY": "Modelli gratuiti, nessuna API key richiesta. Il codice resta sulla tua macchina solo con un modello locale. Ottimo per esecuzione codice strutturata.",
       "INSTALL_HINT": "Non rilevato. Installa con: brew install opencode (o vai su opencode.ai)."
+    },
+    "KORA": {
+      "BEST_FOR": "Sessioni di coding strutturate con pianificazione e gate di approvazione integrati: agente multiprovider con reasoning, tool e una modalità PLAN rigorosa in sola lettura.",
+      "LIMITATIONS": "Richiede la CLI Kora e la sua chiave (`kora key`). Provider, modello ed effort si scelgono dentro Kora, non da riga di comando.",
+      "MICROCOPY": "Usa il tuo profilo Kora. Provider, modello ed effort si scelgono dentro la CLI.",
+      "INSTALL_HINT": "Non rilevato. Installa: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Terminale puro — nessuna AI.",

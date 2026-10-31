@@ -37,6 +37,7 @@ const PROVIDERS: &[&str] = &[
     "zai",
     "kimi",
     "opencode",
+    "kora",
     "promptops-cli",
     "generic-shell",
 ];

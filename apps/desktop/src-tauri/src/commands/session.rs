@@ -72,6 +72,7 @@ pub(crate) fn provider_command(provider: &str) -> Option<&'static str> {
         "hermes" => Some("hermes"),
         "opencode" => Some("opencode"),
         "muse" => Some("muse"),
+        "kora" => Some("kora"),
         "promptops-cli" => Some("promptops-cli"),
         _ => None,
     }
@@ -4795,6 +4796,9 @@ pub(crate) fn native_auto_approve_flag(provider: &str) -> Option<&'static str> {
         "copilot" => Some("--allow-all-tools"),
         "grok" => Some("--always-approve"),
         "cursor" => Some("--force"),
+        // kora `-y` = per-tool "allow once" with an on-screen note: no
+        // permission-mode switch, dialogs keep the user in charge.
+        "kora" => Some("-y"),
         "promptops-cli" => Some("--yes"),
         _ => None,
     }
@@ -4926,6 +4930,9 @@ pub(crate) fn resume_by_id_flag(family: &str, id: &str) -> Option<String> {
         "grok" => Some(format!("--resume {id}")),
         "opencode" => Some(format!("--session {id}")),
         "hermes" => Some(format!("--resume {id}")),
+        // kora: root-level `--resume <id>` (id or exact title; the id comes
+        // from the session probe). Flags are position-independent.
+        "kora" => Some(format!("--resume {id}")),
         // antigravity: `--conversation <id>` (conversation_id from the JSON/hook).
         "antigravity" => Some(format!("--conversation {id}")),
         // muse: `resume` is a SUBCOMMAND (`muse resume <id>`), like codex.
@@ -7488,5 +7495,31 @@ mod tests {
         }
         assert_eq!(model_flag("generic-shell"), None);
         assert_eq!(model_flag("cursor"), None);
+    }
+
+    #[test]
+    fn kora_launch_and_resume_argv() {
+        use super::{
+            is_safe_session_id, model_flag, native_auto_approve_flag, provider_command,
+            provider_resumes_by_id, resume_by_id_flag, resume_fragment,
+        };
+        // Bare `kora` on a TTY opens a chat draft; `-y` is position-independent.
+        assert_eq!(provider_command("kora"), Some("kora"));
+        assert_eq!(native_auto_approve_flag("kora"), Some("-y"));
+        assert_eq!(model_flag("kora"), None);
+        // Resume by id (the id comes from the sessions probe); without an id
+        // there is no `--continue`: kora restarts clean, like hermes.
+        assert!(provider_resumes_by_id("kora"));
+        assert_eq!(
+            resume_by_id_flag("kora", "session-1761900000-ab12cd34").as_deref(),
+            Some("--resume session-1761900000-ab12cd34")
+        );
+        assert_eq!(
+            resume_fragment("kora", Some("session-1761900000-ab12cd34")),
+            "--resume session-1761900000-ab12cd34"
+        );
+        assert_eq!(resume_fragment("kora", None), "");
+        // kora ids are `session-<unixms>-<hex>`: safe for a shell line.
+        assert!(is_safe_session_id("session-1761900000-ab12cd34"));
     }
 }

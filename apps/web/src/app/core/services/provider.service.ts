@@ -164,6 +164,19 @@ const BROWSER_FALLBACK: ProviderCapability[] = [
     ui: { icon: 'ti-bolt', accent: 'emerald', badgeKey: 'PROVIDERS.BADGE.FREE' },
   },
   {
+    id: 'kora', displayName: 'Kora', tier: 'local',
+    requiresApiKey: false, offlineCapable: false,
+    cli: { command: 'kora', installHintKey: 'PROVIDERS.KORA.INSTALL_HINT', detectable: false },
+    capabilities: { reasoning: true, execution: true, longContext: false, toolUse: true },
+    suggestionWeights: { refactor: 0.85, debug: 0.7, planning: 0.7, explore: 0.6 },
+    i18n: {
+      bestForKey: 'PROVIDERS.KORA.BEST_FOR',
+      limitationsKey: 'PROVIDERS.KORA.LIMITATIONS',
+      microcopyKey: 'PROVIDERS.KORA.MICROCOPY',
+    },
+    ui: { icon: 'ti-sparkles', accent: 'violet', badgeKey: 'PROVIDERS.BADGE.NEW' },
+  },
+  {
     id: 'promptops-cli', displayName: 'PromptOps CLI', tier: 'local',
     requiresApiKey: false, offlineCapable: true,
     cli: { command: 'promptops-cli', installHintKey: 'PROVIDERS.PROMPTOPS_CLI.INSTALL_HINT', detectable: false },

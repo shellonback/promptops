@@ -2306,7 +2306,7 @@
     },
     "KORA": {
       "BEST_FOR": "结构化的编码会话，内置规划与审批门槛：多提供商智能体，具备推理、工具调用和严格的只读 PLAN 模式。",
-      "LIMITATIONS": "需要 Kora CLI 及其自身的密钥设置（`kora key`）。提供商、模型与推理力度在 Kora 内部选择，而非通过命令行。",
+      "LIMITATIONS": "需要 Kora CLI。自带后端：使用 kora 密钥（`kora key`），或在 CLI 内添加兼容 OpenAI 的提供商（`/provider add`）。模型与推理力度在 Kora 内部选择。",
       "MICROCOPY": "使用你的 Kora 配置。提供商、模型与推理力度在 CLI 内选择。",
       "INSTALL_HINT": "未检测到。安装：curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },

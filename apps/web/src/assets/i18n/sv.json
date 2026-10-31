@@ -2306,7 +2306,7 @@
     },
     "KORA": {
       "BEST_FOR": "Strukturerade kodningssessioner med inbyggd planering och godkännandegrindar: en multi-provider-agent med resonemang, verktyg och ett strikt skrivskyddat PLAN-läge.",
-      "LIMITATIONS": "Kräver Kora CLI och sin egen nyckel (`kora key`). Leverantör, modell och ansträngning väljs inuti Kora, inte på kommandoraden.",
+      "LIMITATIONS": "Kräver Kora CLI. Ta med din egen backend: kora-nyckeln (`kora key`) eller en OpenAI-kompatibel provider som läggs till i CLI:n (`/provider add`). Modell och ansträngning väljs inuti Kora.",
       "MICROCOPY": "Använder din Kora-profil. Leverantör, modell och ansträngning väljs i CLI:n.",
       "INSTALL_HINT": "Inte hittad. Installera: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },

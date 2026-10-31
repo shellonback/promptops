@@ -2306,7 +2306,7 @@
     },
     "KORA": {
       "BEST_FOR": "Sesiones de codificación estructuradas con planificación y compuertas de aprobación integradas: agente multiproveedor con razonamiento, herramientas y un modo PLAN estricto de solo lectura.",
-      "LIMITATIONS": "Requiere la CLI de Kora y su propia clave (`kora key`). El proveedor, el modelo y el esfuerzo se eligen dentro de Kora, no en la línea de comandos.",
+      "LIMITATIONS": "Requiere la CLI de Kora. Trae tu propio backend: la clave de kora (`kora key`) o un proveedor compatible con OpenAI añadido dentro de la CLI (`/provider add`). El modelo y el esfuerzo se eligen dentro de Kora.",
       "MICROCOPY": "Usa tu perfil de Kora. El proveedor, el modelo y el esfuerzo se eligen dentro de la CLI.",
       "INSTALL_HINT": "No detectado. Instalar: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },

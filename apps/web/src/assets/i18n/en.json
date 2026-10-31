@@ -2306,7 +2306,7 @@
     },
     "KORA": {
       "BEST_FOR": "Structured coding sessions with built-in planning and approval gates: a multi-provider agent with reasoning, tools and a strict read-only PLAN mode.",
-      "LIMITATIONS": "Requires the Kora CLI and its own key setup (`kora key`). Provider, model and effort are chosen inside Kora, not on the command line.",
+      "LIMITATIONS": "Requires the Kora CLI. Bring your own backend: the kora key (`kora key`) or an OpenAI-compatible provider added inside the CLI (`/provider add`). Model and effort are chosen inside Kora.",
       "MICROCOPY": "Uses your Kora profile. Provider, model and effort are picked inside the CLI.",
       "INSTALL_HINT": "Not detected. Install: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },

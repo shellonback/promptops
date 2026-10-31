@@ -6013,19 +6013,18 @@ fn inject_when_ready(
         // copied and stripped the whole replay (up to 512KB).
         let new_tail = {
             let guard = manager.state.lock();
-            match guard.sessions.get(session_id).and_then(|s| s.pty.as_ref()) {
-                Some(pty) => {
-                    let buf = pty.buffer.lock();
-                    let len = buf.len();
-                    if len != seen_len {
-                        let tail = buf.slice_from(seen_len.min(len));
-                        seen_len = len;
-                        Some(tail)
-                    } else {
-                        None
-                    }
-                }
-                None => return None,
+            let pty = guard
+                .sessions
+                .get(session_id)
+                .and_then(|s| s.pty.as_ref())?;
+            let buf = pty.buffer.lock();
+            let len = buf.len();
+            if len != seen_len {
+                let tail = buf.slice_from(seen_len.min(len));
+                seen_len = len;
+                Some(tail)
+            } else {
+                None
             }
         };
 
@@ -6059,10 +6058,12 @@ fn inject_when_ready(
             }
             let (writer, baseline) = {
                 let guard = manager.state.lock();
-                match guard.sessions.get(session_id).and_then(|s| s.pty.as_ref()) {
-                    Some(p) => (p.writer.clone(), p.buffer.lock().total),
-                    None => return None,
-                }
+                let p = guard
+                    .sessions
+                    .get(session_id)
+                    .and_then(|s| s.pty.as_ref())?;
+                let total = p.buffer.lock().total;
+                (p.writer.clone(), total)
             };
             let _ = writer
                 .lock()

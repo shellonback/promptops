@@ -3965,6 +3965,290 @@ pub async fn git_show_file_base64(cwd: String, rev: String, file_path: String) -
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// WORKTREE — list, add, remove, prune
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// One entry of `git worktree list --porcelain`.
+#[derive(Debug, Default, PartialEq)]
+struct WorktreeEntry {
+    path: String,
+    head: String,
+    branch: Option<String>,
+    detached: bool,
+    bare: bool,
+    locked: Option<String>,
+    prunable: Option<String>,
+}
+
+/// Parses the porcelain format: blocks separated by an empty line, each
+/// line `key[ value]`. `locked`/`prunable` may come without a reason.
+fn parse_worktree_porcelain(raw: &str) -> Vec<WorktreeEntry> {
+    let mut out = Vec::new();
+    let mut cur: Option<WorktreeEntry> = None;
+    for line in raw.lines() {
+        let line = line.trim_end_matches('\r');
+        if line.is_empty() {
+            if let Some(e) = cur.take() {
+                out.push(e);
+            }
+            continue;
+        }
+        let (key, val) = match line.split_once(' ') {
+            Some((k, v)) => (k, v.to_string()),
+            None => (line, String::new()),
+        };
+        if key == "worktree" {
+            if let Some(e) = cur.take() {
+                out.push(e);
+            }
+            cur = Some(WorktreeEntry { path: val, ..Default::default() });
+            continue;
+        }
+        let Some(e) = cur.as_mut() else { continue };
+        match key {
+            "HEAD" => e.head = val,
+            "branch" => e.branch = Some(val.strip_prefix("refs/heads/").unwrap_or(&val).to_string()),
+            "detached" => e.detached = true,
+            "bare" => e.bare = true,
+            "locked" => e.locked = Some(val),
+            "prunable" => e.prunable = Some(val),
+            _ => {}
+        }
+    }
+    if let Some(e) = cur.take() {
+        out.push(e);
+    }
+    out
+}
+
+/// Path comparison that survives symlinks (/tmp → /private/tmp on macOS) and
+/// Windows separators.
+fn same_path(a: &str, b: &str) -> bool {
+    let norm = |p: &str| {
+        std::fs::canonicalize(p)
+            .map(|c| c.to_string_lossy().to_string())
+            .unwrap_or_else(|_| p.to_string())
+            .replace('\\', "/")
+            .trim_end_matches('/')
+            .to_lowercase()
+    };
+    norm(a) == norm(b)
+}
+
+/// git:worktree-list — every worktree of the repo of `cwd`, with the number of
+/// changed files in each (porcelain status, no optional locks).
+#[tauri::command]
+pub async fn git_worktree_list(cwd: String) -> JsonValue {
+    let r = run_git(&cwd, &["worktree", "list", "--porcelain"]);
+    if !r.ok {
+        return json!({ "ok": false, "error": err_detail(&r) });
+    }
+    let toplevel = run_git(&cwd, &["rev-parse", "--show-toplevel"]);
+    let top = if toplevel.ok { toplevel.out.trim().to_string() } else { cwd.clone() };
+    let entries = parse_worktree_porcelain(&r.out);
+    let list: Vec<JsonValue> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, e)| {
+            let missing = !Path::new(&e.path).is_dir();
+            let changes: Option<usize> = if e.bare || missing {
+                None
+            } else {
+                let s = run_git(&e.path, &["--no-optional-locks", "status", "--porcelain"]);
+                if s.ok { Some(s.out.lines().filter(|l| !l.trim().is_empty()).count()) } else { None }
+            };
+            json!({
+                "path": e.path,
+                "name": Path::new(&e.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| e.path.clone()),
+                "head": e.head,
+                "shortHead": e.head.chars().take(7).collect::<String>(),
+                "branch": e.branch,
+                "detached": e.detached,
+                "bare": e.bare,
+                "locked": e.locked.is_some(),
+                "lockReason": e.locked.clone().filter(|s| !s.is_empty()),
+                "prunable": e.prunable.is_some() || missing,
+                "main": i == 0,
+                "current": same_path(&e.path, &top),
+                "changes": changes,
+            })
+        })
+        .collect();
+    json!({ "ok": true, "worktrees": list })
+}
+
+/// git:worktree-add — `git worktree add [-b <branch>] <path> [<base>]` or
+/// `git worktree add <path> <branch>` for an existing branch. A relative path
+/// is resolved against the repo toplevel.
+#[tauri::command]
+pub async fn git_worktree_add(
+    cwd: String,
+    path: String,
+    branch: String,
+    new_branch: Option<bool>,
+    base: Option<String>,
+) -> JsonValue {
+    let path = path.trim().to_string();
+    let branch = branch.trim().to_string();
+    let base = base.map(|b| b.trim().to_string()).filter(|b| !b.is_empty());
+    if path.is_empty() || branch.is_empty() {
+        return json!({ "ok": false, "error": "Path and branch are required" });
+    }
+    if path.starts_with('-') || branch.starts_with('-') || base.as_deref().is_some_and(|b| b.starts_with('-')) {
+        return json!({ "ok": false, "error": "Invalid argument" });
+    }
+    let check = run_git(&cwd, &["check-ref-format", "--branch", &branch]);
+    if !check.ok {
+        return json!({ "ok": false, "error": format!("Invalid branch name: {branch}") });
+    }
+    let abs = if Path::new(&path).is_absolute() {
+        std::path::PathBuf::from(&path)
+    } else {
+        let top = run_git(&cwd, &["rev-parse", "--show-toplevel"]);
+        let root = if top.ok { top.out.trim().to_string() } else { cwd.clone() };
+        Path::new(&root).join(&path)
+    };
+    if abs.exists() && std::fs::read_dir(&abs).map(|mut d| d.next().is_some()).unwrap_or(true) {
+        return json!({ "ok": false, "error": format!("Destination already exists: {}", abs.display()) });
+    }
+    let abs_str = abs.to_string_lossy().to_string();
+    let r = if new_branch.unwrap_or(false) {
+        let mut args = vec!["worktree", "add", "-b", branch.as_str(), abs_str.as_str()];
+        if let Some(b) = base.as_deref() {
+            args.push(b);
+        }
+        run_git(&cwd, &args)
+    } else {
+        run_git(&cwd, &["worktree", "add", &abs_str, &branch])
+    };
+    if r.ok {
+        json!({ "ok": true, "path": abs_str })
+    } else {
+        json!({ "ok": false, "error": err_detail(&r) })
+    }
+}
+
+/// git:worktree-remove — refuses the main worktree and the open one;
+/// `dirty:true` when git stops on uncommitted changes (the UI can offer
+/// force).
+#[tauri::command]
+pub async fn git_worktree_remove(cwd: String, path: String, force: Option<bool>) -> JsonValue {
+    if path.trim().is_empty() || path.starts_with('-') {
+        return json!({ "ok": false, "error": "Invalid argument" });
+    }
+    let list = run_git(&cwd, &["worktree", "list", "--porcelain"]);
+    if list.ok {
+        let entries = parse_worktree_porcelain(&list.out);
+        if entries.first().is_some_and(|m| same_path(&m.path, &path)) {
+            return json!({ "ok": false, "error": "The main worktree cannot be removed" });
+        }
+        if !entries.iter().any(|e| same_path(&e.path, &path)) {
+            return json!({ "ok": false, "error": "Not a worktree of this repository" });
+        }
+    }
+    let top = run_git(&cwd, &["rev-parse", "--show-toplevel"]);
+    if top.ok && same_path(top.out.trim(), &path) {
+        return json!({ "ok": false, "error": "Switch to another worktree before removing this one" });
+    }
+    let r = if force.unwrap_or(false) {
+        run_git(&cwd, &["worktree", "remove", "--force", &path])
+    } else {
+        run_git(&cwd, &["worktree", "remove", &path])
+    };
+    if r.ok {
+        json!({ "ok": true })
+    } else {
+        let detail = err_detail(&r);
+        let low = detail.to_lowercase();
+        // git output is localized (LANG=it etc.): besides the English message,
+        // look at the real state of the worktree and of the lock.
+        let status = run_git(&path, &["--no-optional-locks", "status", "--porcelain"]);
+        let dirty = low.contains("modified or untracked")
+            || low.contains("contains modified")
+            || (status.ok && status.out.lines().any(|l| !l.trim().is_empty()));
+        let locked = low.contains("locked")
+            || (list.ok
+                && parse_worktree_porcelain(&list.out)
+                    .iter()
+                    .any(|e| same_path(&e.path, &path) && e.locked.is_some()));
+        json!({ "ok": false, "error": detail, "dirty": dirty, "locked": locked })
+    }
+}
+
+/// git:worktree-prune — cleans up references to worktrees whose folder no
+/// longer exists.
+#[tauri::command]
+pub async fn git_worktree_prune(cwd: String) -> JsonValue {
+    let r = run_git(&cwd, &["worktree", "prune", "-v"]);
+    if r.ok {
+        // `-v` writes one stderr line per pruned worktree.
+        let pruned = r.err.lines().filter(|l| !l.trim().is_empty()).count();
+        json!({ "ok": true, "pruned": pruned })
+    } else {
+        json!({ "ok": false, "error": err_detail(&r) })
+    }
+}
+
+#[cfg(test)]
+mod worktree_tests {
+    use super::*;
+
+    #[test]
+    fn parses_porcelain_with_flags() {
+        let raw = "worktree /repo\nHEAD abc123def456\nbranch refs/heads/main\n\n\
+                   worktree /repo-feat\nHEAD 111222333444\nbranch refs/heads/feat/x\nlocked agent busy\n\n\
+                   worktree /gone\nHEAD 999888777666\ndetached\nprunable gitdir file points to non-existent location\n";
+        let e = parse_worktree_porcelain(raw);
+        assert_eq!(e.len(), 3);
+        assert_eq!(e[0].branch.as_deref(), Some("main"));
+        assert_eq!(e[1].branch.as_deref(), Some("feat/x"));
+        assert_eq!(e[1].locked.as_deref(), Some("agent busy"));
+        assert!(e[2].detached && e[2].prunable.is_some() && e[2].branch.is_none());
+    }
+
+    #[tokio::test]
+    async fn add_list_remove_roundtrip() {
+        let id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!("promptops-wt-{id}"));
+        let repo = root.join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+        let cwd = repo.to_string_lossy().to_string();
+        let g = |args: &[&str]| assert!(run_git(&cwd, args).ok, "git {args:?}");
+        g(&["init", "-b", "main"]);
+        g(&["config", "user.name", "T"]);
+        g(&["config", "user.email", "t@example.invalid"]);
+        g(&["config", "commit.gpgsign", "false"]);
+        std::fs::write(repo.join("a.txt"), "a\n").unwrap();
+        g(&["add", "--all"]);
+        g(&["commit", "-m", "init"]);
+
+        let add = git_worktree_add(cwd.clone(), "../repo-feat".into(), "feat".into(), Some(true), None).await;
+        assert_eq!(add["ok"], true, "{add}");
+        let wt = add["path"].as_str().unwrap().to_string();
+        std::fs::write(Path::new(&wt).join("b.txt"), "b\n").unwrap();
+
+        let list = git_worktree_list(cwd.clone()).await;
+        let items = list["worktrees"].as_array().unwrap();
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0]["main"], true);
+        assert_eq!(items[0]["current"], true);
+        assert_eq!(items[1]["branch"], "feat");
+        assert_eq!(items[1]["changes"], 1);
+
+        let main_rm = git_worktree_remove(cwd.clone(), cwd.clone(), Some(true)).await;
+        assert_eq!(main_rm["ok"], false);
+
+        let rm = git_worktree_remove(cwd.clone(), wt.clone(), None).await;
+        assert_eq!(rm["ok"], false);
+        assert_eq!(rm["dirty"], true, "{rm}");
+        let rm = git_worktree_remove(cwd.clone(), wt.clone(), Some(true)).await;
+        assert_eq!(rm["ok"], true, "{rm}");
+        assert_eq!(git_worktree_list(cwd.clone()).await["worktrees"].as_array().unwrap().len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+}
+
 #[cfg(test)]
 mod history_preview_tests {
     use super::*;

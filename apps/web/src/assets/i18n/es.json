@@ -1312,6 +1312,37 @@
       "Connecting": "Conectando con PromptOps…",
       "Gone": "Esta sesión ya no está disponible."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Ver y gestionar los worktrees git de este repositorio",
+      "Title": "Worktrees",
+      "Refresh": "Actualizar",
+      "Loading": "Cargando worktrees…",
+      "Current": "actual",
+      "Main": "principal",
+      "Detached": "separado",
+      "Locked": "Bloqueado",
+      "Missing": "no encontrado",
+      "Changes": "{{count}} cambios",
+      "Clean": "limpio",
+      "Remove": "Eliminar worktree",
+      "ConfirmRemove": "¿Eliminar el worktree {{name}}? La carpeta se borra, la rama se conserva.",
+      "ConfirmForce": "{{name}} tiene cambios sin confirmar (o está bloqueado): se perderán. ¿Eliminar de todos modos?",
+      "RemoveBtn": "Eliminar",
+      "ForceBtn": "Eliminar de todos modos",
+      "Cancel": "Cancelar",
+      "Prune": "Limpiar worktrees inexistentes",
+      "New": "Nuevo worktree",
+      "PathPlaceholder": "Carpeta, p. ej. ../repo-feature",
+      "NewBranch": "Crear una rama nueva desde {{base}}",
+      "Create": "Crear",
+      "Empty": "Este repositorio solo tiene el worktree principal.",
+      "Hint": "Haz clic en un worktree para ver y confirmar aquí sus archivos modificados.",
+      "Created": "Worktree creado en {{path}}",
+      "Removed": "Worktree eliminado",
+      "Pruned": "{{count}} worktrees obsoletos limpiados",
+      "Opened": "Viendo el worktree {{name}}"
+    },
     "Layout mode": "Modo de diseño",
     "Delete workspace title": "¿Eliminar el espacio de trabajo?",
     "Delete workspace message": "¿Eliminar el espacio de trabajo \"{{name}}\" y sus {{count}} sesiones? Se cerrarán sus terminales y agentes.",
@@ -2601,16 +2632,32 @@
       "finish": "Listo",
       "privacy": "Tu voz se transcribe en este dispositivo con un modelo Whisper local, descargado una sola vez de Hugging Face. Mientras ese modelo no está listo, el audio va a Groq si guardaste tu propia clave, o al reconocimiento de voz de Apple en macOS, que se queda en el Mac cuando el idioma tiene un modelo en el dispositivo.",
       "step1": {
-        "title": "Activa el atajo de voz",
-        "body": "Mantén pulsado ⌥+M (Alt+M en Windows y Linux) durante 2 segundos, en cualquier lugar, para encender el micrófono. No hace falta ningún otro permiso del sistema.",
-        "s1": "Abre Ajustes del sistema → Privacidad y seguridad → Accesibilidad",
-        "s2": "Añade y activa PromptOps Desktop en la lista",
-        "s3": "Vuelve aquí para probar el atajo",
-        "open_settings": "Abrir ajustes de Privacidad"
+        "title": "Acceso al micrófono",
+        "body": "Los comandos de voz usan tu micrófono. Permite que PromptOps Desktop lo use y pruébalo aquí.",
+        "mac": {
+          "s1": "Abre Ajustes del Sistema → Privacidad y seguridad → Micrófono",
+          "s2": "Activa PromptOps Desktop en la lista",
+          "s3": "¿No aparece? Pulsa \"Probar micrófono\": macOS pedirá permiso"
+        },
+        "win": {
+          "s1": "Abre Configuración → Privacidad y seguridad → Micrófono",
+          "s2": "Activa \"Acceso al micrófono\" y \"Permitir que las aplicaciones de escritorio accedan al micrófono\"",
+          "s3": "Pulsa \"Probar micrófono\" para comprobar que la entrada funciona"
+        },
+        "linux": {
+          "s1": "Comprueba que PipeWire o PulseAudio estén activos y que haya un micrófono seleccionado en los ajustes de sonido",
+          "s2": "En Wayland o Flatpak, permite el acceso al micrófono en el portal del escritorio si se solicita",
+          "s3": "Pulsa \"Probar micrófono\" para comprobar que la entrada funciona"
+        },
+        "open_settings": "Abrir ajustes del micrófono",
+        "test_mic": "Probar micrófono",
+        "mic_ok": "El micrófono funciona.",
+        "mic_denied": "Acceso al micrófono denegado. Actívalo en los ajustes del sistema e inténtalo de nuevo.",
+        "mic_error": "No se encontró ningún micrófono o no se puede abrir. Revisa el dispositivo de entrada en los ajustes del sistema."
       },
       "step2": {
         "title": "Prueba del atajo",
-        "body": "Pulsa ⌥+M.",
+        "body": "Mantén pulsado el atajo de abajo.",
         "hold_hint": "(durante 2 segundos)",
         "success": "¡Funciona! El atajo está activo."
       }

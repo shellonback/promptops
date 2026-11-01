@@ -816,9 +816,11 @@ export class VoiceAgentComponent {
   }
 
   private composeShortcutLabel(): string {
-    // Must mirror the desktop push-to-talk shortcut (voice.rs,
-    // `voice_shortcut`): Alt+M, ⌥M on a Mac, held for 2 seconds.
-    return navigator.userAgent.includes('Macintosh') ? '⌥M' : 'Alt+M';
+    // Must mirror `voice_shortcut()` in desktop-app-v2 voice.rs: Alt+M on
+    // every OS (⌥+M on macOS). OS from the bridge: the WebKitGTK UA says Mac.
+    const p = (window as any).promptops?.platform
+      ?? (navigator.userAgent.includes('Macintosh') ? 'darwin' : '');
+    return p === 'darwin' ? '⌥M' : 'Alt+M';
   }
 
   onShortcutChipClick(e: MouseEvent): void {

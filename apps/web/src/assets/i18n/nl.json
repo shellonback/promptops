@@ -1312,6 +1312,37 @@
       "Connecting": "Verbinden met PromptOps…",
       "Gone": "Deze sessie is niet meer beschikbaar."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Git-worktrees van deze repository bekijken en beheren",
+      "Title": "Worktrees",
+      "Refresh": "Vernieuwen",
+      "Loading": "Worktrees laden…",
+      "Current": "huidig",
+      "Main": "hoofd",
+      "Detached": "detached",
+      "Locked": "Vergrendeld",
+      "Missing": "ontbreekt",
+      "Changes": "{{count}} wijzigingen",
+      "Clean": "schoon",
+      "Remove": "Worktree verwijderen",
+      "ConfirmRemove": "Worktree {{name}} verwijderen? De map wordt verwijderd, de branch blijft bestaan.",
+      "ConfirmForce": "{{name}} heeft niet-gecommitte wijzigingen (of is vergrendeld): die gaan verloren. Toch verwijderen?",
+      "RemoveBtn": "Verwijderen",
+      "ForceBtn": "Toch verwijderen",
+      "Cancel": "Annuleren",
+      "Prune": "Ontbrekende worktrees opruimen",
+      "New": "Nieuwe worktree",
+      "PathPlaceholder": "Map, bijv. ../repo-feature",
+      "NewBranch": "Nieuwe branch maken vanaf {{base}}",
+      "Create": "Maken",
+      "Empty": "Deze repository heeft alleen de hoofd-worktree.",
+      "Hint": "Klik op een worktree om de gewijzigde bestanden hier te bekijken en te committen.",
+      "Created": "Worktree aangemaakt in {{path}}",
+      "Removed": "Worktree verwijderd",
+      "Pruned": "{{count}} verouderde worktrees opgeruimd",
+      "Opened": "Je bekijkt nu worktree {{name}}"
+    },
     "Layout mode": "Lay-outmodus",
     "Delete workspace title": "Werkruimte verwijderen?",
     "Delete workspace message": "Werkruimte \"{{name}}\" en de {{count}} sessies ervan verwijderen? Hun terminals en agents worden gesloten.",
@@ -2601,16 +2632,32 @@
       "finish": "Klaar",
       "privacy": "Je stem wordt op dit apparaat omgezet in tekst door een lokaal Whisper-model, dat één keer van Hugging Face wordt gedownload. Zolang dat model niet klaar is, gaat de audio naar Groq als je je eigen sleutel hebt opgeslagen, of op macOS naar de spraakherkenning van Apple, die op de Mac blijft als de taal een model op het apparaat heeft.",
       "step1": {
-        "title": "Schakel de spraaksnelkoppeling in",
-        "body": "Houd ⌥+M (Alt+M op Windows en Linux) overal 2 seconden ingedrukt om de microfoon aan te zetten. Er is geen extra systeemtoestemming nodig.",
-        "s1": "Open Systeeminstellingen → Privacy & Beveiliging → Toegankelijkheid",
-        "s2": "Voeg PromptOps Desktop toe aan de lijst en schakel het in",
-        "s3": "Kom hier terug om de sneltoets te testen",
-        "open_settings": "Privacy-instellingen openen"
+        "title": "Microfoontoegang",
+        "body": "Spraakopdrachten gebruiken je microfoon. Geef PromptOps Desktop toestemming en test hem hier.",
+        "mac": {
+          "s1": "Open Systeeminstellingen → Privacy en beveiliging → Microfoon",
+          "s2": "Schakel PromptOps Desktop in de lijst in",
+          "s3": "Staat het er niet tussen? Klik op \"Microfoon testen\": macOS vraagt om toestemming"
+        },
+        "win": {
+          "s1": "Open Instellingen → Privacy en beveiliging → Microfoon",
+          "s2": "Schakel \"Toegang tot microfoon\" en \"Bureaublad-apps toegang geven tot je microfoon\" in",
+          "s3": "Klik op \"Microfoon testen\" om te controleren of de invoer werkt"
+        },
+        "linux": {
+          "s1": "Controleer of PipeWire of PulseAudio draait en of er een microfoon is geselecteerd in de geluidsinstellingen",
+          "s2": "Sta onder Wayland of Flatpak microfoontoegang toe in het desktopportaal als daarom wordt gevraagd",
+          "s3": "Klik op \"Microfoon testen\" om te controleren of de invoer werkt"
+        },
+        "open_settings": "Microfooninstellingen openen",
+        "test_mic": "Microfoon testen",
+        "mic_ok": "De microfoon werkt.",
+        "mic_denied": "Microfoontoegang geweigerd. Schakel het in via de systeeminstellingen en probeer opnieuw.",
+        "mic_error": "Geen microfoon gevonden of hij kan niet worden geopend. Controleer het invoerapparaat in de systeeminstellingen."
       },
       "step2": {
         "title": "Sneltoets testen",
-        "body": "Druk op ⌥+M.",
+        "body": "Houd de sneltoets hieronder ingedrukt.",
         "hold_hint": "(gedurende 2 seconden)",
         "success": "Het werkt! De sneltoets is actief."
       }

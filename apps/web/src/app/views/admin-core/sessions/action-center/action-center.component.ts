@@ -3727,7 +3727,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     this.attachingImage.set(true);
     try {
       const uploaded = await this.assetsService.uploadFiles(ws, files);
-      const paths = uploaded.map(a => a.relativePath).join(' ');
+      const paths = this.assetsService.agentPathsInline(ws, uploaded);
       if (paths) this.insertAtPromptCaret(paths);
     } catch {
       // upload failed — leave the prompt untouched

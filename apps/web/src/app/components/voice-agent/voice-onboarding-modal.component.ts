@@ -4,13 +4,17 @@ import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 
 const ONBOARDED_KEY = 'voice_onboarded';
 
+type HostOs = 'mac' | 'win' | 'linux';
+
 /**
- * First-run wizard for the global voice shortcut, ⌥+M (Alt+M on Windows and
- * Linux), held for 2 seconds. The desktop registers it as a system hotkey
- * (tauri-plugin-global-shortcut), which needs no Accessibility permission, so
- * the wizard covers:
- *   1. what the shortcut does and where the audio goes;
- *   2. an end-to-end shortcut test.
+ * First-run wizard for voice commands, on macOS, Windows and Linux.
+ *
+ * The shortcut is Alt+M (⌥+M on macOS), held for 2 seconds, registered as a
+ * system hotkey (voice.rs `voice_shortcut`): it needs no Accessibility
+ * permission on any OS, so the wizard covers:
+ *   1. Microphone permission, with per-OS steps, a button to the OS
+ *      microphone settings (not on Linux) and a getUserMedia test
+ *   2. End-to-end shortcut test
  *
  * The modal listens for `onVoiceHotkeyToggle`; once it fires while on
  * step 2 we know the OS-level wiring is fully working.
@@ -40,12 +44,38 @@ const ONBOARDED_KEY = 'voice_onboarded';
         <div class="step">
           <h5>{{ 'voice.onboarding.step1.title' | translate }}</h5>
           <p>{{ 'voice.onboarding.step1.body' | translate }}</p>
-          <!-- Where the audio goes, before the shortcut is turned on. -->
+          <ol>
+            <li>{{ 'voice.onboarding.step1.' + os + '.s1' | translate }}</li>
+            <li>{{ 'voice.onboarding.step1.' + os + '.s2' | translate }}</li>
+            <li>{{ 'voice.onboarding.step1.' + os + '.s3' | translate }}</li>
+          </ol>
+          @if (micStatus() === 'ok') {
+            <div class="mic-status ok">
+              <iconify-icon icon="solar:check-circle-bold" width="15"></iconify-icon>
+              <span>{{ 'voice.onboarding.step1.mic_ok' | translate }}</span>
+            </div>
+          } @else if (micStatus() === 'denied' || micStatus() === 'error') {
+            <div class="mic-status err">
+              <iconify-icon icon="solar:danger-triangle-bold" width="15"></iconify-icon>
+              <span>{{ (micStatus() === 'denied' ? 'voice.onboarding.step1.mic_denied' : 'voice.onboarding.step1.mic_error') | translate }}</span>
+            </div>
+          }
+          <!-- How the audio is processed, before the shortcut is turned on. -->
           <div class="voice-privacy-note">
             <iconify-icon icon="solar:info-circle-bold" width="15"></iconify-icon>
             <span>{{ 'voice.onboarding.privacy' | translate }}</span>
           </div>
           <div class="actions">
+            @if (os !== 'linux') {
+              <button class="btn btn-secondary" (click)="openMicSettings()">
+                <iconify-icon icon="solar:settings-bold" width="14"></iconify-icon>
+                {{ 'voice.onboarding.step1.open_settings' | translate }}
+              </button>
+            }
+            <button class="btn btn-secondary" [disabled]="micStatus() === 'testing'" (click)="testMic()">
+              <iconify-icon icon="solar:microphone-bold" width="14"></iconify-icon>
+              {{ 'voice.onboarding.step1.test_mic' | translate }}
+            </button>
             <button class="btn btn-primary" (click)="enableAndAdvance()">
               {{ 'voice.onboarding.next' | translate }}
             </button>
@@ -58,7 +88,7 @@ const ONBOARDED_KEY = 'voice_onboarded';
 
           @if (!success()) {
             <div class="kbd-hint">
-              <kbd>{{ altKey }}</kbd> + <kbd>M</kbd>
+              <kbd>{{ os === 'mac' ? '⌥' : 'Alt' }}</kbd> + <kbd>M</kbd>
               <span class="hint">{{ 'voice.onboarding.step2.hold_hint' | translate }}</span>
             </div>
             <div class="waiting"><span></span><span></span><span></span></div>
@@ -97,6 +127,17 @@ const ONBOARDED_KEY = 'voice_onboarded';
       font-size: 0.78rem; line-height: 1.4; color: #a5b4fc;
     }
     .voice-privacy-note iconify-icon { flex: 0 0 auto; margin-top: 1px; }
+    .mic-status {
+      display: flex; align-items: flex-start; gap: 0.5rem;
+      margin: 0.5rem 0;
+      font-size: 0.82rem; line-height: 1.4;
+    }
+    .mic-status iconify-icon { flex: 0 0 auto; margin-top: 1px; }
+    .mic-status.ok { color: #22c55e; }
+    .mic-status.err { color: #f59e0b; }
+    :host-context([data-bs-theme="light"]) .voice-privacy-note { color: #4338ca; }
+    :host-context([data-bs-theme="light"]) .mic-status.ok { color: #15803d; }
+    :host-context([data-bs-theme="light"]) .mic-status.err { color: #b45309; }
     .steps-indicator {
       display: flex; justify-content: center; gap: 0.5rem;
       margin-bottom: 1.5rem;
@@ -158,6 +199,15 @@ export class VoiceOnboardingModalComponent implements OnDestroy {
 
   step = signal<1 | 2>(1);
   success = signal(false);
+  micStatus = signal<'idle' | 'testing' | 'ok' | 'denied' | 'error'>('idle');
+
+  /** Host OS from the Tauri bridge (lib.rs injects it; the WebKitGTK UA says Mac). */
+  readonly os: HostOs = (() => {
+    const p = (window as any).promptops?.platform
+      ?? (navigator.userAgent.includes('Windows') ? 'win32'
+        : navigator.userAgent.includes('Macintosh') ? 'darwin' : 'linux');
+    return p === 'darwin' ? 'mac' : p === 'win32' ? 'win' : 'linux';
+  })();
 
   private hotkeyUnsubscribe: (() => void) | null = null;
 
@@ -174,8 +224,23 @@ export class VoiceOnboardingModalComponent implements OnDestroy {
     }
   }
 
-  /** The Option key on a Mac, Alt elsewhere. */
-  readonly altKey = navigator.userAgent.includes('Macintosh') ? '⌥' : 'Alt';
+  async openMicSettings(): Promise<void> {
+    const api = (window as any).promptops;
+    try { await api?.openMicSettings?.(); } catch { /* ignore */ }
+  }
+
+  /** Opens the mic once (triggers the OS/WebView permission prompt) and releases it. */
+  async testMic(): Promise<void> {
+    this.micStatus.set('testing');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
+      this.micStatus.set('ok');
+    } catch (err: any) {
+      const name = err?.name;
+      this.micStatus.set(name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'error');
+    }
+  }
 
   /**
    * On the way to "test the shortcut", turn the shortcut on so the desktop

@@ -1312,6 +1312,37 @@
       "Connecting": "Connecting to PromptOps…",
       "Gone": "This session is no longer available."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "View and manage this repository's git worktrees",
+      "Title": "Worktrees",
+      "Refresh": "Refresh",
+      "Loading": "Loading worktrees…",
+      "Current": "current",
+      "Main": "main",
+      "Detached": "detached",
+      "Locked": "Locked",
+      "Missing": "missing",
+      "Changes": "{{count}} changes",
+      "Clean": "clean",
+      "Remove": "Remove worktree",
+      "ConfirmRemove": "Remove the worktree {{name}}? The folder is deleted, the branch is kept.",
+      "ConfirmForce": "{{name}} has uncommitted changes (or is locked): they will be lost. Remove anyway?",
+      "RemoveBtn": "Remove",
+      "ForceBtn": "Remove anyway",
+      "Cancel": "Cancel",
+      "Prune": "Clean up missing worktrees",
+      "New": "New worktree",
+      "PathPlaceholder": "Folder, e.g. ../repo-feature",
+      "NewBranch": "Create a new branch from {{base}}",
+      "Create": "Create",
+      "Empty": "Only the main worktree exists for this repository.",
+      "Hint": "Click a worktree to see and commit its changed files here.",
+      "Created": "Worktree created at {{path}}",
+      "Removed": "Worktree removed",
+      "Pruned": "{{count}} stale worktrees cleaned up",
+      "Opened": "Now viewing worktree {{name}}"
+    },
     "Layout mode": "Layout mode",
     "Delete workspace title": "Delete the workspace?",
     "Delete workspace message": "Delete the workspace \"{{name}}\" and its {{count}} sessions? Their terminals and agents are closed.",
@@ -2601,16 +2632,32 @@
       "finish": "Done",
       "privacy": "Your voice is transcribed on this device by a local Whisper model, downloaded once from Hugging Face. While that model is not ready, the audio goes to Groq if you saved your own key, or to Apple's speech recognition on macOS, which stays on the Mac when the language has an on-device model.",
       "step1": {
-        "title": "Enable the voice shortcut",
-        "body": "Hold ⌥+M (Alt+M on Windows and Linux) for 2 seconds anywhere to turn the microphone on. No extra system permission is needed.",
-        "s1": "Open System Settings → Privacy & Security → Accessibility",
-        "s2": "Add and enable PromptOps Desktop in the list",
-        "s3": "Come back here to test the shortcut",
-        "open_settings": "Open Privacy settings"
+        "title": "Microphone access",
+        "body": "Voice commands use your microphone. Allow PromptOps Desktop to use it, then test it here.",
+        "mac": {
+          "s1": "Open System Settings → Privacy & Security → Microphone",
+          "s2": "Enable PromptOps Desktop in the list",
+          "s3": "Not listed? Click \"Test microphone\": macOS will ask for permission"
+        },
+        "win": {
+          "s1": "Open Settings → Privacy & security → Microphone",
+          "s2": "Turn on \"Microphone access\" and \"Let desktop apps access your microphone\"",
+          "s3": "Click \"Test microphone\" to check that the input works"
+        },
+        "linux": {
+          "s1": "Make sure PipeWire or PulseAudio is running and a microphone input is selected in your sound settings",
+          "s2": "On Wayland or Flatpak, allow microphone access in the desktop portal if asked",
+          "s3": "Click \"Test microphone\" to check that the input works"
+        },
+        "open_settings": "Open microphone settings",
+        "test_mic": "Test microphone",
+        "mic_ok": "Microphone working.",
+        "mic_denied": "Microphone access denied. Enable it in the system settings and try again.",
+        "mic_error": "No microphone found or it cannot be opened. Check the input device in the system settings."
       },
       "step2": {
         "title": "Shortcut test",
-        "body": "Press ⌥+M.",
+        "body": "Hold down the shortcut below.",
         "hold_hint": "(for 2 seconds)",
         "success": "It works! The shortcut is active."
       }

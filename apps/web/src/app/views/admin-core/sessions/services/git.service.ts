@@ -60,6 +60,25 @@ export interface GitFolder {
   someSelected: boolean;
 }
 
+export interface GitWorktree {
+  path: string;
+  name: string;
+  head: string;
+  shortHead: string;
+  branch: string | null;
+  detached: boolean;
+  bare: boolean;
+  locked: boolean;
+  lockReason?: string | null;
+  prunable: boolean;
+  /** First entry of `git worktree list`: the repository's own working tree. */
+  main: boolean;
+  /** The worktree `cwd` belongs to. */
+  current: boolean;
+  /** Changed files (porcelain status lines); null when unreadable (missing/bare). */
+  changes: number | null;
+}
+
 export interface DiscoveredRepo {
   name: string;
   path: string;
@@ -1021,6 +1040,43 @@ export class GitService {
       return await this.api.gitRemoteUrl(cwd);
     } catch (err: any) {
       return { ok: false, error: err?.message || 'No remote' };
+    }
+  }
+
+  // ── Worktrees ────────────────────────────────────────────────────────
+  async listWorktrees(cwd: string): Promise<{ ok: boolean; worktrees?: GitWorktree[]; error?: string }> {
+    if (!this.isDesktop || !cwd) return { ok: false, error: 'Not in the desktop app' };
+    try {
+      return await this.api.gitWorktreeList(cwd);
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Worktree list failed' };
+    }
+  }
+
+  async addWorktree(cwd: string, path: string, branch: string, newBranch: boolean, base?: string): Promise<{ ok: boolean; path?: string; error?: string }> {
+    if (!this.isDesktop) return { ok: false, error: 'Not in the desktop app' };
+    try {
+      return await this.api.gitWorktreeAdd(cwd, path, branch, newBranch, base);
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Worktree add failed' };
+    }
+  }
+
+  async removeWorktree(cwd: string, path: string, force = false): Promise<{ ok: boolean; error?: string; dirty?: boolean; locked?: boolean }> {
+    if (!this.isDesktop) return { ok: false, error: 'Not in the desktop app' };
+    try {
+      return await this.api.gitWorktreeRemove(cwd, path, force);
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Worktree remove failed' };
+    }
+  }
+
+  async pruneWorktrees(cwd: string): Promise<{ ok: boolean; pruned?: number; error?: string }> {
+    if (!this.isDesktop) return { ok: false, error: 'Not in the desktop app' };
+    try {
+      return await this.api.gitWorktreePrune(cwd);
+    } catch (err: any) {
+      return { ok: false, error: err?.message || 'Worktree prune failed' };
     }
   }
 

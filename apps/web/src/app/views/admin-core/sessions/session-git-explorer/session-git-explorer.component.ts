@@ -7,19 +7,21 @@ import {
   OnDestroy,
   signal,
   computed,
-  ChangeDetectionStrategy
+  ChangeDetectionStrategy,
+  HostListener,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { GitService } from '../services/git.service';
+import { GitService, GitWorktree } from '../services/git.service';
 import { GitSetupService } from '../services/git-setup.service';
 import { GitSetupModalComponent } from '../git-setup-modal/git-setup-modal.component';
 import { BranchMergeModalComponent } from '../branch-merge-modal/branch-merge-modal.component';
 import { GitSettingsModalComponent } from '../git-settings-modal/git-settings-modal.component';
 import { GitSettingsService } from '../services/git-settings.service';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
+import { EscCloseDirective } from '../../../../common/esc-close.directive';
 import { isRasterImagePath, toDataUrl } from '../services/image-file.util';
 import { buildFileTree, visibleTreeRows, FileTreeNode, TreePage } from './git-file-tree';
 
@@ -123,7 +125,7 @@ const GRAPH_COLORS = [
 @Component({
   selector: 'app-session-git-explorer',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, TooltipDirective, GitSetupModalComponent, BranchMergeModalComponent, GitSettingsModalComponent],
+  imports: [CommonModule, FormsModule, TranslateModule, TooltipDirective, EscCloseDirective, GitSetupModalComponent, BranchMergeModalComponent, GitSettingsModalComponent],
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   template: `
     <div class="git-explorer">
@@ -250,6 +252,144 @@ const GRAPH_COLORS = [
                       @if (git.syncError()) {
                         <div class="new-branch-error">{{ git.syncError() }}</div>
                       }
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+          @if (isRepo()) {
+            <div class="branch-switcher">
+              <button
+                class="git-branch-badge branch-switch-btn wt-switch-btn"
+                [class.open]="worktreeMenuOpen()"
+                [class.in-linked]="activeWorktree() && !activeWorktree()!.main"
+                (click)="toggleWorktreeMenu()"
+                [appTooltip]="'SESSIONS.WORKTREES.Tooltip' | translate"
+              >
+                <iconify-icon icon="mdi:file-tree-outline" width="12"></iconify-icon>
+                @if (activeWorktree() && !activeWorktree()!.main) {
+                  {{ activeWorktree()!.name }}
+                } @else {
+                  {{ 'SESSIONS.WORKTREES.Button' | translate }}
+                }
+                @if (worktrees().length > 1) {
+                  <span class="wt-count">{{ worktrees().length }}</span>
+                }
+                <iconify-icon icon="mdi:chevron-down" width="11"></iconify-icon>
+              </button>
+              @if (worktreeMenuOpen()) {
+                <div class="branch-menu-backdrop" (click)="closeWorktreeMenu()"></div>
+                <div class="branch-menu wt-menu" appEscClose (escClose)="closeWorktreeMenu()">
+                  <div class="branch-menu-list">
+                    <div class="branch-menu-group wt-group">
+                      <span>{{ 'SESSIONS.WORKTREES.Title' | translate }}</span>
+                      <button class="wt-icon-btn" (click)="loadWorktrees()" [disabled]="worktreesLoading()" [appTooltip]="'SESSIONS.WORKTREES.Refresh' | translate">
+                        <iconify-icon icon="mdi:refresh" width="12" [class.spinning]="worktreesLoading()"></iconify-icon>
+                      </button>
+                    </div>
+                    @if (worktreesLoading() && worktrees().length === 0) {
+                      <div class="branch-menu-empty">{{ 'SESSIONS.WORKTREES.Loading' | translate }}</div>
+                    }
+                    @for (wt of worktrees(); track wt.path) {
+                      <div class="wt-row" [class.current]="wt.current" [class.missing]="wt.prunable">
+                        <button
+                          class="branch-menu-item wt-main"
+                          [disabled]="wt.current || wt.prunable || wt.bare || !!wtBusy()"
+                          (click)="openWorktree(wt)"
+                          [appTooltip]="wt.path"
+                        >
+                          <iconify-icon [icon]="wt.current ? 'mdi:check' : 'mdi:folder-outline'" width="12"></iconify-icon>
+                          <span class="wt-text">
+                            <span class="bmi-name">{{ wt.name }}</span>
+                            <span class="wt-sub">
+                              <iconify-icon icon="mdi:source-branch" width="10"></iconify-icon>
+                              {{ wt.branch || (('SESSIONS.WORKTREES.Detached' | translate) + ' ' + wt.shortHead) }}
+                            </span>
+                          </span>
+                          @if (wt.main) { <span class="wt-tag">{{ 'SESSIONS.WORKTREES.Main' | translate }}</span> }
+                          @if (wt.current) { <span class="bmi-current">{{ 'SESSIONS.WORKTREES.Current' | translate }}</span> }
+                          @if (wt.locked) {
+                            <iconify-icon class="wt-lock" icon="mdi:lock-outline" width="11" [appTooltip]="wt.lockReason || ('SESSIONS.WORKTREES.Locked' | translate)"></iconify-icon>
+                          }
+                          @if (wt.prunable) {
+                            <span class="wt-tag warn">{{ 'SESSIONS.WORKTREES.Missing' | translate }}</span>
+                          } @else if (wt.changes !== null) {
+                            <span class="wt-changes" [class.dirty]="wt.changes > 0">
+                              {{ wt.changes > 0 ? ('SESSIONS.WORKTREES.Changes' | translate: { count: wt.changes }) : ('SESSIONS.WORKTREES.Clean' | translate) }}
+                            </span>
+                          }
+                        </button>
+                        @if (!wt.main && !wt.current && !wt.prunable) {
+                          <button class="wt-icon-btn danger" [disabled]="!!wtBusy()" (click)="askRemoveWorktree(wt)" [appTooltip]="'SESSIONS.WORKTREES.Remove' | translate">
+                            <iconify-icon icon="mdi:trash-can-outline" width="13"></iconify-icon>
+                          </button>
+                        }
+                      </div>
+                      @if (wtConfirm()?.path === wt.path) {
+                        <div class="wt-confirm">
+                          <span>{{ (wtConfirm()!.force ? 'SESSIONS.WORKTREES.ConfirmForce' : 'SESSIONS.WORKTREES.ConfirmRemove') | translate: { name: wt.name } }}</span>
+                          <div class="wt-confirm-actions">
+                            <button class="wt-btn" (click)="wtConfirm.set(null)">{{ 'SESSIONS.WORKTREES.Cancel' | translate }}</button>
+                            <button class="wt-btn danger" [disabled]="!!wtBusy()" (click)="removeWorktree(wt, wtConfirm()!.force)">
+                              <iconify-icon [icon]="wtBusy() === wt.path ? 'mdi:loading' : 'mdi:trash-can-outline'" width="12" [class.spinning]="wtBusy() === wt.path"></iconify-icon>
+                              {{ (wtConfirm()!.force ? 'SESSIONS.WORKTREES.ForceBtn' : 'SESSIONS.WORKTREES.RemoveBtn') | translate }}
+                            </button>
+                          </div>
+                        </div>
+                      }
+                    }
+                    @if (!worktreesLoading() && worktrees().length === 1) {
+                      <div class="branch-menu-empty">{{ 'SESSIONS.WORKTREES.Empty' | translate }}</div>
+                    } @else if (worktrees().length > 1) {
+                      <div class="wt-hint">{{ 'SESSIONS.WORKTREES.Hint' | translate }}</div>
+                    }
+                  </div>
+                  <div class="branch-menu-footer">
+                    @if (hasPrunable()) {
+                      <button class="wt-btn" [disabled]="!!wtBusy()" (click)="pruneWorktrees()">
+                        <iconify-icon icon="mdi:broom" width="12"></iconify-icon>
+                        {{ 'SESSIONS.WORKTREES.Prune' | translate }}
+                      </button>
+                    }
+                    @if (!wtCreateOpen()) {
+                      <button class="btn-new-branch" (click)="openWorktreeCreate()">
+                        <iconify-icon icon="mdi:plus" width="13"></iconify-icon>
+                        {{ 'SESSIONS.WORKTREES.New' | translate }}
+                      </button>
+                    } @else {
+                      <input
+                        class="new-branch-input"
+                        [placeholder]="'feature/my-branch'"
+                        [(ngModel)]="wtBranch"
+                        (ngModelChange)="onWorktreeBranchChange()"
+                        (keydown.enter)="createWorktree()"
+                      />
+                      <input
+                        class="new-branch-input"
+                        [placeholder]="'SESSIONS.WORKTREES.PathPlaceholder' | translate"
+                        [(ngModel)]="wtPath"
+                        (ngModelChange)="wtPathTouched = true"
+                        (keydown.enter)="createWorktree()"
+                      />
+                      <label class="wt-check">
+                        <input type="checkbox" [(ngModel)]="wtNewBranch" />
+                        {{ 'SESSIONS.WORKTREES.NewBranch' | translate: { base: currentBranch() } }}
+                      </label>
+                      <div class="new-branch-form">
+                        <button class="wt-btn" (click)="wtCreateOpen.set(false)">{{ 'SESSIONS.WORKTREES.Cancel' | translate }}</button>
+                        <button
+                          class="btn-branch-create"
+                          (click)="createWorktree()"
+                          [disabled]="!wtBranch.trim() || !wtPath.trim() || wtBusy() === 'create'"
+                        >
+                          <iconify-icon [icon]="wtBusy() === 'create' ? 'mdi:loading' : 'mdi:check'" width="13" [class.spinning]="wtBusy() === 'create'"></iconify-icon>
+                          {{ 'SESSIONS.WORKTREES.Create' | translate }}
+                        </button>
+                      </div>
+                    }
+                    @if (wtError()) {
+                      <div class="new-branch-error">{{ wtError() }}</div>
                     }
                   </div>
                 </div>
@@ -1563,6 +1703,66 @@ const GRAPH_COLORS = [
       background: rgba(88,166,255,0.12); color: var(--po-info); font-family: monospace;
     }
 
+    /* ── Worktree switcher (topbar) ── */
+    .wt-switch-btn.in-linked { background: rgba(210,153,34,0.14); color: var(--po-warning, #d29922); }
+    .wt-count {
+      font-size: 0.55rem; font-weight: 700; padding: 0 4px; border-radius: 3px;
+      background: rgba(127,127,127,0.18); color: inherit;
+    }
+    .wt-menu { width: 360px; max-height: 480px; }
+    .wt-group { display: flex; align-items: center; justify-content: space-between; }
+    .wt-row { display: flex; align-items: center; padding-right: 0.35rem; }
+    .wt-row.missing { opacity: 0.6; }
+    .wt-main { flex: 1; min-width: 0; }
+    .wt-main:disabled { color: var(--po-text-primary); }
+    .wt-row.current .wt-main { color: var(--po-success, #3fb950); }
+    .wt-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .wt-sub {
+      display: inline-flex; align-items: center; gap: 2px; min-width: 0;
+      font-family: monospace; font-size: 0.6rem; color: var(--po-text-secondary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .wt-tag {
+      font-size: 0.5rem; font-weight: 700; text-transform: uppercase; flex-shrink: 0;
+      padding: 1px 5px; border-radius: 3px;
+      background: rgba(127,127,127,0.15); color: var(--po-text-secondary);
+    }
+    .wt-tag.warn { background: rgba(210,153,34,0.15); color: var(--po-warning, #d29922); }
+    .wt-lock { color: var(--po-text-secondary); flex-shrink: 0; }
+    .wt-changes { font-size: 0.58rem; flex-shrink: 0; color: var(--po-text-secondary); }
+    .wt-changes.dirty { color: var(--po-warning, #d29922); font-weight: 600; }
+    .wt-icon-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; flex-shrink: 0; padding: 0;
+      background: transparent; border: none; border-radius: 4px;
+      color: var(--po-text-secondary); cursor: pointer;
+    }
+    .wt-icon-btn:hover:not(:disabled) { background: rgba(127,127,127,0.15); color: var(--po-text-primary); }
+    .wt-icon-btn.danger:hover:not(:disabled) { color: var(--po-error, #f85149); }
+    .wt-confirm {
+      margin: 0.15rem 0.6rem 0.35rem; padding: 0.4rem 0.5rem;
+      border: 1px solid rgba(248,81,73,0.35); border-radius: 5px;
+      font-size: 0.65rem; color: var(--po-text-primary);
+      display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .wt-confirm-actions { display: flex; justify-content: flex-end; gap: 0.3rem; }
+    .wt-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.25rem;
+      padding: 0.25rem 0.55rem; border-radius: 4px; cursor: pointer;
+      font-size: 0.65rem; font-weight: 600;
+      background: transparent; border: 1px solid var(--po-border-subtle);
+      color: var(--po-text-primary);
+    }
+    .wt-btn:hover:not(:disabled) { background: rgba(127,127,127,0.12); }
+    .wt-btn.danger { border-color: rgba(248,81,73,0.45); color: var(--po-error, #f85149); }
+    .wt-btn.danger:hover:not(:disabled) { background: rgba(248,81,73,0.1); }
+    .wt-hint { padding: 0.35rem 0.6rem 0.2rem; font-size: 0.6rem; color: var(--po-text-secondary); }
+    .wt-check {
+      display: flex; align-items: center; gap: 0.35rem;
+      font-size: 0.65rem; color: var(--po-text-secondary); cursor: pointer;
+    }
+    .wt-menu .new-branch-form { justify-content: flex-end; }
+
     /* ── Branch switcher (topbar) ── */
     .branch-switcher { position: relative; display: inline-flex; }
     .branch-switch-btn {
@@ -2762,6 +2962,8 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
     this.syncInfo.set(null);
     this.searchQuery = '';
     this.closeBranchMenu();
+    this.worktrees.set([]);
+    this.closeWorktreeMenu();
     this.showClonePanel.set(false);
     this.cloneUrl = '';
     this.cloneBranch = '';
@@ -2778,6 +2980,7 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
     this.git.refresh(this._cwd);
     // Fetch once on open so counters/notifications start from fresh remote state.
     if (this.isRepo()) void this.syncNow();
+    if (this.isRepo()) void this.loadWorktrees();
     // If not a repo, try discovering repos in subfolders
     if (!this.isRepo()) {
       const root = this._cwd;
@@ -2804,7 +3007,14 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
     // _cwd is about to become the repo path, so key on the workspace root.
     this.git.rememberRepoPick(this._originalCwd || this._cwd, repo.path);
     this.activeRepoPath.set(repo.path);
-    this._cwd = repo.path;
+    this.loadRepoAt(repo.path);
+  }
+
+  /** Point the explorer at another repo/worktree path and reload everything. */
+  private loadRepoAt(path: string): void {
+    this._cwd = path;
+    this.worktrees.set([]);
+    this.closeWorktreeMenu();
     this.git.reset();
     this.commits.set([]);
     this.allBranches.set([]);
@@ -2826,8 +3036,8 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
     this.syncInfo.set(null);
     this.searchQuery = '';
     this.closeBranchMenu();
-    this.loadHistory();
-    this.git.refresh(repo.path);
+    void this.loadHistory().then(() => { if (this.isRepo()) void this.loadWorktrees(); });
+    this.git.refresh(path);
   }
   provider = '';
 
@@ -3148,6 +3358,157 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
     this.loadHistory();
   }
 
+  // ── Worktrees ──
+
+  worktrees = signal<GitWorktree[]>([]);
+  worktreesLoading = signal(false);
+  worktreeMenuOpen = signal(false);
+  wtCreateOpen = signal(false);
+  wtBusy = signal<string | null>(null);
+  wtError = signal<string | null>(null);
+  wtConfirm = signal<{ path: string; force: boolean } | null>(null);
+  wtBranch = '';
+  wtPath = '';
+  wtNewBranch = true;
+  wtPathTouched = false;
+  private wtRequest = 0;
+  activeWorktree = computed(() => this.worktrees().find(w => w.current) ?? null);
+  hasPrunable = computed(() => this.worktrees().some(w => w.prunable));
+
+  async loadWorktrees(): Promise<void> {
+    const cwd = this._cwd;
+    if (!cwd) return;
+    const id = ++this.wtRequest;
+    this.worktreesLoading.set(true);
+    try {
+      const res = await this.git.listWorktrees(cwd);
+      if (id !== this.wtRequest || cwd !== this._cwd) return;
+      this.worktrees.set(res.ok ? res.worktrees ?? [] : []);
+      if (!res.ok && this.worktreeMenuOpen()) this.wtError.set(res.error || null);
+    } finally {
+      if (id === this.wtRequest) this.worktreesLoading.set(false);
+    }
+  }
+
+  toggleWorktreeMenu(): void {
+    if (this.worktreeMenuOpen()) {
+      this.closeWorktreeMenu();
+      return;
+    }
+    this.closeBranchMenu();
+    this.wtError.set(null);
+    this.wtConfirm.set(null);
+    this.wtCreateOpen.set(false);
+    this.worktreeMenuOpen.set(true);
+    void this.loadWorktrees();
+  }
+
+  /** Esc closes the worktree menu (first the open confirmation or form, then the menu). */
+  @HostListener('document:keydown.escape', ['$event'])
+  onWorktreeEscape(evt: Event): void {
+    if (!this.worktreeMenuOpen()) return;
+    evt.preventDefault();
+    evt.stopPropagation();
+    if (this.wtConfirm()) this.wtConfirm.set(null);
+    else if (this.wtCreateOpen()) this.wtCreateOpen.set(false);
+    else this.closeWorktreeMenu();
+  }
+
+  closeWorktreeMenu(): void {
+    this.worktreeMenuOpen.set(false);
+    this.wtCreateOpen.set(false);
+    this.wtConfirm.set(null);
+  }
+
+  openWorktree(wt: GitWorktree): void {
+    if (wt.current || wt.prunable || wt.bare) return;
+    this.loadRepoAt(wt.path);
+    this.showGitToast('ok', this.translate.instant('SESSIONS.WORKTREES.Opened', { name: wt.name }));
+  }
+
+  openWorktreeCreate(): void {
+    this.wtBranch = '';
+    this.wtPath = '';
+    this.wtPathTouched = false;
+    this.wtNewBranch = true;
+    this.wtError.set(null);
+    this.wtCreateOpen.set(true);
+  }
+
+  /** Suggest a sibling folder named after the main worktree and the branch, until the user edits the path. */
+  onWorktreeBranchChange(): void {
+    if (this.wtPathTouched) return;
+    const main = this.worktrees().find(w => w.main);
+    const base = main?.name || 'worktree';
+    const slug = this.wtBranch.trim().replace(/[\\/\s]+/g, '-').replace(/[^A-Za-z0-9._-]/g, '');
+    this.wtPath = slug ? `../${base}-${slug}` : '';
+  }
+
+  async createWorktree(): Promise<void> {
+    const branch = this.wtBranch.trim();
+    const path = this.wtPath.trim();
+    if (!branch || !path || this.wtBusy()) return;
+    this.wtBusy.set('create');
+    this.wtError.set(null);
+    try {
+      const res = await this.git.addWorktree(this.cwd, path, branch, this.wtNewBranch, this.wtNewBranch ? this.currentBranch() || undefined : undefined);
+      if (!res.ok) {
+        this.wtError.set(res.error || 'Worktree add failed');
+        return;
+      }
+      this.wtCreateOpen.set(false);
+      this.showGitToast('ok', this.translate.instant('SESSIONS.WORKTREES.Created', { path: res.path || path }));
+      await this.loadWorktrees();
+      this.loadHistory();
+    } finally {
+      this.wtBusy.set(null);
+    }
+  }
+
+  askRemoveWorktree(wt: GitWorktree): void {
+    this.wtError.set(null);
+    // Dirty worktrees go straight to the "changes will be lost" confirmation.
+    this.wtConfirm.set({ path: wt.path, force: (wt.changes ?? 0) > 0 || wt.locked });
+  }
+
+  async removeWorktree(wt: GitWorktree, force: boolean): Promise<void> {
+    if (this.wtBusy()) return;
+    this.wtBusy.set(wt.path);
+    this.wtError.set(null);
+    try {
+      const res = await this.git.removeWorktree(this.cwd, wt.path, force);
+      if (!res.ok) {
+        if (!force && (res.dirty || res.locked)) {
+          this.wtConfirm.set({ path: wt.path, force: true });
+          return;
+        }
+        this.wtError.set(res.error || 'Worktree remove failed');
+        return;
+      }
+      this.wtConfirm.set(null);
+      this.showGitToast('ok', this.translate.instant('SESSIONS.WORKTREES.Removed'));
+      await this.loadWorktrees();
+    } finally {
+      this.wtBusy.set(null);
+    }
+  }
+
+  async pruneWorktrees(): Promise<void> {
+    if (this.wtBusy()) return;
+    this.wtBusy.set('prune');
+    try {
+      const res = await this.git.pruneWorktrees(this.cwd);
+      if (!res.ok) {
+        this.wtError.set(res.error || 'Worktree prune failed');
+        return;
+      }
+      this.showGitToast('ok', this.translate.instant('SESSIONS.WORKTREES.Pruned', { count: res.pruned ?? 0 }));
+      await this.loadWorktrees();
+    } finally {
+      this.wtBusy.set(null);
+    }
+  }
+
   // ── Branch interactions ──
 
   branchMenuOpen = signal(false);
@@ -3165,6 +3526,7 @@ export class SessionGitExplorerComponent implements OnInit, OnDestroy {
   }
 
   openBranchMenu(withCreate = false): void {
+    this.closeWorktreeMenu();
     this.branchFilter = '';
     this.createBranchOpen.set(withCreate);
     this.branchMenuOpen.set(true);

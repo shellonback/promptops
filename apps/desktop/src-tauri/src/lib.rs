@@ -408,6 +408,10 @@ pub fn run() {
             commands::git::git_tag,
             commands::git::git_remote_url,
             commands::git::git_show_file_base64,
+            commands::git::git_worktree_list,
+            commands::git::git_worktree_add,
+            commands::git::git_worktree_remove,
+            commands::git::git_worktree_prune,
             // git_setup
             commands::git_setup::git_setup_diagnose,
             commands::git_setup::git_setup_list_keys,

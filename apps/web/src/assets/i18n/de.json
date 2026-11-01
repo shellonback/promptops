@@ -1312,6 +1312,37 @@
       "Connecting": "Verbindung mit PromptOps…",
       "Gone": "Diese Sitzung ist nicht mehr verfügbar."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Git-Worktrees dieses Repositorys anzeigen und verwalten",
+      "Title": "Worktrees",
+      "Refresh": "Aktualisieren",
+      "Loading": "Worktrees werden geladen…",
+      "Current": "aktuell",
+      "Main": "Haupt",
+      "Detached": "detached",
+      "Locked": "Gesperrt",
+      "Missing": "fehlt",
+      "Changes": "{{count}} Änderungen",
+      "Clean": "sauber",
+      "Remove": "Worktree entfernen",
+      "ConfirmRemove": "Worktree {{name}} entfernen? Der Ordner wird gelöscht, der Branch bleibt erhalten.",
+      "ConfirmForce": "{{name}} hat nicht committete Änderungen (oder ist gesperrt): Sie gehen verloren. Trotzdem entfernen?",
+      "RemoveBtn": "Entfernen",
+      "ForceBtn": "Trotzdem entfernen",
+      "Cancel": "Abbrechen",
+      "Prune": "Fehlende Worktrees bereinigen",
+      "New": "Neuer Worktree",
+      "PathPlaceholder": "Ordner, z. B. ../repo-feature",
+      "NewBranch": "Neuen Branch von {{base}} erstellen",
+      "Create": "Erstellen",
+      "Empty": "Für dieses Repository gibt es nur den Haupt-Worktree.",
+      "Hint": "Klicke auf einen Worktree, um seine geänderten Dateien hier zu sehen und zu committen.",
+      "Created": "Worktree erstellt in {{path}}",
+      "Removed": "Worktree entfernt",
+      "Pruned": "{{count}} veraltete Worktrees bereinigt",
+      "Opened": "Du siehst jetzt den Worktree {{name}}"
+    },
     "Layout mode": "Layout-Modus",
     "Delete workspace title": "Workspace löschen?",
     "Delete workspace message": "Den Workspace „{{name}}“ und seine {{count}} Sitzungen löschen? Ihre Terminals und Agenten werden geschlossen.",
@@ -2601,16 +2632,32 @@
       "finish": "Fertig",
       "privacy": "Deine Stimme wird auf diesem Gerät von einem lokalen Whisper-Modell transkribiert, das einmalig von Hugging Face heruntergeladen wird. Solange dieses Modell nicht bereit ist, geht das Audio an Groq, wenn du deinen eigenen Schlüssel gespeichert hast, oder unter macOS an die Spracherkennung von Apple, die auf dem Mac bleibt, wenn es für die Sprache ein Modell auf dem Gerät gibt.",
       "step1": {
-        "title": "Sprachkürzel aktivieren",
-        "body": "Halte ⌥+M (Alt+M unter Windows und Linux) überall 2 Sekunden lang gedrückt, um das Mikrofon einzuschalten. Keine weitere Systemberechtigung nötig.",
-        "s1": "Systemeinstellungen öffnen → Datenschutz & Sicherheit → Bedienungshilfen",
-        "s2": "PromptOps Desktop in der Liste hinzufügen und aktivieren",
-        "s3": "Hier zurückkehren, um die Tastenkombination zu testen",
-        "open_settings": "Datenschutzeinstellungen öffnen"
+        "title": "Mikrofonzugriff",
+        "body": "Sprachbefehle verwenden dein Mikrofon. Erlaube PromptOps Desktop den Zugriff und teste es hier.",
+        "mac": {
+          "s1": "Öffne Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon",
+          "s2": "Aktiviere PromptOps Desktop in der Liste",
+          "s3": "Nicht aufgeführt? Klicke auf „Mikrofon testen“: macOS fragt nach der Berechtigung"
+        },
+        "win": {
+          "s1": "Öffne Einstellungen → Datenschutz und Sicherheit → Mikrofon",
+          "s2": "Aktiviere „Mikrofonzugriff“ und „Desktop-Apps den Zugriff auf das Mikrofon erlauben“",
+          "s3": "Klicke auf „Mikrofon testen“, um den Eingang zu prüfen"
+        },
+        "linux": {
+          "s1": "Stelle sicher, dass PipeWire oder PulseAudio läuft und in den Toneinstellungen ein Mikrofon ausgewählt ist",
+          "s2": "Unter Wayland oder Flatpak erlaube bei Nachfrage den Mikrofonzugriff im Desktop-Portal",
+          "s3": "Klicke auf „Mikrofon testen“, um den Eingang zu prüfen"
+        },
+        "open_settings": "Mikrofoneinstellungen öffnen",
+        "test_mic": "Mikrofon testen",
+        "mic_ok": "Das Mikrofon funktioniert.",
+        "mic_denied": "Mikrofonzugriff verweigert. Aktiviere ihn in den Systemeinstellungen und versuche es erneut.",
+        "mic_error": "Kein Mikrofon gefunden oder es kann nicht geöffnet werden. Prüfe das Eingabegerät in den Systemeinstellungen."
       },
       "step2": {
         "title": "Tastenkombination testen",
-        "body": "Drücke ⌥+M.",
+        "body": "Halte die Tastenkombination unten gedrückt.",
         "hold_hint": "(für 2 Sekunden)",
         "success": "Es funktioniert! Die Tastenkombination ist aktiv."
       }

@@ -45,6 +45,31 @@ export class SessionAssetsService {
   /** Bumped by each loadAssets(): only the latest answer is shown. */
   private loadSeq = 0;
 
+  /**
+   * Path of an asset to hand to an agent. Local: absolute, because the agent
+   * may work in a git worktree (claude --worktree, Codex, manual worktrees)
+   * where `.promptops-assets/` is missing — it is gitignored, so it is not in
+   * the checkout — and a relative path would point at nothing. Remote
+   * (`cmd://` / `ssh://`): stays relative, we do not know the absolute path
+   * on the host.
+   */
+  agentPath(cwd: string | null | undefined, relativePath: string): string {
+    if (!cwd || cwd.startsWith('cmd://') || cwd.startsWith('ssh://')) return relativePath;
+    const windows = /^[a-zA-Z]:[\\/]/.test(cwd) || cwd.startsWith('\\\\');
+    const sep = windows ? '\\' : '/';
+    const base = cwd.replace(/[\\/]+$/, '');
+    const rel = windows ? relativePath.replace(/\//g, '\\') : relativePath;
+    return `${base}${sep}${rel}`;
+  }
+
+  /** Paths ready to paste into the prompt/terminal, space separated (quoted when they contain spaces). */
+  agentPathsInline(cwd: string | null | undefined, assets: AssetInfo[]): string {
+    return assets
+      .map(a => this.agentPath(cwd, a.relativePath))
+      .map(p => (/\s/.test(p) ? `"${p}"` : p))
+      .join(' ');
+  }
+
   async loadAssets(cwd: string): Promise<void> {
     const seq = ++this.loadSeq;
     this.loading.set(true);
@@ -188,14 +213,14 @@ export class SessionAssetsService {
    * Build a strong, asset-aware AI prompt for a given task intent.
    * The result is a starting point the user can edit and/or enhance.
    */
-  buildIntentPrompt(assets: AssetInfo[], intent: AssetIntent): string {
+  buildIntentPrompt(assets: AssetInfo[], intent: AssetIntent, cwd?: string | null): string {
     const fileList = assets
-      .map(a => `- ${a.relativePath} (${a.isImage ? 'image' : a.mimeType}, ${this.formatSize(a.size)})`)
+      .map(a => `- ${this.agentPath(cwd, a.relativePath)} (${a.isImage ? 'image' : a.mimeType}, ${this.formatSize(a.size)})`)
       .join('\n');
 
     if (intent === 'custom') {
-      const paths = assets.map(a => `- ${a.relativePath}`).join('\n');
-      return `Files (in the project's .promptops-assets/ directory):\n${paths}\n\n`;
+      const paths = assets.map(a => `- ${this.agentPath(cwd, a.relativePath)}`).join('\n');
+      return `Files (from the session's .promptops-assets/ directory):\n${paths}\n\n`;
     }
 
     const instructions: Record<Exclude<AssetIntent, 'custom'>, string> = {

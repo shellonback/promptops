@@ -428,7 +428,7 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     if (!ws) return;
     try {
       const uploaded = await this.assetsService.uploadFiles(ws, files);
-      const paths = uploaded.map(a => a.relativePath).join(' ');
+      const paths = this.assetsService.agentPathsInline(ws, uploaded);
       if (paths) {
         this.sessionService.writeSession(this.sessionId, `\x1b[200~${paths}\x1b[201~`);
       }

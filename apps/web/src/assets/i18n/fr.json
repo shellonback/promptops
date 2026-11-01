@@ -1312,6 +1312,37 @@
       "Connecting": "Connexion à PromptOps…",
       "Gone": "Cette session n'est plus disponible."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Afficher et gérer les worktrees git de ce dépôt",
+      "Title": "Worktrees",
+      "Refresh": "Actualiser",
+      "Loading": "Chargement des worktrees…",
+      "Current": "actuel",
+      "Main": "principal",
+      "Detached": "détaché",
+      "Locked": "Verrouillé",
+      "Missing": "manquant",
+      "Changes": "{{count}} modifications",
+      "Clean": "propre",
+      "Remove": "Supprimer le worktree",
+      "ConfirmRemove": "Supprimer le worktree {{name}} ? Le dossier est supprimé, la branche est conservée.",
+      "ConfirmForce": "{{name}} contient des modifications non commitées (ou est verrouillé) : elles seront perdues. Supprimer quand même ?",
+      "RemoveBtn": "Supprimer",
+      "ForceBtn": "Supprimer quand même",
+      "Cancel": "Annuler",
+      "Prune": "Nettoyer les worktrees manquants",
+      "New": "Nouveau worktree",
+      "PathPlaceholder": "Dossier, ex. ../repo-feature",
+      "NewBranch": "Créer une nouvelle branche depuis {{base}}",
+      "Create": "Créer",
+      "Empty": "Seul le worktree principal existe pour ce dépôt.",
+      "Hint": "Cliquez sur un worktree pour voir et commiter ici ses fichiers modifiés.",
+      "Created": "Worktree créé dans {{path}}",
+      "Removed": "Worktree supprimé",
+      "Pruned": "{{count}} worktrees obsolètes nettoyés",
+      "Opened": "Affichage du worktree {{name}}"
+    },
     "Layout mode": "Mode de disposition",
     "Delete workspace title": "Supprimer l'espace de travail ?",
     "Delete workspace message": "Supprimer l'espace de travail « {{name}} » et ses {{count}} sessions ? Leurs terminaux et agents seront fermés.",
@@ -2601,16 +2632,32 @@
       "finish": "Terminé",
       "privacy": "Ta voix est transcrite sur cet appareil par un modèle Whisper local, téléchargé une seule fois depuis Hugging Face. Tant que ce modèle n'est pas prêt, l'audio part vers Groq si tu as enregistré ta propre clé, ou vers la reconnaissance vocale d'Apple sur macOS, qui reste sur le Mac quand la langue a un modèle sur l'appareil.",
       "step1": {
-        "title": "Active le raccourci vocal",
-        "body": "Maintiens ⌥+M (Alt+M sous Windows et Linux) pendant 2 secondes, n'importe où, pour allumer le micro. Aucune autre autorisation système n'est nécessaire.",
-        "s1": "Ouvre Réglages système → Confidentialité et sécurité → Accessibilité",
-        "s2": "Ajoute et active PromptOps Desktop dans la liste",
-        "s3": "Reviens ici pour tester le raccourci",
-        "open_settings": "Ouvrir réglages Confidentialité"
+        "title": "Accès au microphone",
+        "body": "Les commandes vocales utilisent votre microphone. Autorisez PromptOps Desktop à l'utiliser, puis testez-le ici.",
+        "mac": {
+          "s1": "Ouvrez Réglages Système → Confidentialité et sécurité → Microphone",
+          "s2": "Activez PromptOps Desktop dans la liste",
+          "s3": "Absent de la liste ? Cliquez sur « Tester le microphone » : macOS demandera l'autorisation"
+        },
+        "win": {
+          "s1": "Ouvrez Paramètres → Confidentialité et sécurité → Microphone",
+          "s2": "Activez « Accès au microphone » et « Autoriser les applications de bureau à accéder au microphone »",
+          "s3": "Cliquez sur « Tester le microphone » pour vérifier que l'entrée fonctionne"
+        },
+        "linux": {
+          "s1": "Vérifiez que PipeWire ou PulseAudio est actif et qu'un microphone est sélectionné dans les paramètres audio",
+          "s2": "Sous Wayland ou Flatpak, autorisez l'accès au microphone dans le portail du bureau si demandé",
+          "s3": "Cliquez sur « Tester le microphone » pour vérifier que l'entrée fonctionne"
+        },
+        "open_settings": "Ouvrir les réglages du microphone",
+        "test_mic": "Tester le microphone",
+        "mic_ok": "Le microphone fonctionne.",
+        "mic_denied": "Accès au microphone refusé. Activez-le dans les réglages du système et réessayez.",
+        "mic_error": "Aucun microphone trouvé ou impossible de l'ouvrir. Vérifiez le périphérique d'entrée dans les réglages du système."
       },
       "step2": {
         "title": "Test du raccourci",
-        "body": "Appuie sur ⌥+M.",
+        "body": "Maintenez enfoncé le raccourci ci-dessous.",
         "hold_hint": "(pendant 2 secondes)",
         "success": "Ça marche ! Le raccourci est actif."
       }

@@ -980,6 +980,14 @@
     gitShowFileBase64: function (cwd, rev, filePath) {
       return call('git_show_file_base64', { cwd: cwd, rev: rev, filePath: filePath });
     },
+    gitWorktreeList: function (cwd) { return call('git_worktree_list', { cwd: cwd }); },
+    gitWorktreeAdd: function (cwd, path, branch, newBranch, base) {
+      return call('git_worktree_add', { cwd: cwd, path: path, branch: branch, newBranch: !!newBranch, base: base });
+    },
+    gitWorktreeRemove: function (cwd, path, force) {
+      return call('git_worktree_remove', { cwd: cwd, path: path, force: !!force });
+    },
+    gitWorktreePrune: function (cwd) { return call('git_worktree_prune', { cwd: cwd }); },
     gitAiResolveSync: function (cwd, operation, provider, lastError, opts) {
       return call('git_ai_resolve_sync', {
         cwd: cwd, operation: operation, provider: provider, lastError: lastError,

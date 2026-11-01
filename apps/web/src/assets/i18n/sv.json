@@ -1312,6 +1312,37 @@
       "Connecting": "Ansluter till PromptOps…",
       "Gone": "Den här sessionen är inte längre tillgänglig."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Visa och hantera git-worktrees för detta repository",
+      "Title": "Worktrees",
+      "Refresh": "Uppdatera",
+      "Loading": "Läser in worktrees…",
+      "Current": "aktuell",
+      "Main": "huvud",
+      "Detached": "frånkopplad",
+      "Locked": "Låst",
+      "Missing": "saknas",
+      "Changes": "{{count}} ändringar",
+      "Clean": "ren",
+      "Remove": "Ta bort worktree",
+      "ConfirmRemove": "Ta bort worktree {{name}}? Mappen raderas, grenen behålls.",
+      "ConfirmForce": "{{name}} har ändringar som inte är committade (eller är låst): de går förlorade. Ta bort ändå?",
+      "RemoveBtn": "Ta bort",
+      "ForceBtn": "Ta bort ändå",
+      "Cancel": "Avbryt",
+      "Prune": "Rensa saknade worktrees",
+      "New": "Ny worktree",
+      "PathPlaceholder": "Mapp, t.ex. ../repo-feature",
+      "NewBranch": "Skapa en ny gren från {{base}}",
+      "Create": "Skapa",
+      "Empty": "Detta repository har bara huvud-worktree.",
+      "Hint": "Klicka på en worktree för att se och committa dess ändrade filer här.",
+      "Created": "Worktree skapad i {{path}}",
+      "Removed": "Worktree borttagen",
+      "Pruned": "{{count}} inaktuella worktrees rensade",
+      "Opened": "Du visar nu worktree {{name}}"
+    },
     "Layout mode": "Layoutläge",
     "Delete workspace title": "Ta bort arbetsytan?",
     "Delete workspace message": "Ta bort arbetsytan \"{{name}}\" och dess {{count}} sessioner? Deras terminaler och agenter stängs.",
@@ -2601,16 +2632,32 @@
       "finish": "Klar",
       "privacy": "Din röst transkriberas på den här enheten av en lokal Whisper-modell som laddas ned en gång från Hugging Face. Tills modellen är klar skickas ljudet till Groq om du har sparat en egen nyckel, eller till Apples taligenkänning i macOS, som stannar på Macen när språket har en modell på enheten.",
       "step1": {
-        "title": "Aktivera röstgenvägen",
-        "body": "Håll ⌥+M (Alt+M i Windows och Linux) intryckt i 2 sekunder var som helst för att slå på mikrofonen. Ingen extra systembehörighet behövs.",
-        "s1": "Öppna Systeminställningar → Integritet & säkerhet → Tillgänglighet",
-        "s2": "Lägg till och aktivera PromptOps Desktop i listan",
-        "s3": "Kom tillbaka hit för att testa genvägen",
-        "open_settings": "Öppna sekretessinställningar"
+        "title": "Mikrofonåtkomst",
+        "body": "Röstkommandon använder din mikrofon. Ge PromptOps Desktop åtkomst och testa den här.",
+        "mac": {
+          "s1": "Öppna Systeminställningar → Integritet och säkerhet → Mikrofon",
+          "s2": "Aktivera PromptOps Desktop i listan",
+          "s3": "Finns den inte? Klicka på \"Testa mikrofonen\" så ber macOS om behörighet"
+        },
+        "win": {
+          "s1": "Öppna Inställningar → Sekretess och säkerhet → Mikrofon",
+          "s2": "Aktivera \"Mikrofonåtkomst\" och \"Låt skrivbordsappar komma åt mikrofonen\"",
+          "s3": "Klicka på \"Testa mikrofonen\" för att kontrollera att ingången fungerar"
+        },
+        "linux": {
+          "s1": "Kontrollera att PipeWire eller PulseAudio körs och att en mikrofon är vald i ljudinställningarna",
+          "s2": "I Wayland eller Flatpak, tillåt mikrofonåtkomst i skrivbordsportalen om du blir tillfrågad",
+          "s3": "Klicka på \"Testa mikrofonen\" för att kontrollera att ingången fungerar"
+        },
+        "open_settings": "Öppna mikrofoninställningar",
+        "test_mic": "Testa mikrofonen",
+        "mic_ok": "Mikrofonen fungerar.",
+        "mic_denied": "Mikrofonåtkomst nekad. Aktivera den i systeminställningarna och försök igen.",
+        "mic_error": "Ingen mikrofon hittades eller den kan inte öppnas. Kontrollera indataenheten i systeminställningarna."
       },
       "step2": {
         "title": "Genvägtest",
-        "body": "Tryck ⌥+M.",
+        "body": "Håll ned kortkommandot nedan.",
         "hold_hint": "(i 2 sekunder)",
         "success": "Det fungerar! Genvägen är aktiv."
       }

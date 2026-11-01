@@ -1312,6 +1312,37 @@
       "Connecting": "Łączenie z PromptOps…",
       "Gone": "Ta sesja nie jest już dostępna."
     },
+    "WORKTREES": {
+      "Button": "Worktree",
+      "Tooltip": "Wyświetlaj i zarządzaj worktree git tego repozytorium",
+      "Title": "Worktree",
+      "Refresh": "Odśwież",
+      "Loading": "Ładowanie worktree…",
+      "Current": "bieżący",
+      "Main": "główny",
+      "Detached": "odłączony",
+      "Locked": "Zablokowany",
+      "Missing": "brak",
+      "Changes": "Zmiany: {{count}}",
+      "Clean": "czysty",
+      "Remove": "Usuń worktree",
+      "ConfirmRemove": "Usunąć worktree {{name}}? Folder zostanie usunięty, gałąź pozostanie.",
+      "ConfirmForce": "{{name}} ma niezatwierdzone zmiany (lub jest zablokowany): zostaną utracone. Usunąć mimo to?",
+      "RemoveBtn": "Usuń",
+      "ForceBtn": "Usuń mimo to",
+      "Cancel": "Anuluj",
+      "Prune": "Wyczyść brakujące worktree",
+      "New": "Nowy worktree",
+      "PathPlaceholder": "Folder, np. ../repo-feature",
+      "NewBranch": "Utwórz nową gałąź z {{base}}",
+      "Create": "Utwórz",
+      "Empty": "To repozytorium ma tylko główny worktree.",
+      "Hint": "Kliknij worktree, aby zobaczyć i zatwierdzić tutaj jego zmienione pliki.",
+      "Created": "Worktree utworzony w {{path}}",
+      "Removed": "Worktree usunięty",
+      "Pruned": "Wyczyszczono nieaktualne worktree: {{count}}",
+      "Opened": "Wyświetlasz worktree {{name}}"
+    },
     "Layout mode": "Tryb układu",
     "Delete workspace title": "Usunąć obszar roboczy?",
     "Delete workspace message": "Usunąć obszar roboczy „{{name}}” i jego sesje ({{count}})? Ich terminale i agenci zostaną zamknięci.",
@@ -2601,16 +2632,32 @@
       "finish": "Gotowe",
       "privacy": "Twój głos jest transkrybowany na tym urządzeniu przez lokalny model Whisper, pobierany jednorazowo z Hugging Face. Dopóki model nie jest gotowy, dźwięk trafia do Groq, jeśli zapisałeś własny klucz, albo do rozpoznawania mowy Apple w macOS, które zostaje na Macu, gdy dany język ma model na urządzeniu.",
       "step1": {
-        "title": "Włącz skrót głosowy",
-        "body": "Przytrzymaj ⌥+M (Alt+M w Windows i Linux) przez 2 sekundy w dowolnym miejscu, aby włączyć mikrofon. Żadne dodatkowe uprawnienia systemowe nie są potrzebne.",
-        "s1": "Otwórz Ustawienia systemowe → Prywatność i bezpieczeństwo → Accessibility",
-        "s2": "Dodaj i włącz PromptOps Desktop na liście",
-        "s3": "Wróć tutaj, aby przetestować skrót",
-        "open_settings": "Otwórz ustawienia prywatności"
+        "title": "Dostęp do mikrofonu",
+        "body": "Polecenia głosowe korzystają z mikrofonu. Zezwól PromptOps Desktop na jego użycie, a potem przetestuj go tutaj.",
+        "mac": {
+          "s1": "Otwórz Ustawienia systemowe → Prywatność i ochrona → Mikrofon",
+          "s2": "Włącz PromptOps Desktop na liście",
+          "s3": "Brak na liście? Kliknij „Testuj mikrofon”: macOS poprosi o zgodę"
+        },
+        "win": {
+          "s1": "Otwórz Ustawienia → Prywatność i zabezpieczenia → Mikrofon",
+          "s2": "Włącz „Dostęp do mikrofonu” oraz „Zezwalaj aplikacjom klasycznym na dostęp do mikrofonu”",
+          "s3": "Kliknij „Testuj mikrofon”, aby sprawdzić, czy wejście działa"
+        },
+        "linux": {
+          "s1": "Upewnij się, że działa PipeWire lub PulseAudio i w ustawieniach dźwięku wybrano mikrofon",
+          "s2": "W Wayland lub Flatpak zezwól na dostęp do mikrofonu w portalu pulpitu, jeśli pojawi się prośba",
+          "s3": "Kliknij „Testuj mikrofon”, aby sprawdzić, czy wejście działa"
+        },
+        "open_settings": "Otwórz ustawienia mikrofonu",
+        "test_mic": "Testuj mikrofon",
+        "mic_ok": "Mikrofon działa.",
+        "mic_denied": "Odmówiono dostępu do mikrofonu. Włącz go w ustawieniach systemu i spróbuj ponownie.",
+        "mic_error": "Nie znaleziono mikrofonu lub nie można go otworzyć. Sprawdź urządzenie wejściowe w ustawieniach systemu."
       },
       "step2": {
         "title": "Test skrótu",
-        "body": "Naciśnij ⌥+M.",
+        "body": "Przytrzymaj skrót poniżej.",
         "hold_hint": "(przez 2 sekundy)",
         "success": "Działa! Skrót jest aktywny."
       }

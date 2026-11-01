@@ -1312,6 +1312,37 @@
       "Connecting": "Collegamento a PromptOps…",
       "Gone": "Questa sessione non è più disponibile."
     },
+    "WORKTREES": {
+      "Button": "Worktree",
+      "Tooltip": "Vedi e gestisci i worktree git di questo repository",
+      "Title": "Worktree",
+      "Refresh": "Aggiorna",
+      "Loading": "Caricamento worktree…",
+      "Current": "attuale",
+      "Main": "principale",
+      "Detached": "detached",
+      "Locked": "Bloccato",
+      "Missing": "mancante",
+      "Changes": "{{count}} modifiche",
+      "Clean": "pulito",
+      "Remove": "Rimuovi worktree",
+      "ConfirmRemove": "Rimuovere il worktree {{name}}? La cartella viene eliminata, il branch resta.",
+      "ConfirmForce": "{{name}} ha modifiche non committate (o è bloccato): andranno perse. Rimuovere comunque?",
+      "RemoveBtn": "Rimuovi",
+      "ForceBtn": "Rimuovi comunque",
+      "Cancel": "Annulla",
+      "Prune": "Pulisci worktree mancanti",
+      "New": "Nuovo worktree",
+      "PathPlaceholder": "Cartella, es. ../repo-feature",
+      "NewBranch": "Crea un nuovo branch da {{base}}",
+      "Create": "Crea",
+      "Empty": "Per questo repository esiste solo il worktree principale.",
+      "Hint": "Clicca un worktree per vedere e committare qui i suoi file modificati.",
+      "Created": "Worktree creato in {{path}}",
+      "Removed": "Worktree rimosso",
+      "Pruned": "{{count}} worktree orfani ripuliti",
+      "Opened": "Stai vedendo il worktree {{name}}"
+    },
     "Layout mode": "Modalità layout",
     "Delete workspace title": "Eliminare il workspace?",
     "Delete workspace message": "Eliminare il workspace \"{{name}}\" e le sue {{count}} sessioni? I loro terminali e agenti vengono chiusi.",
@@ -2601,16 +2632,32 @@
       "finish": "Fatto",
       "privacy": "La voce viene trascritta su questo dispositivo da un modello Whisper locale, scaricato una sola volta da Hugging Face. Finché il modello non è pronto, l'audio va a Groq se hai salvato una tua chiave, oppure al riconoscimento vocale di Apple su macOS, che resta sul Mac quando la lingua ha un modello sul dispositivo.",
       "step1": {
-        "title": "Attiva la scorciatoia vocale",
-        "body": "Tieni premuto ⌥+M (Alt+M su Windows e Linux) per 2 secondi, ovunque, per accendere il microfono. Non serve nessun altro permesso di sistema.",
-        "s1": "Apri Impostazioni di sistema → Privacy e sicurezza → Accessibilità",
-        "s2": "Aggiungi e attiva PromptOps Desktop nella lista",
-        "s3": "Torna qui per testare la scorciatoia",
-        "open_settings": "Apri impostazioni Privacy"
+        "title": "Accesso al microfono",
+        "body": "I comandi vocali usano il microfono. Consenti a PromptOps Desktop di usarlo, poi provalo qui.",
+        "mac": {
+          "s1": "Apri Impostazioni di sistema → Privacy e sicurezza → Microfono",
+          "s2": "Attiva PromptOps Desktop nella lista",
+          "s3": "Non compare? Premi \"Prova microfono\": macOS chiederà il permesso"
+        },
+        "win": {
+          "s1": "Apri Impostazioni → Privacy e sicurezza → Microfono",
+          "s2": "Attiva \"Accesso al microfono\" e \"Consenti alle app desktop di accedere al microfono\"",
+          "s3": "Premi \"Prova microfono\" per verificare che l'ingresso funzioni"
+        },
+        "linux": {
+          "s1": "Verifica che PipeWire o PulseAudio siano attivi e che nelle impostazioni audio sia selezionato un microfono",
+          "s2": "Su Wayland o Flatpak, se richiesto, consenti l'accesso al microfono dal portale del desktop",
+          "s3": "Premi \"Prova microfono\" per verificare che l'ingresso funzioni"
+        },
+        "open_settings": "Apri impostazioni microfono",
+        "test_mic": "Prova microfono",
+        "mic_ok": "Il microfono funziona.",
+        "mic_denied": "Accesso al microfono negato. Abilitalo nelle impostazioni di sistema e riprova.",
+        "mic_error": "Nessun microfono trovato o impossibile aprirlo. Controlla il dispositivo di ingresso nelle impostazioni di sistema."
       },
       "step2": {
         "title": "Test della scorciatoia",
-        "body": "Premi ⌥+M.",
+        "body": "Tieni premuta la scorciatoia qui sotto.",
         "hold_hint": "(per 2 secondi)",
         "success": "Funziona! La scorciatoia è attiva."
       }

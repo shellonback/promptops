@@ -1284,14 +1284,14 @@ export class SessionAssetsPanelComponent {
     this.composerAssets.set(selected);
     const top = this.assetsService.orderIntents(selected)[0] ?? 'implement';
     this.activeIntent.set(top);
-    this.composerText.set(this.assetsService.buildIntentPrompt(selected, top));
+    this.composerText.set(this.assetsService.buildIntentPrompt(selected, top, this.workspacePath()));
     this.composerOpen.set(true);
   }
 
   /** Switch intent — re-seeds the editable prompt from the new template. */
   selectIntent(intent: AssetIntent): void {
     this.activeIntent.set(intent);
-    this.composerText.set(this.assetsService.buildIntentPrompt(this.composerAssets(), intent));
+    this.composerText.set(this.assetsService.buildIntentPrompt(this.composerAssets(), intent, this.workspacePath()));
   }
 
   setDepth(depth: EnhanceDepth): void {

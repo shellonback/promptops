@@ -1312,6 +1312,37 @@
       "Connecting": "A ligar ao PromptOps…",
       "Gone": "Esta sessão já não está disponível."
     },
+    "WORKTREES": {
+      "Button": "Worktrees",
+      "Tooltip": "Ver e gerir os worktrees git deste repositório",
+      "Title": "Worktrees",
+      "Refresh": "Atualizar",
+      "Loading": "A carregar worktrees…",
+      "Current": "atual",
+      "Main": "principal",
+      "Detached": "desanexado",
+      "Locked": "Bloqueado",
+      "Missing": "em falta",
+      "Changes": "{{count}} alterações",
+      "Clean": "limpo",
+      "Remove": "Remover worktree",
+      "ConfirmRemove": "Remover o worktree {{name}}? A pasta é apagada, o branch é mantido.",
+      "ConfirmForce": "{{name}} tem alterações não commitadas (ou está bloqueado): serão perdidas. Remover mesmo assim?",
+      "RemoveBtn": "Remover",
+      "ForceBtn": "Remover mesmo assim",
+      "Cancel": "Cancelar",
+      "Prune": "Limpar worktrees em falta",
+      "New": "Novo worktree",
+      "PathPlaceholder": "Pasta, ex. ../repo-feature",
+      "NewBranch": "Criar um novo branch a partir de {{base}}",
+      "Create": "Criar",
+      "Empty": "Este repositório só tem o worktree principal.",
+      "Hint": "Clique num worktree para ver e fazer commit aqui dos seus ficheiros alterados.",
+      "Created": "Worktree criado em {{path}}",
+      "Removed": "Worktree removido",
+      "Pruned": "{{count}} worktrees obsoletos limpos",
+      "Opened": "A ver o worktree {{name}}"
+    },
     "Layout mode": "Modo de layout",
     "Delete workspace title": "Excluir o workspace?",
     "Delete workspace message": "Excluir o workspace \"{{name}}\" e suas {{count}} sessões? Os terminais e agentes delas serão fechados.",
@@ -2601,16 +2632,32 @@
       "finish": "Concluído",
       "privacy": "Sua voz é transcrita neste dispositivo por um modelo Whisper local, baixado uma única vez do Hugging Face. Enquanto esse modelo não estiver pronto, o áudio vai para o Groq se você salvou sua própria chave, ou para o reconhecimento de fala da Apple no macOS, que fica no Mac quando o idioma tem um modelo no dispositivo.",
       "step1": {
-        "title": "Ative o atalho de voz",
-        "body": "Mantenha ⌥+M (Alt+M no Windows e no Linux) pressionado por 2 segundos, em qualquer lugar, para ligar o microfone. Nenhuma outra permissão do sistema é necessária.",
-        "s1": "Abra Ajustes do sistema → Privacidade e segurança → Acessibilidade",
-        "s2": "Adicione e ative PromptOps Desktop na lista",
-        "s3": "Volte aqui para testar o atalho",
-        "open_settings": "Abrir ajustes de Privacidade"
+        "title": "Acesso ao microfone",
+        "body": "Os comandos de voz usam o seu microfone. Permita que o PromptOps Desktop o use e teste-o aqui.",
+        "mac": {
+          "s1": "Abra Ajustes do Sistema → Privacidade e Segurança → Microfone",
+          "s2": "Ative o PromptOps Desktop na lista",
+          "s3": "Não aparece? Clique em \"Testar microfone\": o macOS pedirá permissão"
+        },
+        "win": {
+          "s1": "Abra Configurações → Privacidade e segurança → Microfone",
+          "s2": "Ative \"Acesso ao microfone\" e \"Permitir que aplicativos da área de trabalho acessem o microfone\"",
+          "s3": "Clique em \"Testar microfone\" para verificar se a entrada funciona"
+        },
+        "linux": {
+          "s1": "Verifique se o PipeWire ou o PulseAudio está ativo e se há um microfone selecionado nas configurações de som",
+          "s2": "No Wayland ou Flatpak, permita o acesso ao microfone no portal da área de trabalho se solicitado",
+          "s3": "Clique em \"Testar microfone\" para verificar se a entrada funciona"
+        },
+        "open_settings": "Abrir configurações do microfone",
+        "test_mic": "Testar microfone",
+        "mic_ok": "O microfone está funcionando.",
+        "mic_denied": "Acesso ao microfone negado. Ative-o nas configurações do sistema e tente novamente.",
+        "mic_error": "Nenhum microfone encontrado ou não é possível abri-lo. Verifique o dispositivo de entrada nas configurações do sistema."
       },
       "step2": {
         "title": "Teste do atalho",
-        "body": "Pressione ⌥+M.",
+        "body": "Mantenha pressionado o atalho abaixo.",
         "hold_hint": "(por 2 segundos)",
         "success": "Funciona! O atalho está ativo."
       }

@@ -1312,6 +1312,37 @@
       "Connecting": "正在连接 PromptOps…",
       "Gone": "此会话已不可用。"
     },
+    "WORKTREES": {
+      "Button": "工作树",
+      "Tooltip": "查看和管理此仓库的 git 工作树",
+      "Title": "工作树",
+      "Refresh": "刷新",
+      "Loading": "正在加载工作树…",
+      "Current": "当前",
+      "Main": "主",
+      "Detached": "分离",
+      "Locked": "已锁定",
+      "Missing": "缺失",
+      "Changes": "{{count}} 处更改",
+      "Clean": "无更改",
+      "Remove": "移除工作树",
+      "ConfirmRemove": "移除工作树 {{name}}？文件夹将被删除，分支会保留。",
+      "ConfirmForce": "{{name}} 有未提交的更改（或已锁定）：这些更改将丢失。仍要移除吗？",
+      "RemoveBtn": "移除",
+      "ForceBtn": "仍然移除",
+      "Cancel": "取消",
+      "Prune": "清理缺失的工作树",
+      "New": "新建工作树",
+      "PathPlaceholder": "文件夹，例如 ../repo-feature",
+      "NewBranch": "从 {{base}} 创建新分支",
+      "Create": "创建",
+      "Empty": "此仓库只有主工作树。",
+      "Hint": "点击一个工作树，即可在此查看并提交其修改的文件。",
+      "Created": "工作树已创建于 {{path}}",
+      "Removed": "工作树已移除",
+      "Pruned": "已清理 {{count}} 个失效工作树",
+      "Opened": "正在查看工作树 {{name}}"
+    },
     "Layout mode": "布局模式",
     "Delete workspace title": "删除工作区？",
     "Delete workspace message": "删除工作区“{{name}}”及其 {{count}} 个会话？它们的终端和代理将被关闭。",
@@ -2601,16 +2632,32 @@
       "finish": "完成",
       "privacy": "你的语音由本机上的本地 Whisper 模型转写，该模型只需从 Hugging Face 下载一次。在模型就绪之前，如果你保存了自己的密钥，音频会发送到 Groq；否则在 macOS 上会交给 Apple 语音识别，当该语言有设备端模型时音频会留在 Mac 上。",
       "step1": {
-        "title": "启用语音快捷键",
-        "body": "在任意位置按住 ⌥+M（Windows 和 Linux 上为 Alt+M）2 秒即可打开麦克风。无需其他系统权限。",
-        "s1": "打开系统设置 → 隐私与安全性 → 辅助功能",
-        "s2": "在列表中添加并启用 PromptOps Desktop",
-        "s3": "返回此处测试快捷键",
-        "open_settings": "打开隐私设置"
+        "title": "麦克风权限",
+        "body": "语音命令需要使用麦克风。请允许 PromptOps Desktop 使用麦克风，然后在此测试。",
+        "mac": {
+          "s1": "打开 系统设置 → 隐私与安全性 → 麦克风",
+          "s2": "在列表中启用 PromptOps Desktop",
+          "s3": "列表中没有？点击“测试麦克风”，macOS 会请求权限"
+        },
+        "win": {
+          "s1": "打开 设置 → 隐私和安全性 → 麦克风",
+          "s2": "开启“麦克风访问权限”和“允许桌面应用访问你的麦克风”",
+          "s3": "点击“测试麦克风”以确认输入正常"
+        },
+        "linux": {
+          "s1": "确认 PipeWire 或 PulseAudio 正在运行，并在声音设置中选择了麦克风输入",
+          "s2": "在 Wayland 或 Flatpak 下，如有提示，请在桌面门户中允许麦克风访问",
+          "s3": "点击“测试麦克风”以确认输入正常"
+        },
+        "open_settings": "打开麦克风设置",
+        "test_mic": "测试麦克风",
+        "mic_ok": "麦克风工作正常。",
+        "mic_denied": "麦克风访问被拒绝。请在系统设置中启用后重试。",
+        "mic_error": "未找到麦克风或无法打开。请在系统设置中检查输入设备。"
       },
       "step2": {
         "title": "快捷键测试",
-        "body": "按 ⌥+M。",
+        "body": "按住下方的快捷键。",
         "hold_hint": "（持续 2 秒）",
         "success": "成功！快捷键已激活。"
       }

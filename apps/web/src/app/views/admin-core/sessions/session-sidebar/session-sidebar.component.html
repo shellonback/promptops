@@ -38,7 +38,7 @@
       }
       <!-- Collapsed rail mirrors the expanded tree: folders → workspaces → sessions → sub-agents.
            Icons (not monograms) + guide lines; full names live in the tooltips. -->
-      <div class="collapsed-sessions">
+      <div class="collapsed-sessions" appScrollHitTestFix>
         @for (fs of folderSections(); track fs.folder.id) {
           @let fOpen = isFolderExpanded(fs.folder.id);
           <div class="collapsed-folder" [style.--rail-folder-color]="fs.folder.color || null">
@@ -210,7 +210,7 @@
       <!-- Inside a session opened from the floor plan: the floor plan takes the tree's place, the X brings it back -->
       <app-floor-plan-view class="sidebar-floor-plan" [compact]="true" [activeSession]="activeSessionId()" (openSession)="selectSession.emit($event)" />
     } @else {
-    <div class="session-list">
+    <div class="session-list" appScrollHitTestFix>
       <!-- Reusable chunks: one per workspace group, one per standalone session.
            Rendered both inside folder sections (minimal only) and in the flat
            list, so the classic markup stays exactly as before folders existed. -->

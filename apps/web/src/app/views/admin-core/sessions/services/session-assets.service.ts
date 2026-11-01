@@ -83,6 +83,23 @@ export class SessionAssetsService {
   }
 
   /**
+   * Import local files by absolute path (Linux/WebKitGTK drops that carry only
+   * text/uri-list, no File objects). Returns null when the desktop build
+   * doesn't expose the IPC.
+   */
+  async importPaths(cwd: string, paths: string[]): Promise<AssetInfo[] | null> {
+    if (typeof this.api.importAssetPaths !== 'function') return null;
+    const result = await this.api.importAssetPaths(cwd, paths);
+    if (result.ok) {
+      await this.loadAssets(cwd);
+      const names = (result.assets as AssetInfo[]).map(a => a.name);
+      this.lastUploadedNames.set(names);
+      return result.assets;
+    }
+    throw new Error(result.error || 'Upload failed');
+  }
+
+  /**
    * Download a remote file (e.g. a presigned S3 attachment URL) into the
    * assets folder via the main process — a renderer fetch() would be blocked
    * by CORS. Returns null when the desktop build doesn't expose the IPC yet.

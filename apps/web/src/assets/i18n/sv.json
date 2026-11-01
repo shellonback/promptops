@@ -967,7 +967,13 @@
       "Install terminal": "Installationsterminal",
       "Close terminal": "Stäng terminal",
       "Install copilot": "Installera GitHub Copilot CLI",
-      "Copilot npm desc": "Installera med npm på macOS, Windows eller Linux (kräver Node.js 22 eller senare):"
+      "Copilot npm desc": "Installera med npm på macOS, Windows eller Linux (kräver Node.js 22 eller senare):",
+      "Copy output": "Kopiera utdata",
+      "Output copied": "Utdata kopierad",
+      "Native install title": "Officiell inbyggd installerare (rekommenderas)",
+      "Native install desc": "Installerar Claude Code utan Node.js, npm eller sudo. Du kan hoppa över npm-stegen nedan.",
+      "Linux eacces title": "\"EACCES: permission denied\" vid npm install?",
+      "Linux eacces desc": "Node.js från apt lägger globala paket i /usr, där bara root kan skriva. Använd inte sudo: låt npm använda en mapp i din hemkatalog och lägg till den i PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Workspace inte konfigurerad på den här enheten",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "bläddra i kill ring i skalet",
       "Reason RevertLine": "återställ raden i skalet",
       "Reason LastArgument": "infoga sista argumentet i skalet",
-      "Restored": "Kortkommandona har återställts till standard."
+      "Restored": "Kortkommandona har återställts till standard.",
+      "NextWaiting": "Nästa agent som väntar på inmatning"
     },
     "FLOOR_PLAN": {
       "Title": "Planritning",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "Upptäckt",
       "Tailer response": "Svar",
       "Close": "Stäng"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Session från ett annat konto",
+      "DefaultAccount": "Standardkonto",
+      "Message": "Den här sessionen öppnades med kontot {{oldName}}, men det aktiva kontot är nu {{newName}}. Konversationen kan inte återupptas på ett annat konto: om du öppnar den igen med {{newName}} startar en ny konversation.",
+      "MessageMany": "{{count}} öppna sessioner startades med kontot {{oldName}}, men det aktiva kontot är nu {{newName}}. Konversationer kan inte återupptas på ett annat konto: om du öppnar dem igen med {{newName}} startar nya konversationer.",
+      "Reopen": "Öppna igen med {{newName}}",
+      "Keep": "Behåll {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "Kopiera",
     "Paste": "Klistra in",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Sök i utdata",
+    "No results": "Inga resultat",
+    "Previous match": "Föregående träff",
+    "Next match": "Nästa träff",
+    "Close search": "Stäng sökning",
+    "Scroll to bottom": "Gå till botten",
+    "New output": "{{count}} nya rader"
   },
   "SETTINGS": {
     "Notifications Title": "Aviseringar",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Tillgänglighet",
     "Terminal Default Shell": "Standardskal för nya sessioner",
-    "Terminal Default Shell Hint": "I vilket Windows-skal nya sessioner startar (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "I vilket Windows-skal nya sessioner startar (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agenter som överlever krascher och uppdateringar",
+    "Terminal Persistent Agents Hint": "Agenterna körs i en separat terminalprocess: om appen kraschar eller startar om för en uppdatering fortsätter de arbeta och du hittar dem där du lämnade dem. Att stänga appen stoppar dem ändå. Gäller nya agenter.",
+    "Terminal Host Screen": "Snabbt sessionsbyte",
+    "Terminal Host Screen Hint": "Appen sparar varje terminals skärm och ritar om den direkt när du byter session eller arbetsyta. Stäng av bara om en terminal ser fel ut efter ett byte."
   },
   "SSH": {
     "Security note": "Alla SSH-anslutningar lagras lokalt på din dator, krypterade (AES-256-GCM), i PromptOps-programmappen. Ingen data skickas externt.",

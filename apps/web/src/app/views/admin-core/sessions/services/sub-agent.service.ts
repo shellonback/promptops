@@ -124,6 +124,8 @@ export interface SubAgent {
    * handed to the user when deferred). Drives the terminal's black boot overlay.
    */
   promptPending?: boolean;
+  /** True when Rust re-spawned the agent from the stash (restart / standby wake), not a fresh spawn. */
+  restored?: boolean;
 }
 
 /**
@@ -182,6 +184,14 @@ export function mergeArchivedEntries(
  * The user communicates only through the main session.
  * Sub-agents are visible as additional terminal panes within the session.
  */
+/** Pane replay; with `vtSnapshot` the data is the host screen picture at `cols`×`rows`. */
+export interface SubAgentReplay {
+  data: string;
+  vtSnapshot: boolean;
+  cols?: number;
+  rows?: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SubAgentService {
   private orgPolicy = inject(OrgPolicyService);
@@ -251,8 +261,54 @@ export class SubAgentService {
     this.activeSubAgentsBySlot().filter((sa) => this.benchedKeys().includes(this.benchKeyOf(sa)))
   );
 
-  /** True when the bench has reached MAX_BENCH. */
-  benchFull = computed(() => this.benchedSubAgents().length >= this.MAX_BENCH);
+  /**
+   * Sessions whose lead/main is on the bench: like sub-agents it stays alive,
+   * just out of the grid. Key = session id (stable across restarts).
+   */
+  benchedLeads = signal<string[]>(this.loadBenchedLeads());
+
+  /** The active session's lead takes a bench slot. */
+  private leadBenchSlot = computed(() => {
+    const id = this.currentParentId();
+    return !!id && this.benchedLeads().includes(id) ? 1 : 0;
+  });
+
+  /** True when the bench has reached MAX_BENCH (benched lead included). */
+  benchFull = computed(() => this.benchedSubAgents().length + this.leadBenchSlot() >= this.MAX_BENCH);
+
+  isLeadBenched(sessionId: string): boolean {
+    return this.benchedLeads().includes(sessionId);
+  }
+
+  /** Benches the session's lead/main. No-op when the bench is full or it's already there. */
+  benchLead(sessionId: string): void {
+    if (this.isLeadBenched(sessionId) || this.benchFull()) return;
+    this.setBenchedLeads([...this.benchedLeads(), sessionId]);
+  }
+
+  unbenchLead(sessionId: string): void {
+    if (!this.isLeadBenched(sessionId)) return;
+    this.setBenchedLeads(this.benchedLeads().filter((id) => id !== sessionId));
+  }
+
+  private setBenchedLeads(ids: string[]): void {
+    this.benchedLeads.set(ids);
+    try {
+      if (ids.length === 0) localStorage.removeItem('promptops_benched_leads');
+      else localStorage.setItem('promptops_benched_leads', JSON.stringify(ids));
+    } catch {
+      /* storage full/denied: the bench lasts for this run only */
+    }
+  }
+
+  private loadBenchedLeads(): string[] {
+    try {
+      const raw = JSON.parse(localStorage.getItem('promptops_benched_leads') ?? '[]');
+      return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
 
   isBenched(subAgentId: string): boolean {
     const key = this.benchKeyForId(subAgentId);
@@ -480,6 +536,9 @@ export class SubAgentService {
   /** ID of the last spawned sub-agent (used for auto-focus) */
   lastSpawnedId = signal<string | null>(null);
 
+  /** Context of the last spawn: auto-focus ignores other sessions and restored agents. */
+  lastSpawned = signal<{ id: string; parentSessionId: string; restored: boolean } | null>(null);
+
   /** Per-session display order: runtime IDs from the API or stable identities from the local cache. */
   private customOrder = signal<string[]>([]);
   private orderCache = new Map<string, string[]>();
@@ -650,6 +709,11 @@ export class SubAgentService {
             data.subAgent.autoPrompt ?? '',
             data.subAgent.mode,
           );
+          this.lastSpawned.set({
+            id: data.subAgent.id,
+            parentSessionId: data.parentSessionId,
+            restored: !!data.subAgent.restored,
+          });
           this.lastSpawnedId.set(data.subAgent.id);
         }
       }),
@@ -1445,9 +1509,18 @@ export class SubAgentService {
    * Get terminal buffer for a sub-agent.
    */
   async getBuffer(subAgentId: string): Promise<string> {
-    if (!this.isDesktop) return '';
+    return (await this.getReplay(subAgentId)).data;
+  }
+
+  /**
+   * Replay for a pane attach. `vtSnapshot`: the data is the host's VT screen
+   * picture (already exact), so the renderer can skip the forced TUI repaint.
+   */
+  async getReplay(subAgentId: string): Promise<SubAgentReplay> {
+    if (!this.isDesktop) return { data: '', vtSnapshot: false };
     const result = await this.api.getSubAgentBuffer(subAgentId);
-    return result.ok ? result.data : '';
+    if (!result.ok) return { data: '', vtSnapshot: false };
+    return { data: result.data, vtSnapshot: !!result.vtSnapshot, cols: result.cols, rows: result.rows };
   }
 
   /**

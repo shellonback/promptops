@@ -967,7 +967,13 @@
       "Install terminal": "安装终端",
       "Close terminal": "关闭终端",
       "Install copilot": "安装 GitHub Copilot CLI",
-      "Copilot npm desc": "在 macOS、Windows 或 Linux 上用 npm 安装（需要 Node.js 22 或更高版本）："
+      "Copilot npm desc": "在 macOS、Windows 或 Linux 上用 npm 安装（需要 Node.js 22 或更高版本）：",
+      "Copy output": "复制输出",
+      "Output copied": "输出已复制",
+      "Native install title": "官方原生安装程序（推荐）",
+      "Native install desc": "无需 Node.js、npm 或 sudo 即可安装 Claude Code。可以跳过下面的 npm 步骤。",
+      "Linux eacces title": "npm install 时出现 \"EACCES: permission denied\"？",
+      "Linux eacces desc": "通过 apt 安装的 Node.js 会把全局包放在 /usr，只有 root 才能写入。不要使用 sudo：让 npm 使用你主目录下的文件夹，并将其加入 PATH。"
     },
     "DEVICE_WORKSPACE": {
       "Title": "此设备上未配置工作区",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "在 shell 中循环 kill ring",
       "Reason RevertLine": "在 shell 中还原当前行",
       "Reason LastArgument": "在 shell 中插入上一个参数",
-      "Restored": "快捷键已恢复为默认值。"
+      "Restored": "快捷键已恢复为默认值。",
+      "NextWaiting": "下一个等待输入的智能体"
     },
     "FLOOR_PLAN": {
       "Title": "平面图",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "检测到",
       "Tailer response": "回复",
       "Close": "关闭"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "来自其他账户的会话",
+      "DefaultAccount": "默认账户",
+      "Message": "此会话是用账户 {{oldName}} 打开的，但当前活动账户是 {{newName}}。对话无法在其他账户上恢复：用 {{newName}} 重新打开将开始新的对话。",
+      "MessageMany": "{{count}} 个打开的会话是用账户 {{oldName}} 启动的，但当前活动账户是 {{newName}}。对话无法在其他账户上恢复：用 {{newName}} 重新打开将开始新的对话。",
+      "Reopen": "用 {{newName}} 重新打开",
+      "Keep": "保留 {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "复制",
     "Paste": "粘贴",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "在输出中查找",
+    "No results": "无结果",
+    "Previous match": "上一个匹配",
+    "Next match": "下一个匹配",
+    "Close search": "关闭搜索",
+    "Scroll to bottom": "滚动到底部",
+    "New output": "{{count}} 行新输出"
   },
   "SETTINGS": {
     "Notifications Title": "通知",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "辅助功能",
     "Terminal Default Shell": "新会话的默认 Shell",
-    "Terminal Default Shell Hint": "新会话启动时使用的 Windows Shell（PowerShell、cmd、WSL 等）。"
+    "Terminal Default Shell Hint": "新会话启动时使用的 Windows Shell（PowerShell、cmd、WSL 等）。",
+    "Terminal Persistent Agents": "代理在崩溃和更新后继续运行",
+    "Terminal Persistent Agents Hint": "代理在独立的终端进程中运行：应用崩溃或为更新而重启时，它们会继续工作，你会在原处找到它们。关闭应用仍会停止它们。适用于新代理。",
+    "Terminal Host Screen": "快速切换会话",
+    "Terminal Host Screen Hint": "应用会保存每个终端的屏幕，切换会话或工作区时立即重绘。仅当切换后终端显示异常时才关闭。"
   },
   "SSH": {
     "Security note": "所有 SSH 连接均以 AES-256-GCM 加密方式存储在本机的 PromptOps 应用文件夹中，不会向外部发送任何数据。",

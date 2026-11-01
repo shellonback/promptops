@@ -1,12 +1,14 @@
 {
   "name": "promptops-oss",
   "private": true,
-  "version": "2.1.7",
+  "version": "2.2.0-beta.0",
   "description": "PromptOps: run and coordinate AI coding agents on your machine (Tauri 2)",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:termd": "node scripts/build-termd.js \"$(rustc -vV | sed -n 's/^host: //p')\"",
+    "build:full": "npm run build:termd && tauri build --config src-tauri/tauri.sidecar.conf.json",
     "check": "cd src-tauri && cargo check && cargo test --lib",
     "cli": "node cli/main.mjs",
     "test:cli": "node --test cli/test/*.test.mjs"

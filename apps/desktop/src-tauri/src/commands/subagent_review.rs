@@ -137,7 +137,7 @@ pub fn subagent_review_request(
     let event_app = app.clone();
     let event_id = id.clone();
     let exit_id = id.clone();
-    let result = runner.spawn(TurnSpawnOptions { run_id: id.clone(), provider: reviewer_provider_id, cwd, prompt, permission_mode: Some("plan".into()), no_session_persistence: true, timeout_ms: Some(600_000), ..Default::default() }, move |event| {
+    let result = runner.spawn(TurnSpawnOptions { env: crate::commands::provider_account::utility_account_vars(&reviewer_provider_id).into_iter().collect(), run_id: id.clone(), provider: reviewer_provider_id, cwd, prompt, permission_mode: Some("plan".into()), no_session_persistence: true, timeout_ms: Some(600_000), ..Default::default() }, move |event| {
         let mut runs = event_manager.0.lock();
         if let Some(run) = runs.get_mut(&event_id) {
             match event {

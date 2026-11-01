@@ -49,7 +49,7 @@ import { MentionAutocompleteComponent } from '../../../../components/mention-aut
 import { CommandAutocompleteComponent } from '../../../../components/command-autocomplete/command-autocomplete.component';
 import { getActiveWorkspace } from '../../../../../store/workspaces/workspace.selectors';
 import { ProviderAccountSwitcherComponent } from '../../provider-accounts/switcher/provider-account-switcher.component';
-import { ProviderAccountsService } from '../../provider-accounts/services/provider-accounts.service';
+import { ProviderAccountsService, type ProviderId } from '../../provider-accounts/services/provider-accounts.service';
 import { FeatureFlagService } from '@core/services/feature-flag.service';
 import { getProviderUsage, getProviderUsageError } from '../../../../../store/token-efficiency/token-efficiency.selectors';
 import { probeProviderUsage, clearProviderUsageProbeError } from '../../../../../store/token-efficiency/token-efficiency.actions';
@@ -261,6 +261,13 @@ type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity
     }
     .acc-panel-usage .acc-title {
       color: #58a6ff;
+    }
+
+    .usage-provider-logo {
+      width: 14px;
+      height: 14px;
+      object-fit: contain;
+      flex-shrink: 0;
     }
 
     .acc-resize-handle {
@@ -3082,9 +3089,26 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     const r = this.roster();
     return r.length > 0 ? r : this.subAgentService.activeRoster();
   });
-  /** The main tile is not a sub-agent: no bench/destroy on the backend. */
+  /** Main/lead tile on the bench (from the parent), null when it's in view. */
+  benchedLead = input<SubAgent | null>(null);
+  /** Full bench: lead (if any) + sub-agents. */
+  benchedAgents = computed<SubAgent[]>(() => {
+    const lead = this.benchedLead();
+    const subs = this.subAgentService.benchedSubAgents();
+    return lead ? [lead, ...subs] : subs;
+  });
+  /** The main tile is not a sub-agent: no destroy on the backend. */
   isMainPane(id: string): boolean {
     return id === '__main__';
+  }
+  /** Bench: same action for main/lead and sub-agents. */
+  benchAgent(sa: SubAgent): void {
+    if (this.isMainPane(sa.id)) this.subAgentService.benchLead(sa.sessionId);
+    else this.subAgentService.bench(sa.id);
+  }
+  unbenchAgent(sa: SubAgent): void {
+    if (this.isMainPane(sa.id)) this.subAgentService.unbenchLead(sa.sessionId);
+    else this.subAgentService.unbench(sa.id);
   }
   /** Emitted when a tile is closed: the parent redirects the main to dismiss. */
   onCloseAgent = output<SubAgent>();
@@ -3302,6 +3326,8 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     const id = this.activeSessionId();
     const supported = this.isUsageSupportedSession();
     const provider = this.usageProvider();
+    // Re-runs on an AI Accounts switch: the bars must be the selected login's.
+    const accountId = provider ? this.usageAccountId(provider) : null;
     // Same session, different provider → the composer chip was switched.
     const providerSwitched = !!id && id === this.usageLastSessionId
       && !!this.usageLastProvider && !!provider && provider !== this.usageLastProvider;
@@ -3322,7 +3348,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
       this.usageError.set(null);
       // Last known bars for this provider (any session, < 5 min): show them
       // right away so a switch back is instant; the probe below refreshes.
-      const cached = this.freshCachedUsageFor(provider);
+      const cached = this.freshCachedUsageFor(provider, accountId);
       if (cached) {
         this.providerUsage.set({ ...cached, sessionId: id });
         this.usageLoading.set(false);
@@ -3344,6 +3370,8 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
         // The store entry is keyed by session: right after a switch it still
         // holds the previous provider's bars — never show them as the new one's.
         if (u && u.provider !== provider) return;
+        // Same for the account: after a switch the entry still holds the old login's bars.
+        if (u && (u.accountId ?? null) !== accountId) return;
         if (u) this.providerUsage.set(u);
         if (u) {
           const remain = this.usageMinLoadingUntil - Date.now();
@@ -3378,13 +3406,18 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     }
   });
 
-  /** Newest store snapshot for `provider` if younger than the cache TTL, else null. Synchronous (NgRx select emits on subscribe). */
-  private freshCachedUsageFor(provider: string): ProviderUsageSnapshot | null {
+  /** Active AI Accounts login for `provider` (null = default install). */
+  private usageAccountId(provider: string): string | null {
+    return this.providerAccountsService.activeByProvider()[provider as ProviderId] ?? null;
+  }
+
+  /** Newest store snapshot for `provider` and `accountId` if younger than the cache TTL, else null. Synchronous (NgRx select emits on subscribe). */
+  private freshCachedUsageFor(provider: string, accountId: string | null): ProviderUsageSnapshot | null {
     let found: ProviderUsageSnapshot | null = null;
     const sub = this.store.select(getLatestProviderUsageForProvider(provider)).subscribe(v => { found = v; });
     sub.unsubscribe();
     const snap = found as ProviderUsageSnapshot | null;
-    if (!snap) return null;
+    if (!snap || (snap.accountId ?? null) !== accountId) return null;
     const age = Date.now() - Date.parse(snap.timestamp);
     return Number.isFinite(age) && age >= 0 && age < ActionCenterComponent.USAGE_CACHE_TTL_MS ? snap : null;
   }
@@ -3529,6 +3562,8 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
   private quickActionsPanel = viewChild<ElementRef<HTMLElement>>('quickActionsPanel');
 
   constructor() {
+    // Usage bars follow the selected AI account: the active ids must be loaded.
+    void this.providerAccountsService.init();
     let editingContext: string | null = null;
     effect(() => {
       const key = this.slotService.context()?.key ?? null;

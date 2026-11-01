@@ -967,7 +967,13 @@
       "Install terminal": "Terminal d'installation",
       "Close terminal": "Fermer le terminal",
       "Install copilot": "Installer la GitHub Copilot CLI",
-      "Copilot npm desc": "Installe-la avec npm sur macOS, Windows ou Linux (Node.js 22 ou plus récent requis) :"
+      "Copilot npm desc": "Installe-la avec npm sur macOS, Windows ou Linux (Node.js 22 ou plus récent requis) :",
+      "Copy output": "Copier la sortie",
+      "Output copied": "Sortie copiée",
+      "Native install title": "Installateur natif officiel (recommandé)",
+      "Native install desc": "Installe Claude Code sans Node.js, npm ni sudo. Vous pouvez ignorer les étapes npm ci-dessous.",
+      "Linux eacces title": "« EACCES: permission denied » avec npm install ?",
+      "Linux eacces desc": "Node.js installé via apt place les paquets globaux dans /usr, accessible en écriture uniquement par root. N'utilisez pas sudo : faites pointer npm vers un dossier de votre home et ajoutez-le au PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Espace de travail non configuré sur cet appareil",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "parcourir le kill ring dans le shell",
       "Reason RevertLine": "rétablir la ligne dans le shell",
       "Reason LastArgument": "insérer le dernier argument dans le shell",
-      "Restored": "Raccourcis rétablis par défaut."
+      "Restored": "Raccourcis rétablis par défaut.",
+      "NextWaiting": "Agent suivant en attente d'une saisie"
     },
     "FLOOR_PLAN": {
       "Title": "Plan d'étage",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "Détecté",
       "Tailer response": "Réponse",
       "Close": "Fermer"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Session d'un autre compte",
+      "DefaultAccount": "Compte par défaut",
+      "Message": "Cette session a été ouverte avec le compte {{oldName}}, mais le compte actif est maintenant {{newName}}. La conversation ne peut pas reprendre sur un autre compte : la rouvrir avec {{newName}} démarre une nouvelle conversation.",
+      "MessageMany": "{{count}} sessions ouvertes ont démarré avec le compte {{oldName}}, mais le compte actif est maintenant {{newName}}. Les conversations ne peuvent pas reprendre sur un autre compte : les rouvrir avec {{newName}} démarre de nouvelles conversations.",
+      "Reopen": "Rouvrir avec {{newName}}",
+      "Keep": "Garder {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "Copier",
     "Paste": "Coller",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Rechercher dans la sortie",
+    "No results": "Aucun résultat",
+    "Previous match": "Résultat précédent",
+    "Next match": "Résultat suivant",
+    "Close search": "Fermer la recherche",
+    "Scroll to bottom": "Aller en bas",
+    "New output": "{{count}} nouvelles lignes"
   },
   "SETTINGS": {
     "Notifications Title": "Notifications",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Accessibilité",
     "Terminal Default Shell": "Shell par défaut pour les nouvelles sessions",
-    "Terminal Default Shell Hint": "Dans quel shell Windows démarrent les nouvelles sessions (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "Dans quel shell Windows démarrent les nouvelles sessions (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Agents qui survivent aux plantages et aux mises à jour",
+    "Terminal Persistent Agents Hint": "Les agents tournent dans un processus de terminal séparé : si l'application plante ou redémarre pour se mettre à jour, ils continuent et vous les retrouvez là où vous les avez laissés. Fermer l'application les arrête quand même. S'applique aux nouveaux agents.",
+    "Terminal Host Screen": "Changement de session rapide",
+    "Terminal Host Screen Hint": "L'application conserve l'écran de chaque terminal et le redessine instantanément quand vous changez de session ou d'espace de travail. Désactivez seulement si un terminal s'affiche mal après un changement."
   },
   "SSH": {
     "Security note": "Toutes les connexions SSH sont stockées localement sur votre machine, chiffrées (AES-256-GCM), dans le dossier de l'application PromptOps. Aucune donnée n'est envoyée à l'extérieur.",

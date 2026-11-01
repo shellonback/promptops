@@ -290,8 +290,23 @@ where
     #[cfg(not(target_os = "macos"))]
     {
         let _ = app;
+        #[cfg(target_os = "linux")]
+        keep_linux_clipboard_alive();
         operation()
     }
+}
+
+/// On X11 the clipboard is not a system buffer: the content is served by the
+/// process that wrote it, and arboard stops serving it when the last
+/// `Clipboard` instance is dropped. Every command creates one and drops it
+/// right away, so without a clipboard manager a Ctrl+C from the terminal was
+/// lost instantly (Linux tester feedback, 2026-10-29). One instance kept alive
+/// for the whole app lifetime keeps the content available to other apps.
+#[cfg(target_os = "linux")]
+fn keep_linux_clipboard_alive() {
+    static KEEPER: std::sync::OnceLock<std::sync::Mutex<Option<arboard::Clipboard>>> =
+        std::sync::OnceLock::new();
+    KEEPER.get_or_init(|| std::sync::Mutex::new(arboard::Clipboard::new().ok()));
 }
 
 /// clipboard:write — writes text to the system clipboard.
@@ -425,6 +440,121 @@ pub fn drag_drop_paths() -> Vec<String> {
     }
     #[cfg(not(target_os = "macos"))]
     Vec::new()
+}
+
+// ===========================================================================
+// installer:write-script — provider auto-installer ("provider not found" guide)
+// ===========================================================================
+
+/// Path of the written script.
+#[derive(Serialize)]
+pub struct InstallerScript {
+    pub path: String,
+}
+
+const INSTALLER_SCRIPT_MAX: usize = 64 * 1024;
+
+/// Writes `content` to `<dir>/install.sh` (0700, dir 0700).
+/// Remove + `create_new`: a symlink left in place of the file is never
+/// followed.
+fn write_installer_script(dir: &Path, content: &str) -> Result<InstallerScript, String> {
+    use std::io::Write;
+    if content.is_empty() || content.len() > INSTALLER_SCRIPT_MAX {
+        return Err("invalid installer script size".to_string());
+    }
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| e.to_string())?;
+    }
+    let path = dir.join("install.sh");
+    let _ = std::fs::remove_file(&path);
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o700);
+    }
+    let mut file = opts.open(&path).map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes())
+        .map_err(|e| e.to_string())?;
+    Ok(InstallerScript {
+        path: path.to_string_lossy().into_owned(),
+    })
+}
+
+/// installer:write-script — the auto-installer script goes to a file and only
+/// `bash '<path>'` is typed into the PTY: typed in full (~2 KB) it overflows the
+/// tty input queue (≈1 KB on macOS) and bash loses characters. macOS/Linux only:
+/// on Windows the installer stays typed PowerShell.
+#[tauri::command]
+pub fn installer_write_script(
+    app: tauri::AppHandle,
+    content: String,
+) -> Result<InstallerScript, String> {
+    use tauri::Manager;
+    if cfg!(windows) {
+        return Err("installer script files are unix-only".to_string());
+    }
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("installer");
+    write_installer_script(&dir, &content)
+}
+
+#[cfg(all(test, unix))]
+mod installer_tests {
+    use super::write_installer_script;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn tmp_dir(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("po-installer-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        d
+    }
+
+    #[test]
+    fn writes_private_script_and_overwrites() {
+        let dir = tmp_dir("write");
+        let first = write_installer_script(&dir, "echo one\n").unwrap();
+        let second = write_installer_script(&dir, "echo two\n").unwrap();
+        assert_eq!(first.path, second.path);
+        assert_eq!(std::fs::read_to_string(&second.path).unwrap(), "echo two\n");
+        let mode = std::fs::metadata(&second.path)
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o700);
+        let dmode = std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777;
+        assert_eq!(dmode, 0o700);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn never_follows_a_planted_symlink() {
+        let dir = tmp_dir("symlink");
+        std::fs::create_dir_all(&dir).unwrap();
+        let victim = dir.join("victim.txt");
+        std::fs::write(&victim, "keep").unwrap();
+        std::os::unix::fs::symlink(&victim, dir.join("install.sh")).unwrap();
+        write_installer_script(&dir, "echo safe\n").unwrap();
+        assert_eq!(std::fs::read_to_string(&victim).unwrap(), "keep");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rejects_empty_and_oversized() {
+        let dir = tmp_dir("size");
+        assert!(write_installer_script(&dir, "").is_err());
+        assert!(write_installer_script(&dir, &"x".repeat(64 * 1024 + 1)).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
 
 // ===========================================================================

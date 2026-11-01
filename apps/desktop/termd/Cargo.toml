@@ -1,0 +1,32 @@
+[package]
+name = "promptops-termd"
+version = "0.1.0"
+edition = "2021"
+description = "PromptOps terminal host: owns agent PTYs so they outlive app restarts and updates."
+publish = false
+
+[lib]
+name = "termd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "promptops-termd"
+path = "src/main.rs"
+
+[dependencies]
+po-vt = { path = "../crates/po-vt" }
+portable-pty = "0.8"
+interprocess = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+getrandom = "0.2"
+parking_lot = "0.12"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[profile.dev.package.alacritty_terminal]
+opt-level = 3
+
+[profile.dev.package.vte]
+opt-level = 3

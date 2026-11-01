@@ -26,3 +26,17 @@ export function decideTerminalMacLineKey(
     default: return null;
   }
 }
+
+/**
+ * Linux: Ctrl+Z in an agent terminal sends SIGTSTP and suspends the CLI (Claude
+ * Code goes to the background, leaving a bare shell that needs `fg`). Remap it to
+ * Ctrl+_ (\x1f), the input undo of Claude Code and readline. Linux only.
+ */
+export function decideTerminalLinuxUndoKey(
+  ev: KeyboardEvent,
+  platform: string | undefined,
+): string | null {
+  if (platform !== 'linux') return null;
+  if (!ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return null;
+  return ev.key === 'z' || ev.key === 'Z' || ev.code === 'KeyZ' ? '\x1f' : null;
+}

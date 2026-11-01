@@ -10,6 +10,31 @@ import {
   inject,
 } from '@angular/core';
 
+function isLinux(): boolean {
+  return /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Absolute local paths from a drop's text/uri-list (file:// only). Fallback for
+ * WebKitGTK, where OS file drops may have an empty dataTransfer.files.
+ */
+export function fileUrisFromDrop(e: DragEvent): string[] {
+  if (!isLinux()) return [];
+  const list = e.dataTransfer?.getData('text/uri-list') || '';
+  return list
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#') && l.startsWith('file://'))
+    .map(l => {
+      try {
+        return decodeURIComponent(new URL(l).pathname);
+      } catch {
+        return '';
+      }
+    })
+    .filter(p => p.startsWith('/'));
+}
+
 /**
  * Shared OS-file drop zone.
  *
@@ -90,7 +115,7 @@ export class FileDropZoneDirective implements OnInit, OnDestroy {
         e.preventDefault();
         e.stopPropagation();
         this.reset();
-        if (e.dataTransfer?.files?.length) {
+        if (e.dataTransfer?.files?.length || fileUrisFromDrop(e).length) {
           this.zone.run(() => this.fileDropped.emit(e));
         }
       }, opts);
@@ -124,7 +149,11 @@ export class FileDropZoneDirective implements OnInit, OnDestroy {
 
   private accepts(e: DragEvent): boolean {
     if (this.fileDropDisabled) return false;
-    return !!e.dataTransfer?.types?.includes('Files');
+    const types = e.dataTransfer?.types;
+    if (!types) return false;
+    // WebKitGTK (Linux): a drag from the file manager may arrive only as
+    // text/uri-list, without 'Files'. In-app HTML5 drag and drop uses text/plain.
+    return types.includes('Files') || (isLinux() && types.includes('text/uri-list'));
   }
 
   private setOver(v: boolean): void {

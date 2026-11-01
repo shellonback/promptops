@@ -2,7 +2,7 @@ import { Injectable, signal } from '@angular/core';
 
 /** Session actions with a remappable key. The modifier stays fixed (⌘⌥ on
  *  macOS, Alt elsewhere) and 1-9 / Esc are not touched: here you only choose the key. */
-export type SessionShortcutAction = 'focusMain' | 'prevAgent' | 'nextAgent' | 'expandAgent' | 'lockAgent' | 'focusMode';
+export type SessionShortcutAction = 'focusMain' | 'prevAgent' | 'nextAgent' | 'nextWaiting' | 'expandAgent' | 'lockAgent' | 'focusMode';
 
 export type SessionShortcutBindings = Record<SessionShortcutAction, string>;
 
@@ -10,6 +10,7 @@ export const DEFAULT_SESSION_SHORTCUTS: SessionShortcutBindings = {
   focusMain: 'Digit0',
   prevAgent: 'BracketLeft',
   nextAgent: 'BracketRight',
+  nextWaiting: 'KeyA',
   expandAgent: 'KeyE',
   lockAgent: 'KeyL',
   focusMode: 'KeyF',
@@ -127,10 +128,21 @@ export class SessionShortcutsService {
     try {
       const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Partial<SessionShortcutBindings>;
       const used = new Set<string>();
-      for (const a of Object.keys(out) as SessionShortcutAction[]) {
+      const actions = Object.keys(out) as SessionShortcutAction[];
+      for (const a of actions) {
         const code = raw[a];
         if (typeof code === 'string' && shortcutKeyLabel(code) && !used.has(code)) out[a] = code;
         used.add(out[a]);
+      }
+      // A new action (missing from the saved map) whose default the user already
+      // gave to another one takes the first free letter instead of resetting all.
+      for (const a of actions) {
+        if (typeof raw[a] === 'string') continue;
+        if (actions.some(o => o !== a && out[o] === out[a])) {
+          const taken = new Set(actions.filter(o => o !== a).map(o => out[o]));
+          const free = 'ABGKOQSVXZ'.split('').map(c => `Key${c}`).find(c => !taken.has(c));
+          if (free) out[a] = free;
+        }
       }
       // Two actions on the same key (corrupted data) → back to the defaults.
       if (new Set(Object.values(out)).size !== Object.keys(out).length) return { ...DEFAULT_SESSION_SHORTCUTS };

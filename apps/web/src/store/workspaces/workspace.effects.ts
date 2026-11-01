@@ -28,7 +28,9 @@ export class WorkspaceEffects {
     this.actions$.pipe(
       ofType(loadWorkspaces),
       switchMap(() =>
-        this.apiService.list().pipe(
+        // fetchList, not list: on a network failure the reducer keeps the
+        // hydrated/previous workspaces and the cache is not overwritten with [].
+        this.apiService.fetchList().pipe(
           tap((workspaces) => writeWorkspacesCache(workspaces)),
           map((workspaces) => loadWorkspacesSuccess({ workspaces })),
           catchError((err) => of(loadWorkspacesFailure({ error: err.message }))),

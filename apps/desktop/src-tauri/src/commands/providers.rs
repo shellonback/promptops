@@ -1061,9 +1061,25 @@ pub(crate) async fn spawn_cli_isolated(
     extra.push(format!("{home}/.nvm/versions/node/current/bin"));
     extra.push(format!("{home}/.npm-global/bin"));
 
-    let mut command = crate::commands::util_cmd::tokio_cmd(get_shell());
+    // Active account (AI Accounts) of this line's provider: same login as new sessions.
+    // The alias is read from the full env; no PROMPTOPS_* reaches the child.
+    let all_vars = crate::commands::provider_account::utility_account_vars(
+        crate::commands::provider_account::utility_provider_of(command_line),
+    );
+    let base = crate::commands::provider_account::utility_base_command(
+        command_line.to_string(),
+        &all_vars,
+    );
+    let account_vars: Vec<(String, String)> = all_vars
+        .into_iter()
+        .filter(|(k, _)| !k.starts_with("PROMPTOPS_"))
+        .collect();
+    let shell = get_shell();
+    let command_line =
+        crate::commands::provider_account::utility_shell_line(base, &account_vars, &shell);
+    let mut command = crate::commands::util_cmd::tokio_cmd(shell);
     command
-        .args(get_run_args(command_line))
+        .args(get_run_args(&command_line))
         .current_dir(&work_dir)
         .env("PATH", build_path(&extra))
         .stdin(std::process::Stdio::piped())
@@ -1076,6 +1092,10 @@ pub(crate) async fn spawn_cli_isolated(
             command.env_remove(key);
         }
     }
+    for key in crate::commands::provider_account::utility_env_removals(&account_vars) {
+        command.env_remove(key);
+    }
+    command.envs(account_vars.iter().map(|(k, v)| (k, v)));
 
     let started = std::time::Instant::now();
     let run = async {

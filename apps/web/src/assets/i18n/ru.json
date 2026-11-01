@@ -967,7 +967,13 @@
       "Install terminal": "Терминал установки",
       "Close terminal": "Закрыть терминал",
       "Install copilot": "Установите GitHub Copilot CLI",
-      "Copilot npm desc": "Установите через npm на macOS, Windows или Linux (нужен Node.js 22 или новее):"
+      "Copilot npm desc": "Установите через npm на macOS, Windows или Linux (нужен Node.js 22 или новее):",
+      "Copy output": "Скопировать вывод",
+      "Output copied": "Вывод скопирован",
+      "Native install title": "Официальный нативный установщик (рекомендуется)",
+      "Native install desc": "Устанавливает Claude Code без Node.js, npm и sudo. Шаги с npm ниже можно пропустить.",
+      "Linux eacces title": "«EACCES: permission denied» при npm install?",
+      "Linux eacces desc": "Node.js, установленный через apt, размещает глобальные пакеты в /usr, куда может писать только root. Не используйте sudo: укажите npm папку в домашнем каталоге и добавьте её в PATH."
     },
     "DEVICE_WORKSPACE": {
       "Title": "Рабочее пространство не настроено на этом устройстве",
@@ -1491,7 +1497,8 @@
       "Reason KillRing": "перебрать kill ring в оболочке",
       "Reason RevertLine": "отменить изменения строки в оболочке",
       "Reason LastArgument": "вставить последний аргумент в оболочке",
-      "Restored": "Горячие клавиши сброшены по умолчанию."
+      "Restored": "Горячие клавиши сброшены по умолчанию.",
+      "NextWaiting": "Следующий агент, ожидающий ввода"
     },
     "FLOOR_PLAN": {
       "Title": "План этажа",
@@ -1607,6 +1614,14 @@
       "Tailer detected": "Обнаружено",
       "Tailer response": "Ответ",
       "Close": "Закрыть"
+    },
+    "ACCOUNT_GUARD": {
+      "Title": "Сессия другого аккаунта",
+      "DefaultAccount": "Аккаунт по умолчанию",
+      "Message": "Эта сессия была открыта с аккаунтом {{oldName}}, но сейчас активен {{newName}}. Разговор нельзя продолжить в другом аккаунте: при повторном открытии с {{newName}} начнётся новый разговор.",
+      "MessageMany": "{{count}} открытых сессий запущены с аккаунтом {{oldName}}, но сейчас активен {{newName}}. Разговоры нельзя продолжить в другом аккаунте: при повторном открытии с {{newName}} начнутся новые разговоры.",
+      "Reopen": "Открыть заново с {{newName}}",
+      "Keep": "Оставить {{oldName}}"
     }
   },
   "SUBAGENTS": {
@@ -2064,7 +2079,14 @@
     "Copy": "Копировать",
     "Paste": "Вставить",
     "Copy link": "Copy link",
-    "Open link": "Open link"
+    "Open link": "Open link",
+    "Find in output": "Поиск в выводе",
+    "No results": "Нет результатов",
+    "Previous match": "Предыдущее совпадение",
+    "Next match": "Следующее совпадение",
+    "Close search": "Закрыть поиск",
+    "Scroll to bottom": "Прокрутить вниз",
+    "New output": "Новых строк: {{count}}"
   },
   "SETTINGS": {
     "Notifications Title": "Уведомления",
@@ -2158,7 +2180,11 @@
     "Voice Open Spotlight Settings": "Spotlight",
     "Voice Open Accessibility Settings": "Специальные возможности",
     "Terminal Default Shell": "Оболочка по умолчанию для новых сессий",
-    "Terminal Default Shell Hint": "В какой оболочке Windows запускаются новые сессии (PowerShell, cmd, WSL, ...)."
+    "Terminal Default Shell Hint": "В какой оболочке Windows запускаются новые сессии (PowerShell, cmd, WSL, ...).",
+    "Terminal Persistent Agents": "Агенты переживают сбои и обновления",
+    "Terminal Persistent Agents Hint": "Агенты работают в отдельном процессе терминала: если приложение падает или перезапускается для обновления, они продолжают работу, и вы находите их там, где оставили. При закрытии приложения они всё равно останавливаются. Применяется к новым агентам.",
+    "Terminal Host Screen": "Быстрое переключение сессий",
+    "Terminal Host Screen Hint": "Приложение хранит экран каждого терминала и мгновенно перерисовывает его при смене сессии или рабочего пространства. Отключайте, только если после переключения терминал выглядит неправильно."
   },
   "SSH": {
     "Security note": "Все SSH-подключения хранятся локально на вашем компьютере в зашифрованном виде (AES-256-GCM) в папке приложения PromptOps. Никакие данные не передаются за пределы устройства.",

@@ -1155,11 +1155,35 @@ fn model_flag(provider: &str) -> Option<&'static str> {
     }
 }
 
+/// CLI command line `provider` runs in the pipeline, without prompt or model:
+/// tells which AI Accounts account applies (`utility_account_provider`).
+fn provider_command_line(provider: &str) -> &'static str {
+    match provider {
+        "codex" => "codex exec",
+        "grok" => "grok",
+        "copilot" => "copilot -s",
+        _ => PROVIDER_COMMANDS
+            .iter()
+            .find(|(k, _)| *k == provider)
+            .map(|(_, v)| *v)
+            .unwrap_or("claude -p --output-format text"),
+    }
+}
+
 /// Shell text of the provider pipeline. The prompt file, the Codex output
 /// file and the model are referenced through environment variables, never
 /// pasted into the text: a temp dir under a user name like `O'Brien` used to
 /// break it, and nothing in the text can come from the prompt.
-fn provider_pipeline(provider: &str, with_model: bool) -> String {
+///
+/// The active account applies: an alias account (`PROMPTOPS_PROVIDER_COMMAND`)
+/// replaces the CLI binary.
+fn provider_pipeline_for(
+    provider: &str,
+    with_model: bool,
+    account_vars: &[(String, String)],
+) -> String {
+    let cli =
+        |line: String| crate::commands::provider_account::utility_base_command(line, account_vars);
     let win = is_windows();
     let var = |name: &str| {
         if win {
@@ -1180,7 +1204,10 @@ fn provider_pipeline(provider: &str, with_model: bool) -> String {
     // grok and the GitHub Copilot CLI take the prompt as an option value
     // (a bare `grok -p` is a usage error, `gh copilot suggest` is retired).
     if provider == "grok" {
-        return format!("grok{model} --prompt-file {}", var("PO_PROMPT_FILE"));
+        return cli(format!(
+            "grok{model} --prompt-file {}",
+            var("PO_PROMPT_FILE")
+        ));
     }
     if provider == "copilot" {
         // `--prompt=<text>` keeps a prompt that starts with `-` a value. On
@@ -1191,10 +1218,13 @@ fn provider_pipeline(provider: &str, with_model: bool) -> String {
         // away from the closing quote.
         return if win {
             format!(
-                "$p=((Get-Content -Raw -Encoding UTF8 -LiteralPath $env:PO_PROMPT_FILE) -replace '\"', \"'\") + ' '; copilot -s --no-color{model} \"--prompt=$p\""
+                "$p=((Get-Content -Raw -Encoding UTF8 -LiteralPath $env:PO_PROMPT_FILE) -replace '\"', \"'\") + ' '; {}",
+                cli(format!("copilot -s --no-color{model} \"--prompt=$p\""))
             )
         } else {
-            format!("copilot -s --no-color{model} --prompt=\"$(cat \"$PO_PROMPT_FILE\")\"")
+            cli(format!(
+                "copilot -s --no-color{model} --prompt=\"$(cat \"$PO_PROMPT_FILE\")\""
+            ))
         };
     }
     let base_cmd: String = if provider == "codex" {
@@ -1210,7 +1240,7 @@ fn provider_pipeline(provider: &str, with_model: bool) -> String {
             .unwrap_or("claude -p --output-format text");
         format!("{base}{model}")
     };
-    format!("{input} | {base_cmd}")
+    format!("{input} | {}", cli(base_cmd))
 }
 
 /// Runs `provider` headless on `prompt` in `cwd` and returns its answer.
@@ -1254,20 +1284,34 @@ pub(crate) fn spawn_provider_with(
         None
     };
 
+    // Active account (AI Accounts): same login as new sessions.
+    let account_vars = crate::commands::provider_account::utility_account_vars(
+        crate::commands::provider_account::utility_account_provider(
+            provider,
+            provider_command_line(provider),
+        ),
+    );
+    // The login shell may rewrite the env in its startup files: the account
+    // is reasserted before the pipeline (POSIX shells only).
+    let line = crate::commands::provider_account::utility_shell_line(
+        provider_pipeline_for(provider, model.is_some(), &account_vars),
+        &account_vars,
+        &shell.program,
+    );
     let mut command = crate::commands::util_cmd::cmd(&shell.program);
     command
         .args(&shell.args_before_cmd)
-        .arg(format!(
-            "{}{}",
-            shell.script_prefix,
-            provider_pipeline(provider, model.is_some())
-        ))
+        .arg(format!("{}{}", shell.script_prefix, line))
         .current_dir(cwd)
         .env("PATH", &shell.path)
         .env("PO_PROMPT_FILE", &tmp_file)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
+    for key in crate::commands::provider_account::utility_env_removals(&account_vars) {
+        command.env_remove(key);
+    }
+    command.envs(account_vars.iter().map(|(k, v)| (k, v)));
     if let Some(cf) = &codex_out_file {
         command.env("PO_CODEX_OUT", cf);
     }

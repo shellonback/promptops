@@ -601,6 +601,10 @@ fn drain_squad_summarize(
         cwd: cwd.to_string(),
         prompt,
         model: Some(SUMMARIZER_MODEL.into()),
+        // Active account (AI Accounts): same login as new sessions.
+        env: crate::commands::provider_account::utility_account_vars("claude-code-cli")
+            .into_iter()
+            .collect(),
         system_prompt: Some(sq::SUMMARIZER_SYSTEM_PROMPT.into()),
         permission_mode: Some("plan".into()),
         no_session_persistence: true,
@@ -685,6 +689,11 @@ enum AgentPty {
         ctl: crate::commands::remote::RemoteShellCtl,
         size: Mutex<(u16, u16)>,
     },
+    /// PTY owned by termd (key = conversation id).
+    Termd {
+        key: String,
+        size: Mutex<(u16, u16)>,
+    },
 }
 
 impl AgentPty {
@@ -704,20 +713,25 @@ impl AgentPty {
                 *size.lock() = (cols, rows);
                 Ok(())
             }
+            AgentPty::Termd { key, size } => {
+                crate::commands::termd_link::resize(key, cols, rows);
+                *size.lock() = (cols, rows);
+                Ok(())
+            }
         }
     }
 
     fn size(&self) -> Option<(u16, u16)> {
         match self {
             AgentPty::Local(pair) => pair.master.get_size().ok().map(|s| (s.cols, s.rows)),
-            AgentPty::Remote { size, .. } => Some(*size.lock()),
+            AgentPty::Remote { size, .. } | AgentPty::Termd { size, .. } => Some(*size.lock()),
         }
     }
 
     fn raw_mode(&self) -> Option<bool> {
         match self {
             AgentPty::Local(pair) => slave_in_raw_mode(pair.master.as_ref()),
-            AgentPty::Remote { .. } => None,
+            AgentPty::Remote { .. } | AgentPty::Termd { .. } => None,
         }
     }
 }
@@ -745,6 +759,12 @@ struct InteractiveAgent {
     /// attach/re-attach of a pane can lose or duplicate chunks that arrive between
     /// the snapshot and the subscription.
     buffer_total: usize,
+    /// Host-side emulated screen (term_state): its own mutex, so parsing
+    /// does not happen under the global `agents` lock.
+    vt: Arc<Mutex<crate::commands::term_state::TermState>>,
+    /// Size requested during startup but too small for the TUI to draw:
+    /// applied as soon as the agent leaves 'spawning' (see resize_agent).
+    deferred_size: Option<(u16, u16)>,
     /// Child killer (clone_killer): explicit kill on destroy for
     /// providers that ignore the SIGHUP from the master close; the reap (wait)
     /// is done by the reader thread at EOF.
@@ -1550,6 +1570,13 @@ fn update_status(
     // is no longer pending.
     if status != SubAgentStatus::Spawning {
         entry.view.prompt_pending = false;
+        // Startup done: the small size requested by the pane can now reach the PTY.
+        if let Some(inter) = entry.interactive.as_mut() {
+            if let Some((cols, rows)) = inter.deferred_size.take() {
+                let _ = inter.pty.resize(cols, rows);
+                inter.vt.lock().resize(cols, rows);
+            }
+        }
     }
     let ephemeral = entry.view.ephemeral.unwrap_or(false);
     let payload = StatusEvent {
@@ -1874,10 +1901,35 @@ fn inject_launch_when_ready(
                 // command, against leftover mouse-tracking garbage.
                 let line = crate::commands::session::guarded_launch_line(command);
                 let _ = w.lock().write_all(line.as_bytes());
+                spawn_mark(sub_agent_id, "launch-typed");
             }
             return;
         }
         std::thread::sleep(std::time::Duration::from_millis(POLL_MS));
+    }
+}
+
+/// Per-phase spawn timings (`[spawn-timing] <id> <phase> +<ms>`): they show
+/// where the seconds go between the click and a usable agent.
+fn spawn_timing() -> &'static Mutex<HashMap<String, std::time::Instant>> {
+    static T: std::sync::OnceLock<Mutex<HashMap<String, std::time::Instant>>> =
+        std::sync::OnceLock::new();
+    T.get_or_init(Default::default)
+}
+
+fn spawn_timing_start(id: &str) {
+    let mut t = spawn_timing().lock();
+    // Old entries (finished spawns) are no longer needed: no growth.
+    t.retain(|_, start| start.elapsed() < std::time::Duration::from_secs(120));
+    t.insert(id.to_string(), std::time::Instant::now());
+}
+
+fn spawn_mark(id: &str, phase: &str) {
+    if let Some(start) = spawn_timing().lock().get(id) {
+        eprintln!(
+            "[spawn-timing] {id} {phase} +{}ms",
+            start.elapsed().as_millis()
+        );
     }
 }
 
@@ -2263,6 +2315,7 @@ pub(crate) fn do_spawn(
     mut request: SpawnSubAgentRequest,
 ) -> Result<SubAgentView, String> {
     let sub_agent_id = Uuid::new_v4().to_string();
+    spawn_timing_start(&sub_agent_id);
     let now = now_iso();
     // Restores and resumes keep the title they had.
     if request.restored != Some(true) && request.claude_session_id.is_none() {
@@ -2453,6 +2506,18 @@ pub(crate) fn do_spawn(
         Uuid::new_v4()
     );
 
+    // Conversation id imposed when NOTHING is resumed: from here on
+    // we know where claude writes the transcript, so the model in use is
+    // readable even if the SessionStart hook never arrives.
+    let fresh_claude_session_id = (request.claude_session_id.is_none()
+        && remote.is_none()
+        && crate::commands::session::provider_resume_family(&provider) == "claude-code-cli"
+        && claude_supports_session_id())
+    .then(new_claude_session_id);
+
+    // Re-attach to an agent still alive in termd (app crash/restart).
+    let mut reattached = false;
+
     // Native SSH transport: remote shell in the cwd, no local PTY.
     // Everything else (pump, buffer, injection) is identical thanks to AgentPty
     // + RemoteShellReader.
@@ -2557,6 +2622,7 @@ pub(crate) fn do_spawn(
         for (k, v) in std::env::vars() {
             cmd.env(k, v);
         }
+        crate::commands::session::strip_inherited_agent_env(&mut cmd);
         cmd.env_remove("CLAUDECODE");
         cmd.env_remove("CLAUDE_CODE");
         crate::commands::session::apply_terminal_env(&mut cmd);
@@ -2687,26 +2753,78 @@ pub(crate) fn do_spawn(
 
         // Child kept for the reap (wait at EOF: no zombies) + killer for the
         // explicit teardown (same as spawn_session_pty).
-        let spawned = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-        killer = Mutex::new(spawned.clone_killer());
-        child = Some(spawned);
+        if crate::commands::termd_link::enabled() && !ephemeral {
+            // PTY in termd: survives app crashes and restarts. Key =
+            // conversation id (stable across restarts, unlike the
+            // sub-agent id): a restored agent finds it again.
+            let key = request
+                .claude_session_id
+                .clone()
+                .or_else(|| fresh_claude_session_id.clone())
+                .unwrap_or_else(|| sub_agent_id.clone());
+            let (sink, termd_reader) = crate::commands::termd_link::reader_pair();
+            let alive = request.claude_session_id.is_some()
+                && crate::commands::termd_link::list()
+                    .iter()
+                    .any(|p| p.id == key && p.alive);
+            if alive {
+                crate::commands::termd_link::attach(&key, sink)?;
+                reattached = true;
+                eprintln!("[termd] re-attached to live agent {key}");
+            } else {
+                let argv = cmd.get_argv();
+                let program = argv
+                    .first()
+                    .map(|a| a.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                let args = argv
+                    .iter()
+                    .skip(1)
+                    .map(|a| a.to_string_lossy().into_owned())
+                    .collect();
+                let spawn_cwd = cmd.get_cwd().map(|c| c.to_string_lossy().into_owned());
+                let env = cmd
+                    .iter_full_env_as_str()
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect();
+                crate::commands::termd_link::spawn(
+                    &key,
+                    program,
+                    args,
+                    spawn_cwd,
+                    env,
+                    DEFAULT_COLS,
+                    DEFAULT_ROWS,
+                    sink,
+                )?;
+            }
+            drop(pair);
+            killer = Mutex::new(Box::new(crate::commands::termd_link::TermdKiller(
+                key.clone(),
+            )));
+            child = None;
+            reader = Box::new(termd_reader);
+            writer = Arc::new(Mutex::new(Box::new(
+                crate::commands::termd_link::TermdWriter(key.clone()),
+            )));
+            shell = local_shell;
+            pty = AgentPty::Termd {
+                key,
+                size: Mutex::new((DEFAULT_COLS, DEFAULT_ROWS)),
+            };
+        } else {
+            let spawned = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
+            killer = Mutex::new(spawned.clone_killer());
+            child = Some(spawned);
 
-        reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-        writer = Arc::new(Mutex::new(
-            pair.master.take_writer().map_err(|e| e.to_string())?,
-        ));
-        shell = local_shell;
-        pty = AgentPty::Local(pair);
+            reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+            writer = Arc::new(Mutex::new(
+                pair.master.take_writer().map_err(|e| e.to_string())?,
+            ));
+            shell = local_shell;
+            pty = AgentPty::Local(pair);
+        }
     }
-
-    // Conversation id imposed when NOTHING is resumed: from here on
-    // we know where claude writes the transcript, so the model in use is
-    // readable even if the SessionStart hook never arrives.
-    let fresh_claude_session_id = (request.claude_session_id.is_none()
-        && remote.is_none()
-        && crate::commands::session::provider_resume_family(&provider) == "claude-code-cli"
-        && claude_supports_session_id())
-    .then(new_claude_session_id);
 
     let view = SubAgentView {
         id: sub_agent_id.clone(),
@@ -2756,10 +2874,13 @@ pub(crate) fn do_spawn(
         goal_driven: if goal_native { Some(true) } else { None },
     };
 
+    spawn_mark(&sub_agent_id, "pty-ready");
+
     // Register the entry + index by parent BEFORE the pump starts: the pump
     // stops at its first read when it finds no entry ("destroyed"), so a
     // shell that printed before the insert used to leave a pane that never
     // showed any output.
+    let (vt_cols, vt_rows) = pty.size().unwrap_or((120, 30));
     manager.agents.lock().insert(
         sub_agent_id.clone(),
         AgentEntry {
@@ -2769,6 +2890,10 @@ pub(crate) fn do_spawn(
                 writer,
                 buffer: Vec::new(),
                 buffer_total: 0,
+                vt: Arc::new(Mutex::new(crate::commands::term_state::TermState::new(
+                    vt_cols, vt_rows,
+                ))),
+                deferred_size: None,
                 killer,
                 // The spawn opens the backup-Enter window too: the renderer
                 // sends its Enter to restored panes as well, where nothing
@@ -2812,7 +2937,7 @@ pub(crate) fn do_spawn(
                 Ok(n) => {
                     let chunk = &buf[..n];
                     // Accumulate in the agent's buffer (replay on subagent:buffer).
-                    {
+                    let vt = {
                         let mut agents = pump_manager.agents.lock();
                         if let Some(entry) = agents.get_mut(&pump_id) {
                             if let Some(ref mut inter) = entry.interactive {
@@ -2821,11 +2946,18 @@ pub(crate) fn do_spawn(
                                 // retained: the cap trims the head but
                                 // the live stream offset never goes back.
                                 inter.buffer_total += chunk.len();
+                                Some(inter.vt.clone())
+                            } else {
+                                None
                             }
                         } else {
                             // Entry gone → agent destroyed, stop.
                             break;
                         }
+                    };
+                    // Host screen outside the global lock (it counts its own bytes: `fed`).
+                    if let Some(vt) = vt {
+                        vt.lock().feed(chunk);
                     }
                     // SessionTailer: auto-approve on sub-agents too.
                     if let Some(tailer) = crate::commands::session_tailer::global_tailer() {
@@ -2960,17 +3092,24 @@ pub(crate) fn do_spawn(
     let mcp_sid = (remote.is_none() && !mcp_unreachable_shell(parent_shell.as_deref()))
         .then_some(session_id.as_str());
     let provider_spawned_at_ms = crate::commands::provider_session_probe::now_ms();
-    if let Some(launch) = build_subagent_launch(
-        &provider,
-        request.claude_session_id.as_deref(),
-        &launch_flags,
-        request.model.as_deref(),
-        request.effort.as_deref(),
-        parent_auto_approve,
-        fresh_claude_session_id.as_deref(),
-        command_alias.as_deref(),
-        mcp_sid,
-    ) {
+    // Re-attach to a live agent in termd: the provider is already running, the
+    // launch line would land INSIDE the TUI.
+    let launch_line = if reattached {
+        None
+    } else {
+        build_subagent_launch(
+            &provider,
+            request.claude_session_id.as_deref(),
+            &launch_flags,
+            request.model.as_deref(),
+            request.effort.as_deref(),
+            parent_auto_approve,
+            fresh_claude_session_id.as_deref(),
+            command_alias.as_deref(),
+            mcp_sid,
+        )
+    };
+    if let Some(launch) = launch_line {
         let launch = match &remote {
             // Command: the line lands in the freshly connected REMOTE shell →
             // `cd` into the parent session's folder.
@@ -3245,6 +3384,7 @@ fn inject_prompt(
                         "[SubAgentManager] prompt paste landed on attempt {} for {id}",
                         attempt + 1
                     );
+                    spawn_mark(&id, "prompt-landed");
                 }
                 break;
             }
@@ -3405,12 +3545,16 @@ fn wait_for_tui_ready(
 
     let mut marker_last_len = 0usize;
     let mut marker_last_change_ms: u128 = 0;
+    // Last gate state, to understand WHY a budget runs out.
+    let mut last_gate: (bool, Option<bool>, usize, u128) = (false, None, 0, 0);
     loop {
         let elapsed = start.elapsed().as_millis();
         if elapsed >= max_wait_ms {
+            let (seen, raw, blen, quiet) = last_gate;
             eprintln!(
-                "[SubAgentManager] TUI ready budget ({max_wait_ms}ms) exhausted for {sub_agent_id} ({provider}) — proceeding"
+                "[SubAgentManager] TUI ready budget ({max_wait_ms}ms) exhausted for {sub_agent_id} ({provider}) — proceeding [marker={seen} raw={raw:?} buffer={blen} quiet={quiet}ms]"
             );
+            spawn_mark(sub_agent_id, "tui-budget-exhausted");
             return true; // budget exhausted: proceed anyway
         }
         let (len, raw_mode, marker_seen) = {
@@ -3432,6 +3576,7 @@ fn wait_for_tui_ready(
                 marker_last_len = len;
                 marker_last_change_ms = elapsed;
             }
+            last_gate = (marker_seen, raw_mode, len, elapsed - marker_last_change_ms);
             if marker_gate_ready(
                 marker_seen,
                 raw_mode,
@@ -3441,6 +3586,7 @@ fn wait_for_tui_ready(
                 eprintln!(
                     "[SubAgentManager] TUI ready after {elapsed}ms (buffer={len} bytes, input box marker, raw={raw_mode:?}, provider={provider})"
                 );
+                spawn_mark(sub_agent_id, "tui-ready");
                 return true;
             }
             if len < NO_OUTPUT_BYTES && elapsed >= NO_OUTPUT_TIMEOUT_MS {
@@ -4676,6 +4822,22 @@ pub async fn subagent_buffer(
     // pane attach/switch (same class as session_buffer).
     let manager = manager.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
+        // VT replay: snapshot of the host screen, offset = bytes that produced it.
+        if crate::commands::term_state::vt_replay_enabled() {
+            let vt = manager
+                .agents
+                .lock()
+                .get(&sub_agent_id)
+                .and_then(|e| e.interactive.as_ref())
+                .map(|i| i.vt.clone());
+            if let Some(vt) = vt {
+                let mut vt = vt.lock();
+                if vt.fed() > 0 {
+                    let payload = crate::commands::term_state::vt_replay_payload(&mut vt);
+                    return Ok(tauri::ipc::Response::new(payload));
+                }
+            }
+        }
         let (data, end_offset) = {
             let agents = manager.agents.lock();
             match agents.get(&sub_agent_id) {
@@ -4715,12 +4877,34 @@ pub fn subagent_resize(
     cols: u16,
     rows: u16,
 ) -> Result<(), String> {
-    let agents = manager.agents.lock();
+    let mut agents = manager.agents.lock();
     let entry = agents
-        .get(&sub_agent_id)
+        .get_mut(&sub_agent_id)
         .ok_or_else(|| format!("Agent not found: {}", sub_agent_id))?;
-    if let Some(ref inter) = entry.interactive {
-        inter.pty.resize(cols, rows)?;
+    resize_agent(entry, cols, rows)
+}
+
+/// Resizes an agent's PTY. During startup a grid that is too small (many
+/// stacked agents: 3-row panes) does not reach the PTY: Claude would not draw
+/// its input box, the "ready" detection would not fire and the spawn would
+/// wait 20 s. The size is kept in `deferred_size` and applied as soon as the
+/// agent leaves 'spawning' (update_status): once running, small panes stay
+/// small as before.
+fn resize_agent(entry: &mut AgentEntry, cols: u16, rows: u16) -> Result<(), String> {
+    let booting = entry.view.status == SubAgentStatus::Spawning;
+    let id = entry.view.id.clone();
+    let Some(inter) = entry.interactive.as_mut() else {
+        return Ok(());
+    };
+    if booting && !crate::commands::session::pty_size_is_usable(cols, rows) {
+        eprintln!("[resize] {cols}x{rows} deferred until startup ends for {id}");
+        inter.deferred_size = Some((cols, rows));
+        return Ok(());
+    }
+    inter.deferred_size = None;
+    inter.pty.resize(cols, rows)?;
+    if cols > 0 && rows > 0 {
+        inter.vt.lock().resize(cols, rows);
     }
     Ok(())
 }

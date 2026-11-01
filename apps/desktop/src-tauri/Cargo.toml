@@ -1,6 +1,6 @@
 [package]
 name = "promptops-oss"
-version = "2.1.7"
+version = "2.2.0-beta.0"
 description = "PromptOps: run and coordinate AI coding agents on your machine"
 authors = ["PromptOps"]
 license = "Apache-2.0"
@@ -75,6 +75,10 @@ getrandom = "0.2"
 # Encrypted backups (local_backup.rs): Argon2id derives the key from the
 # passphrase. Already in the lock as a transitive dependency; MIT OR Apache-2.0.
 argon2 = "0.5"
+# PTY VT screen (snapshot for replay): crate shared with termd.
+po-vt = { path = "../crates/po-vt" }
+# External PTY host (beta, PROMPTOPS_TERMD=1): client of the promptops-termd process.
+termd = { package = "promptops-termd", path = "../termd" }
 
 # PTY raw-mode gate before paste (tcgetattr on the master, see subagent.rs)
 [target.'cfg(unix)'.dependencies]
@@ -122,6 +126,17 @@ custom-protocol = ["tauri/custom-protocol"]
 opt-level = 3
 
 [profile.dev.package.blake2]
+opt-level = 3
+
+# The host VT screen (term_state) parses all PTY output on the reader thread:
+# unoptimized in dev it would be ~20x slower and would slow down TUIs.
+[profile.dev.package.alacritty_terminal]
+opt-level = 3
+
+[profile.dev.package.vte]
+opt-level = 3
+
+[profile.dev.package.po-vt]
 opt-level = 3
 
 # Smaller release binary. Unwinding stays on: local_store, tray and metrics use

@@ -961,7 +961,7 @@ fn build_memory_snapshot(terminal_pids: Vec<i64>) -> MemorySnapshot {
         if let Some(p) = sys.process(Pid::from_u32(pid)) {
             let ws_kb = p.memory() / 1024;
             app_processes.push(AppProcessMetric {
-                kind: p.name().to_string(),
+                kind: p.name().to_string_lossy().into_owned(),
                 pid: pid as i64,
                 working_set_size_kb: ws_kb,
                 peak_working_set_size_kb: ws_kb,
@@ -1055,7 +1055,7 @@ fn build_native_tree(sys: &System, root_pid: u32) -> NativeTree {
     for pid in &descendants {
         if let Some(p) = sys.process(Pid::from_u32(*pid)) {
             let name = {
-                let n = p.name();
+                let n = p.name().to_string_lossy();
                 if n.is_empty() {
                     "unknown".to_string()
                 } else {

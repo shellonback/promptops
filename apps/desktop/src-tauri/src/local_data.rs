@@ -49,7 +49,7 @@ const SESSION_STATUSES: &[&str] = &[
 
 /// One call at a time: handlers read, change and write whole records, and both
 /// the UI and the shell can call in parallel.
-static OP_LOCK: Mutex<()> = parking_lot::const_mutex(());
+static OP_LOCK: Mutex<()> = Mutex::new(());
 
 /// Why a call failed. `code` is stable and meant for code (`invalid`,
 /// `not_found`, `conflict`, `session_name_taken`, `unknown_method`,

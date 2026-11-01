@@ -134,7 +134,7 @@ fn read_file(rt: &PluginRuntime, plugin_id: &str) -> Result<OnDisk, String> {
 
 fn seal(key: &[u8; 32], plugin_id: &str, secrets: &Secrets) -> Result<Vec<u8>, String> {
     let mut nonce = [0u8; 12];
-    getrandom::getrandom(&mut nonce).map_err(|e| format!("random numbers unavailable: {e}"))?;
+    getrandom::fill(&mut nonce).map_err(|e| format!("random numbers unavailable: {e}"))?;
     let plain = serde_json::to_vec(secrets).map_err(|e| e.to_string())?;
     let data = Aes256Gcm::new(key.into())
         .encrypt(
@@ -351,7 +351,7 @@ mod keychain {
             },
             Err(keyring::Error::NoEntry) if create => {
                 let mut key = [0u8; 32];
-                if let Err(e) = getrandom::getrandom(&mut key) {
+                if let Err(e) = getrandom::fill(&mut key) {
                     return KeyState::Unavailable(format!("random numbers unavailable: {e}"));
                 }
                 match entry.set_password(&B64.encode(key)) {

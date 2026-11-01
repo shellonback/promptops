@@ -254,7 +254,7 @@ const MAX_CTL_CALLS: usize = 64;
 
 static CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 static CTL_CALLS: AtomicUsize = AtomicUsize::new(0);
-static ROUTE_LOCK: Mutex<()> = parking_lot::const_mutex(());
+static ROUTE_LOCK: Mutex<()> = Mutex::new(());
 
 /// Slot taken in a capped counter; released on drop.
 struct Slot(&'static AtomicUsize);

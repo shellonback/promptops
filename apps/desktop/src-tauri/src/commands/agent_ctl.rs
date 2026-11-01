@@ -89,6 +89,7 @@ const AGENT_PROVIDERS: &[&str] = &[
     "hermes",
     "opencode",
     "muse",
+    "kora",
     "promptops-cli",
 ];
 /// Providers whose CLI, by default, asks for confirmation before writing files or
@@ -105,6 +106,7 @@ const GATED_PROVIDERS: &[&str] = &[
     "copilot",
     "cursor",
     "muse",
+    "kora",
     "promptops-cli",
 ];
 /// Raw shell: the "prompt" is a command executed without any permission.
@@ -1532,6 +1534,11 @@ mod tests {
         );
         assert!(check_provider("opencode", Some("opencode"), false).is_ok());
         assert!(check_provider("opencode", Some("claude-code-cli"), true).is_ok());
+        // kora asks for confirmation by default (approval panel): gated, like
+        // the claude family — allowed in an attended session even when
+        // switching away from another CLI, unlike the non-gated opencode above.
+        assert!(check_provider("kora", Some("kora"), false).is_ok());
+        assert!(check_provider("kora", Some("codex"), false).is_ok());
         assert!(GATED_PROVIDERS.iter().all(|p| AGENT_PROVIDERS.contains(p)));
         // The raw shell doesn't pass even if it is the session's provider.
         assert_eq!(

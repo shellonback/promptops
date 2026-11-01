@@ -34,6 +34,8 @@ const PROVIDER_ORDER: ProviderId[] = [
   "antigravity",
   "zai",
   "kimi",
+  "opencode",
+  "kora",
   "promptops-cli",
 ];
 
@@ -245,6 +247,7 @@ export class ProviderAccountsComponent implements OnInit {
       "claude-code-cli": "claude", codex: "openai", "gemini-cli": "gemini",
       antigravity: "antigravity", copilot: "copilot", cursor: "cursor",
       grok: "grok", hermes: "hermes", muse: "muse", zai: "zai", kimi: "kimi",
+      kora: "kora",
     };
     return `assets/providers/${logos[provider] ?? "terminal"}.svg`;
   }

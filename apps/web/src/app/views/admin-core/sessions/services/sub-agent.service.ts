@@ -89,7 +89,7 @@ export interface SubAgentSuggestion {
 
 export type SubAgentStatus = 'spawning' | 'running' | 'in_progress' | 'idle' | 'waiting_input' | 'completed' | 'error' | 'exited';
 
-export type SubAgentProvider = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'promptops-cli' | 'generic-shell';
+export type SubAgentProvider = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'kora' | 'promptops-cli' | 'generic-shell';
 
 export interface SubAgent {
   id: string;

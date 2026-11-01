@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2328,6 +2329,12 @@
       "LIMITATIONS": "Менее эффективен для открытого рассуждения.",
       "MICROCOPY": "Бесплатные модели, API-ключ не требуется. Код остаётся на вашем устройстве, только если модель локальная. Лучший для структурированного выполнения кода.",
       "INSTALL_HINT": "Не обнаружен. Установите: brew install opencode (или см. opencode.ai)."
+    },
+    "KORA": {
+      "BEST_FOR": "Агентная разработка с Kora CLI на провайдере, настроенном в Kora.",
+      "LIMITATIONS": "Требуется Kora CLI и настроенный бэкенд.",
+      "MICROCOPY": "Использует вашу настройку Kora. Модель и уровень рассуждений выбираются в CLI.",
+      "INSTALL_HINT": "Не обнаружено. Установка: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Обычный терминал — без ИИ.",

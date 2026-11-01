@@ -618,6 +618,7 @@
     "Cursor": "Cursor",
     "Grok": "Grok",
     "Hermes": "Hermes",
+    "Kora": "Kora",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2328,6 +2329,12 @@
       "LIMITATIONS": "对开放性推理效果较弱。",
       "MICROCOPY": "免费模型，无需 API 密钥。只有使用本地模型时，代码才会留在本机。最适合结构化代码执行。",
       "INSTALL_HINT": "未检测到，请使用：brew install opencode 安装（或参见 opencode.ai）。"
+    },
+    "KORA": {
+      "BEST_FOR": "使用 Kora CLI 进行智能体编码，使用在 Kora 中配置的提供商。",
+      "LIMITATIONS": "需要 Kora CLI 和已配置的后端。",
+      "MICROCOPY": "使用你的 Kora 配置。模型与推理力度在 CLI 内选择。",
+      "INSTALL_HINT": "未检测到。安装：curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "纯终端 — 无 AI。",

@@ -3,6 +3,15 @@
 All notable changes to the open-source edition are listed here. Versions of
 PromptOps Desktop, the hosted edition, have their own release notes.
 
+## Unreleased
+
+### Added
+
+- Kora CLI as an agent provider: launch (`kora`), resume by session id
+  (`kora --resume <id>`, discovered by probing `kora sessions --json`) and
+  auto-approve (`-y`). Model, provider and effort stay inside Kora's own
+  CLI; state degrades to PTY activity like the other hookless CLIs.
+
 ## 2.1.7 — 2026-10-24
 
 First public release of the source. From here the open-source edition uses

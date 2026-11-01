@@ -14,6 +14,7 @@ export type ProviderId =
   | 'zai'
   | 'kimi'
   | 'opencode'
+  | 'kora'
   | 'promptops-cli'
   | 'generic-shell';
 

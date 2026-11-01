@@ -34,7 +34,7 @@ use uuid::Uuid;
 // keys of the capabilities map; validation is done by looking at the map.
 // Canonical values (in order):
 //   claude-code-cli | codex | gemini-cli | antigravity | copilot | cursor |
-//   grok | hermes | muse | opencode | promptops-cli | generic-shell
+//   grok | hermes | muse | opencode | kora | promptops-cli | generic-shell
 pub type ProviderType = String;
 
 // ===========================================================================
@@ -149,6 +149,18 @@ const CAPABILITIES: &[(&str, ProviderAccountCapability)] = &[
             // No config-dir env var is injected: a managed profile would be the
             // same login. Existing aliases still work.
             support: "unsupported",
+        },
+    ),
+    (
+        // kora honors `KORA_PROFILE_ROOT` as the WHOLE profile root (settings,
+        // API key, sessions): a managed dir is a fully isolated profile, not
+        // only a config dir — hence "partial", like opencode.
+        "kora",
+        ProviderAccountCapability {
+            env_var: Some("KORA_PROFILE_ROOT"),
+            default_dir_name: "kora",
+            default_cli_path: Some("~/.kora"),
+            support: "partial",
         },
     ),
     (

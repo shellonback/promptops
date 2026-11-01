@@ -951,6 +951,7 @@ const PROBE_CLIS: &[&str] = &[
     "agy",
     "muse",
     "opencode",
+    "kora",
     "cursor-agent",
     "qwen",
     "copilot",

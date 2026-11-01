@@ -7527,6 +7527,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     'muse': 'assets/providers/muse.svg',
     'zai': 'assets/providers/zai.svg',
     'kimi': 'assets/providers/kimi.svg',
+    'kora': 'assets/providers/kora.svg',
     'generic-shell': 'assets/providers/terminal.svg',
   };
   private static readonly PROVIDER_LABEL: Record<string, string> = {
@@ -7541,6 +7542,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     'muse': 'Muse Code',
     'zai': 'Z.AI',
     'kimi': 'Kimi',
+    'kora': 'Kora',
     'generic-shell': 'Shell',
   };
   getProviderLogo(provider: string): string {

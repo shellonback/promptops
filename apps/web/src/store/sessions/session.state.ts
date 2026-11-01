@@ -1,5 +1,5 @@
 export type SessionStatus = 'idle' | 'running' | 'in_progress' | 'waiting_input' | 'completed' | 'error' | 'exited';
-export type ProviderType = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'promptops-cli' | 'generic-shell';
+export type ProviderType = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity' | 'copilot' | 'cursor' | 'grok' | 'hermes' | 'muse' | 'zai' | 'kimi' | 'opencode' | 'kora' | 'promptops-cli' | 'generic-shell';
 export type LayoutMode = 'standard' | 'code';
 
 /** Status of a session's workspace on the current device. */

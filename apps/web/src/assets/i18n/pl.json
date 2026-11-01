@@ -3451,7 +3451,8 @@
     "Read only newer": "Te dane zapisała nowsza wersja PromptOps. Zmiany wprowadzone tutaj nie są zapisywane: zaktualizuj aplikację.",
     "Read only busy": "Inna kopia PromptOps używa tych danych. Zmiany wprowadzone tutaj nie są zapisywane: zamknij drugą kopię i uruchom ponownie.",
     "Read only other": "Zmiany wprowadzone tutaj nie są zapisywane:",
-    "Unreadable": "Nie można otworzyć na tym urządzeniu zapisanych rekordów: {{count}}. Są zachowane, nie usunięte."
+    "Unreadable": "Nie można otworzyć na tym urządzeniu zapisanych rekordów: {{count}}. Są zachowane, nie usunięte.",
+    "Unreadable hint": "Zapisano je kluczem, którego to urządzenie już nie ma, zwykle przez wcześniejszą instalację. Wszystko inne działa normalnie."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Biblioteka promptów",

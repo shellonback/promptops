@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { TranslateModule } from '@ngx-translate/core';
 import { DataBackend } from './data-backend';
-import { readOnlyKind, StoreHealthBannerComponent, storeHealthNeedsNotice } from './store-health-banner.component';
+import { readOnlyKind, StoreHealthBannerComponent, storeHealthNeedsNotice, UNREADABLE_ACK_KEY } from './store-health-banner.component';
 
 class FakeBackend extends DataBackend {
   constructor(private answer: () => Promise<unknown>) { super(); }
@@ -26,6 +26,9 @@ async function render(answer: () => Promise<unknown>) {
 }
 
 describe('StoreHealthBannerComponent', () => {
+  beforeEach(() => localStorage.removeItem(UNREADABLE_ACK_KEY));
+  afterEach(() => localStorage.removeItem(UNREADABLE_ACK_KEY));
+
   it('asks the desktop shell how the data file opened', async () => {
     const { backend } = await render(async () => ({ unreadable: 0, formatVersion: 1 }));
     expect(backend.calls).toEqual(['store.health']);
@@ -56,6 +59,32 @@ describe('StoreHealthBannerComponent', () => {
     (el.querySelector('button') as HTMLButtonElement).click();
     fixture.detectChanges();
     expect(el.querySelector('[data-testid="store-health-banner"]')).toBeNull();
+  });
+
+  it('shows unreadable records alone as information, and only again when there are more', async () => {
+    const first = await render(async () => ({ unreadable: 1, formatVersion: 1 }));
+    const banner = first.el.querySelector('[data-testid="store-health-banner"]');
+    expect(banner?.classList.contains('info')).toBeTrue();
+    expect(banner?.getAttribute('role')).toBe('status');
+    (first.el.querySelector('button') as HTMLButtonElement).click();
+    first.fixture.detectChanges();
+    expect(localStorage.getItem(UNREADABLE_ACK_KEY)).toBe('1');
+
+    TestBed.resetTestingModule();
+    const again = await render(async () => ({ unreadable: 1, formatVersion: 1 }));
+    expect(again.el.querySelector('[data-testid="store-health-banner"]')).toBeNull();
+
+    TestBed.resetTestingModule();
+    const more = await render(async () => ({ unreadable: 2, formatVersion: 1 }));
+    expect(more.el.querySelector('[data-testid="store-health-banner"]')).not.toBeNull();
+  });
+
+  it('keeps real problems as an alert even when unreadable records were acknowledged', async () => {
+    localStorage.setItem(UNREADABLE_ACK_KEY, '5');
+    const { el } = await render(async () => ({ readOnly: 'disk full', unreadable: 1, formatVersion: 1 }));
+    const banner = el.querySelector('[data-testid="store-health-banner"]');
+    expect(banner?.classList.contains('info')).toBeFalse();
+    expect(banner?.getAttribute('role')).toBe('alert');
   });
 
   it('classifies the read-only reasons the desktop shell sends', () => {

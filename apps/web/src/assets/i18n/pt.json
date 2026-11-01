@@ -3451,7 +3451,8 @@
     "Read only newer": "Estes dados foram salvos por uma versão mais recente do PromptOps. As alterações feitas aqui não são salvas: atualize o app.",
     "Read only busy": "Outra cópia do PromptOps está usando estes dados. As alterações feitas aqui não são salvas: feche a outra cópia e reinicie.",
     "Read only other": "As alterações feitas aqui não são salvas:",
-    "Unreadable": "{{count}} registros salvos não podem ser abertos neste dispositivo. Eles são mantidos, não excluídos."
+    "Unreadable": "{{count}} registros salvos não podem ser abertos neste dispositivo. Eles são mantidos, não excluídos.",
+    "Unreadable hint": "Foram guardados com uma chave que este dispositivo já não tem, normalmente por uma instalação anterior. Todo o resto funciona normalmente."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Biblioteca de Prompts",

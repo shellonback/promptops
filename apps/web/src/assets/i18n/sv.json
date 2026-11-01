@@ -3451,7 +3451,8 @@
     "Read only newer": "Dessa data sparades av en nyare version av PromptOps. Ändringar här sparas inte: uppdatera appen.",
     "Read only busy": "En annan kopia av PromptOps använder dessa data. Ändringar här sparas inte: stäng den andra kopian och starta om.",
     "Read only other": "Ändringar här sparas inte:",
-    "Unreadable": "{{count}} sparade poster kan inte öppnas på den här enheten. De behålls, de raderas inte."
+    "Unreadable": "{{count}} sparade poster kan inte öppnas på den här enheten. De behålls, de raderas inte.",
+    "Unreadable hint": "De sparades med en nyckel som den här enheten inte längre har, oftast av en tidigare installation. Allt annat fungerar som vanligt."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Promptbibliotek",

@@ -3451,7 +3451,8 @@
     "Read only newer": "Ces données ont été enregistrées par une version plus récente de PromptOps. Les modifications faites ici ne sont pas enregistrées : mettez l'application à jour.",
     "Read only busy": "Une autre copie de PromptOps utilise ces données. Les modifications faites ici ne sont pas enregistrées : fermez l'autre copie et redémarrez.",
     "Read only other": "Les modifications faites ici ne sont pas enregistrées :",
-    "Unreadable": "{{count}} enregistrements ne peuvent pas être ouverts sur cet appareil. Ils sont conservés, pas supprimés."
+    "Unreadable": "{{count}} enregistrements ne peuvent pas être ouverts sur cet appareil. Ils sont conservés, pas supprimés.",
+    "Unreadable hint": "Ils ont été enregistrés avec une clé que cet appareil n'a plus, généralement par une installation précédente. Tout le reste fonctionne normalement."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Bibliothèque de prompts",

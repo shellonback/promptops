@@ -3451,7 +3451,8 @@
     "Read only newer": "这些数据由更新版本的 PromptOps 保存。此处所做的更改不会被保存：请更新应用。",
     "Read only busy": "另一个 PromptOps 副本正在使用这些数据。此处所做的更改不会被保存：请关闭另一个副本并重新启动。",
     "Read only other": "此处所做的更改不会被保存：",
-    "Unreadable": "有 {{count}} 条已保存的记录无法在此设备上打开。它们会被保留，不会被删除。"
+    "Unreadable": "有 {{count}} 条已保存的记录无法在此设备上打开。它们会被保留，不会被删除。",
+    "Unreadable hint": "这些记录是用本设备已不再拥有的密钥保存的，通常来自之前的安装。其他一切正常运行。"
   },
   "PAGE_TITLE": {
     "Prompt Library": "Prompt Library",

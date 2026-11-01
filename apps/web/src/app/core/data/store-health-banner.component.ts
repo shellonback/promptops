@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, CUSTOM_ELEMENTS_SCHEMA, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, CUSTOM_ELEMENTS_SCHEMA, inject, OnInit, signal } from '@angular/core';
 import { TranslateModule } from '@ngx-translate/core';
 import { DataBackend } from './data-backend';
 
@@ -22,6 +22,17 @@ export function readOnlyKind(reason: string): ReadOnlyKind {
   return 'other';
 }
 
+/** localStorage key: how many unreadable records the user already acknowledged. */
+export const UNREADABLE_ACK_KEY = 'promptops.storeHealth.unreadableAck';
+
+/**
+ * True when the only news is records this device cannot open: nothing is
+ * lost or blocked, so it is an information, not an error.
+ */
+export function storeHealthIsInfoOnly(h: StoreHealth): boolean {
+  return !h.quarantined && !h.readOnly && (h.unreadable ?? 0) > 0;
+}
+
 /** True when the report has something the user must know. */
 export function storeHealthNeedsNotice(h: StoreHealth | null | undefined): h is StoreHealth {
   return !!h && (!!h.quarantined || !!h.readOnly || (h.unreadable ?? 0) > 0);
@@ -43,9 +54,10 @@ export function storeHealthNeedsNotice(h: StoreHealth | null | undefined): h is 
   template: `
     @if (health(); as h) {
       @if (!dismissed()) {
-        <div class="store-health-banner" role="alert" data-testid="store-health-banner">
+        <div class="store-health-banner" [class.info]="info()" [attr.role]="info() ? 'status' : 'alert'" data-testid="store-health-banner">
           <div class="d-flex align-items-start gap-2">
-            <iconify-icon icon="solar:folder-error-bold-duotone" width="20" style="color: #dc2626;" aria-hidden="true"></iconify-icon>
+            <iconify-icon [attr.icon]="info() ? 'solar:info-circle-bold-duotone' : 'solar:folder-error-bold-duotone'" width="20"
+                          [style.color]="info() ? '#2563eb' : '#dc2626'" aria-hidden="true"></iconify-icon>
             <div class="flex-grow-1">
               <strong>{{ 'STORE_HEALTH.Title' | translate }}</strong>
               @if (h.quarantined) {
@@ -66,10 +78,11 @@ export function storeHealthNeedsNotice(h: StoreHealth | null | undefined): h is 
               @if (h.unreadable > 0) {
                 <div data-testid="store-health-unreadable">
                   {{ 'STORE_HEALTH.Unreadable' | translate: { count: h.unreadable } }}
+                  @if (info()) { <span class="store-health-hint">{{ 'STORE_HEALTH.Unreadable hint' | translate }}</span> }
                 </div>
               }
             </div>
-            <button type="button" class="btn btn-sm btn-link text-muted" (click)="dismissed.set(true)"
+            <button type="button" class="btn btn-sm btn-link text-muted" (click)="dismiss()"
                     [attr.aria-label]="'BUTTONS.Close' | translate" [title]="'BUTTONS.Close' | translate">
               <iconify-icon icon="solar:close-circle-linear" width="18"></iconify-icon>
             </button>
@@ -92,6 +105,11 @@ export function storeHealthNeedsNotice(h: StoreHealth | null | undefined): h is 
       background: #fef2f2;
       border-bottom: 1px solid #fca5a5;
     }
+    .store-health-banner.info {
+      background: #eff6ff;
+      border-bottom-color: #bfdbfe;
+    }
+    .store-health-hint { color: #475569; }
     .store-health-banner strong { color: #111827; }
     .store-health-banner .text-muted { color: #6b7280 !important; }
     .store-health-banner code {
@@ -110,14 +128,33 @@ export class StoreHealthBannerComponent implements OnInit {
   readonly health = signal<StoreHealth | null>(null);
   readonly dismissed = signal(false);
   readonly kind = readOnlyKind;
+  readonly info = computed(() => {
+    const h = this.health();
+    return !!h && storeHealthIsInfoOnly(h);
+  });
 
   ngOnInit(): void {
     this.data
       .call<StoreHealth>('store.health')
       .then((h) => {
-        if (storeHealthNeedsNotice(h)) this.health.set(h);
+        if (!storeHealthNeedsNotice(h)) return;
+        // Records already acknowledged: show again only if there are more.
+        if (storeHealthIsInfoOnly(h) && h.unreadable <= this.acknowledged()) return;
+        this.health.set(h);
       })
       // Outside the desktop shell there is no store to report on.
       .catch(() => undefined);
+  }
+
+  dismiss(): void {
+    const h = this.health();
+    if (h && storeHealthIsInfoOnly(h)) {
+      try { localStorage.setItem(UNREADABLE_ACK_KEY, String(h.unreadable)); } catch { /* storage off */ }
+    }
+    this.dismissed.set(true);
+  }
+
+  private acknowledged(): number {
+    try { return Number(localStorage.getItem(UNREADABLE_ACK_KEY)) || 0; } catch { return 0; }
   }
 }

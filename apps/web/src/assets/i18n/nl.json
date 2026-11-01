@@ -3451,7 +3451,8 @@
     "Read only newer": "Deze gegevens zijn opgeslagen door een nieuwere versie van PromptOps. Wijzigingen hier worden niet opgeslagen: werk de app bij.",
     "Read only busy": "Een andere kopie van PromptOps gebruikt deze gegevens. Wijzigingen hier worden niet opgeslagen: sluit de andere kopie en start opnieuw.",
     "Read only other": "Wijzigingen hier worden niet opgeslagen:",
-    "Unreadable": "{{count}} opgeslagen records kunnen op dit apparaat niet worden geopend. Ze worden bewaard, niet verwijderd."
+    "Unreadable": "{{count}} opgeslagen records kunnen op dit apparaat niet worden geopend. Ze worden bewaard, niet verwijderd.",
+    "Unreadable hint": "Ze zijn opgeslagen met een sleutel die dit apparaat niet meer heeft, meestal door een eerdere installatie. Al het andere werkt normaal."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Prompt Library",

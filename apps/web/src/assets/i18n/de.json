@@ -3451,7 +3451,8 @@
     "Read only newer": "Diese Daten wurden mit einer neueren Version von PromptOps gespeichert. Änderungen hier werden nicht gespeichert: Aktualisiere die App.",
     "Read only busy": "Eine andere Kopie von PromptOps verwendet diese Daten. Änderungen hier werden nicht gespeichert: Schließe die andere Kopie und starte neu.",
     "Read only other": "Änderungen hier werden nicht gespeichert:",
-    "Unreadable": "{{count}} gespeicherte Einträge können auf diesem Gerät nicht geöffnet werden. Sie bleiben erhalten und werden nicht gelöscht."
+    "Unreadable": "{{count}} gespeicherte Einträge können auf diesem Gerät nicht geöffnet werden. Sie bleiben erhalten und werden nicht gelöscht.",
+    "Unreadable hint": "Sie wurden mit einem Schlüssel gespeichert, den dieses Gerät nicht mehr hat, meist von einer früheren Installation. Alles andere funktioniert normal."
   },
   "PAGE_TITLE": {
     "Prompt Library": "Prompt-Bibliothek",

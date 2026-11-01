@@ -28,7 +28,6 @@ pub fn open_detached_window(app: AppHandle, kind: String) -> Result<(), String> 
         title.to_string(),
         w,
         h,
-        false,
     )
 }
 
@@ -41,7 +40,7 @@ fn session_id_ok(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
-/// A session in its own CHILD window of the main one: no sidebar, when closed everything returns to the main one.
+/// A session in its own top-level window: no sidebar, when closed everything returns to the main one.
 #[tauri::command]
 pub fn open_session_window(app: AppHandle, session_id: String, name: String) -> Result<(), String> {
     if !session_id_ok(&session_id) {
@@ -61,7 +60,6 @@ pub fn open_session_window(app: AppHandle, session_id: String, name: String) -> 
         title,
         1100.0,
         760.0,
-        true,
     )
 }
 
@@ -84,7 +82,6 @@ fn open(
     title: String,
     w: f64,
     h: f64,
-    child: bool,
 ) -> Result<(), String> {
     if let Some(win) = app.get_webview_window(label) {
         let _ = win.unminimize();
@@ -99,11 +96,8 @@ fn open(
         .disable_drag_drop_handler()
         .on_navigation(crate::guard_navigation)
         .initialization_script(crate::init_script(app));
-    if child {
-        if let Some(main) = app.get_webview_window("main") {
-            builder = builder.parent(&main).map_err(|e| e.to_string())?;
-        }
-    }
+    // Never a child of the main window: on macOS a child window stays stuck to its parent's
+    // Space and cannot be moved to another virtual desktop.
     #[cfg(target_os = "macos")]
     if crate::demo_mode::enabled() {
         builder = builder.data_store_identifier(crate::demo_mode::DATA_STORE_ID);

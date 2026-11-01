@@ -4002,13 +4002,18 @@ fn parse_worktree_porcelain(raw: &str) -> Vec<WorktreeEntry> {
             if let Some(e) = cur.take() {
                 out.push(e);
             }
-            cur = Some(WorktreeEntry { path: val, ..Default::default() });
+            cur = Some(WorktreeEntry {
+                path: val,
+                ..Default::default()
+            });
             continue;
         }
         let Some(e) = cur.as_mut() else { continue };
         match key {
             "HEAD" => e.head = val,
-            "branch" => e.branch = Some(val.strip_prefix("refs/heads/").unwrap_or(&val).to_string()),
+            "branch" => {
+                e.branch = Some(val.strip_prefix("refs/heads/").unwrap_or(&val).to_string())
+            }
             "detached" => e.detached = true,
             "bare" => e.bare = true,
             "locked" => e.locked = Some(val),
@@ -4045,7 +4050,11 @@ pub async fn git_worktree_list(cwd: String) -> JsonValue {
         return json!({ "ok": false, "error": err_detail(&r) });
     }
     let toplevel = run_git(&cwd, &["rev-parse", "--show-toplevel"]);
-    let top = if toplevel.ok { toplevel.out.trim().to_string() } else { cwd.clone() };
+    let top = if toplevel.ok {
+        toplevel.out.trim().to_string()
+    } else {
+        cwd.clone()
+    };
     let entries = parse_worktree_porcelain(&r.out);
     let list: Vec<JsonValue> = entries
         .iter()
@@ -4095,7 +4104,10 @@ pub async fn git_worktree_add(
     if path.is_empty() || branch.is_empty() {
         return json!({ "ok": false, "error": "Path and branch are required" });
     }
-    if path.starts_with('-') || branch.starts_with('-') || base.as_deref().is_some_and(|b| b.starts_with('-')) {
+    if path.starts_with('-')
+        || branch.starts_with('-')
+        || base.as_deref().is_some_and(|b| b.starts_with('-'))
+    {
         return json!({ "ok": false, "error": "Invalid argument" });
     }
     let check = run_git(&cwd, &["check-ref-format", "--branch", &branch]);
@@ -4106,10 +4118,18 @@ pub async fn git_worktree_add(
         std::path::PathBuf::from(&path)
     } else {
         let top = run_git(&cwd, &["rev-parse", "--show-toplevel"]);
-        let root = if top.ok { top.out.trim().to_string() } else { cwd.clone() };
+        let root = if top.ok {
+            top.out.trim().to_string()
+        } else {
+            cwd.clone()
+        };
         Path::new(&root).join(&path)
     };
-    if abs.exists() && std::fs::read_dir(&abs).map(|mut d| d.next().is_some()).unwrap_or(true) {
+    if abs.exists()
+        && std::fs::read_dir(&abs)
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(true)
+    {
         return json!({ "ok": false, "error": format!("Destination already exists: {}", abs.display()) });
     }
     let abs_str = abs.to_string_lossy().to_string();
@@ -4209,7 +4229,10 @@ mod worktree_tests {
 
     #[tokio::test]
     async fn add_list_remove_roundtrip() {
-        let id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
+        let id = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let root = std::env::temp_dir().join(format!("promptops-wt-{id}"));
         let repo = root.join("repo");
         std::fs::create_dir_all(&repo).unwrap();
@@ -4223,7 +4246,14 @@ mod worktree_tests {
         g(&["add", "--all"]);
         g(&["commit", "-m", "init"]);
 
-        let add = git_worktree_add(cwd.clone(), "../repo-feat".into(), "feat".into(), Some(true), None).await;
+        let add = git_worktree_add(
+            cwd.clone(),
+            "../repo-feat".into(),
+            "feat".into(),
+            Some(true),
+            None,
+        )
+        .await;
         assert_eq!(add["ok"], true, "{add}");
         let wt = add["path"].as_str().unwrap().to_string();
         std::fs::write(Path::new(&wt).join("b.txt"), "b\n").unwrap();
@@ -4244,7 +4274,13 @@ mod worktree_tests {
         assert_eq!(rm["dirty"], true, "{rm}");
         let rm = git_worktree_remove(cwd.clone(), wt.clone(), Some(true)).await;
         assert_eq!(rm["ok"], true, "{rm}");
-        assert_eq!(git_worktree_list(cwd.clone()).await["worktrees"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            git_worktree_list(cwd.clone()).await["worktrees"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

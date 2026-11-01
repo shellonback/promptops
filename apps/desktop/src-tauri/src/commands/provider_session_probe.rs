@@ -326,7 +326,7 @@ fn probe_opencode(cwd: &str, spawned_at_ms: u128) -> Option<String> {
 /// persisted at the first turn, so the probe picks the session up once the
 /// first prompt is sent — best-effort, like opencode/hermes.
 fn probe_kora(cwd: &str, spawned_at_ms: u128) -> Option<String> {
-    let out = run(cwd, "kora", &["sessions", "--json"])?;
+    let out = run(cwd, Some("kora"), "kora", &["sessions", "--json"])?;
     parse_kora_sessions(&out, cwd, spawned_at_ms)
 }
 

@@ -135,6 +135,9 @@ export interface ProviderUsageSnapshot {
   extraUsageEnabled: boolean;
   timestamp: string;
   activityMetrics?: ActivityMetrics;
+  /** AI Accounts login the quota was read with; absent = default install (or an older desktop build). */
+  accountId?: string;
+  accountName?: string;
 }
 
 // 'user-action-required': automatic probes never launch the provider CLI;

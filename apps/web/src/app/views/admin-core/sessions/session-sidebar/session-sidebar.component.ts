@@ -17,6 +17,7 @@ import { InteractionService } from '../services/interaction.service';
 import { EcoModeService } from '../services/eco-mode.service';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
 import { FileDropZoneDirective } from '../../../../common/file-drop-zone.directive';
+import { ScrollHitTestFixDirective } from '../../../../common/scroll-hit-test-fix.directive';
 import { UiStyleService } from '@core/services/ui-style.service';
 import { SessionProfileSwitcherComponent } from '../session-profile-switcher/session-profile-switcher.component';
 import { SidebarFoldersService } from '../services/sidebar-folders.service';
@@ -70,7 +71,7 @@ const NO_SUB_AGENTS: SubAgent[] = [];
 @Component({
   selector: 'app-session-sidebar',
   standalone: true,
-  imports: [CommonModule, TranslateModule, TooltipDirective, FileDropZoneDirective, SessionProfileSwitcherComponent, FloorPlanViewComponent],
+  imports: [CommonModule, TranslateModule, TooltipDirective, FileDropZoneDirective, ScrollHitTestFixDirective, SessionProfileSwitcherComponent, FloorPlanViewComponent],
   templateUrl: './session-sidebar.component.html',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -1973,11 +1974,13 @@ export class SessionSidebarComponent {
    */
   getSessionPanes(sessionId: string): SubAgent[] {
     const subs = this.getSubAgents(sessionId);
-    if (subs.length === 0) return subs;
     if (this.agentsEnabled) {
+      // The lead shows up even on its own: a session with an agent at work
+      // must list it, not leave the session row with no entries under it.
       this.agentRoster.ensureLoaded(sessionId);
-      return this.agentRoster.rosterFor(this.sessionsById().get(sessionId) ?? null, subs);
+      return this.agentRoster.rosterFor(this.sessionsById().get(sessionId) ?? null, subs, true);
     }
+    if (subs.length === 0) return subs;
     const dismissed = readDismissedMains();
     if (dismissed.includes(sessionId)) return subs;
     const session = this.sessionsById().get(sessionId);
@@ -2029,12 +2032,14 @@ export class SessionSidebarComponent {
 
   /** Handle click on a sub-agent: open its parent session with the pane focused. */
   onSubAgentClick(sa: SubAgent): void {
-    // The demoted main is not a real sub-agent: selecting it means
-    // opening the session, not looking for an agent that does not exist in the roster.
+    // Main/lead like the other agents: opens the session and focuses its
+    // pane. Only a parked session goes through onSessionClick (wake).
     if (this.isMainPane(sa.id)) {
       const session = this.sessions().find(s => s.id === sa.parentSessionId);
-      if (session) void this.onSessionClick(session);
-      return;
+      if (session?.standbyAt) {
+        void this.onSessionClick(session);
+        return;
+      }
     }
     this.selectSubAgent.emit(sa);
   }

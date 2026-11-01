@@ -75,11 +75,11 @@ export class VoiceAgentService {
   micGuide = signal<MicPermissionGuide | null>(null);
   lastDetectedLang = signal<SupportedLang | null>(null);
 
-  /** Minimal-UI dock state, per context: in sessions the liquid orb starts
-   *  EXPANDED (fixed top center) and can be minimized into the bottom bar;
-   *  outside sessions it starts minimized and can be expanded. The choice is
-   *  persisted to localStorage per context (see DOCK_STATE_KEY). */
-  dockExpandedInSession = signal(this.readDockPref('session', true));
+  /** Minimal-UI dock state, per context: the liquid orb always starts
+   *  MINIMIZED in the bottom bar when the app opens (in sessions it is not
+   *  restored from localStorage) and can be expanded (fixed top center).
+   *  Outside sessions the choice is persisted (see DOCK_STATE_KEY). */
+  dockExpandedInSession = signal(false);
   dockExpandedElsewhere = signal(this.readDockPref('other', false));
 
   private static readonly DOCK_STATE_KEY = 'promptops_voice_dock';

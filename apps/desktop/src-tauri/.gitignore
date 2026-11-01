@@ -6,3 +6,6 @@
 
 # NB: Cargo.lock IS committed on purpose (this crate is an app, not a lib):
 # it guarantees reproducible builds.
+
+# promptops-termd sidecars built by scripts/build-termd.js (per target).
+/binaries/

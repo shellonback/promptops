@@ -301,6 +301,33 @@ const MONO_FONT_OPTIONS = [
             </div>
             }
 
+            @if (isDesktopV2) {
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">
+                  {{ "SETTINGS.Terminal Persistent Agents" | translate }}
+                  <span class="setting-beta">beta</span>
+                </span>
+                <span class="setting-hint">{{ "SETTINGS.Terminal Persistent Agents Hint" | translate }}</span>
+              </div>
+              <label class="po-switch">
+                <input type="checkbox" [(ngModel)]="form.terminal_persistent_agents" (ngModelChange)="previewAndSave()">
+                <span class="po-switch-slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <span class="setting-label">{{ "SETTINGS.Terminal Host Screen" | translate }}</span>
+                <span class="setting-hint">{{ "SETTINGS.Terminal Host Screen Hint" | translate }}</span>
+              </div>
+              <label class="po-switch">
+                <input type="checkbox" [(ngModel)]="form.terminal_host_screen" (ngModelChange)="previewAndSave()">
+                <span class="po-switch-slider"></span>
+              </label>
+            </div>
+            }
+
             <div class="setting-row">
               <div class="setting-info">
                 <span class="setting-label">{{ "SETTINGS.Terminal GPU" | translate }}</span>
@@ -746,6 +773,18 @@ const MONO_FONT_OPTIONS = [
       font-weight: 600;
       color: var(--po-text-primary);
     }
+    .setting-beta {
+      margin-left: 0.35rem;
+      padding: 0.05rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+      color: var(--po-accent);
+      border: 1px solid color-mix(in srgb, var(--po-accent) 45%, transparent);
+    }
     .setting-hint {
       font-size: 0.72rem;
       color: var(--po-text-tertiary);
@@ -1132,6 +1171,11 @@ export class UserSettingsComponent implements OnInit {
     const plat = (window as any).promptops?.platform;
     if (plat) return plat === "win32";
     return navigator.userAgent.includes("Windows");
+  }
+
+  /** Desktop v2 (Tauri): the host keeps terminal screens, so the toggle exists only there. */
+  protected get isDesktopV2(): boolean {
+    return typeof (window as any).promptops?.setTerminalHostScreen === "function";
   }
 
   /** Windows desktop: gates the default-shell select (needs shell detection IPC). */

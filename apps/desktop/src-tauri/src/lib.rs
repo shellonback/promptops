@@ -120,10 +120,21 @@ fn sync_green_button(win: &tauri::Window) {
 /// Script injected before the Angular bootstrap in EVERY app window (main and detached).
 pub(crate) fn init_script(app: &tauri::AppHandle) -> String {
     let intel_mac = cfg!(all(target_os = "macos", target_arch = "x86_64"));
+    // Real OS for `promptops.platform`: the WebKitGTK userAgent pretends to be
+    // Safari on Mac, so on Linux the bridge believed it was running on macOS
+    // (plain Ctrl+C/Ctrl+V went to the PTY instead of copying/pasting).
+    let os = if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(target_os = "windows") {
+        "win32"
+    } else {
+        "linux"
+    };
     format!(
-        "window.__PROMPTOPS_APP_VERSION__ = \"{}\";\nwindow.__PROMPTOPS_INTEL_MAC__ = {};\n{}{}",
+        "window.__PROMPTOPS_APP_VERSION__ = \"{}\";\nwindow.__PROMPTOPS_INTEL_MAC__ = {};\nwindow.__PROMPTOPS_OS__ = \"{}\";\n{}{}",
         app.package_info().version,
         intel_mac,
+        os,
         demo_mode::init_script(),
         include_str!("promptops_bridge.js")
     )
@@ -261,6 +272,9 @@ pub fn run() {
             detached_window::open_session_window,
             detached_window::close_session_window,
             commands::output_watchers::session_output_watch,
+            commands::term_host::session_output_attach,
+            commands::term_state::term_vt_replay_set,
+            commands::termd_link::termd_set_enabled,
             commands::output_watchers::subagent_output_watch,
             // plugins (third-party runtime, sandbox + broker)
             plugins::commands::plugin_runtime_list,
@@ -289,8 +303,10 @@ pub fn run() {
             commands::assets_ext::assets_read,
             commands::assets_ext::assets_read_base64,
             commands::assets_ext::assets_import_from_url,
+            commands::assets_ext::assets_import_paths,
             commands::assets_ext::assets_open_folder,
             commands::assets_ext::remote_fetch_file,
+            commands::assets_ext::download_url_to_downloads,
             commands::assets_ext::remote_outbox_collect,
             commands::assets_ext::remote_bridge_setup,
             commands::assets_ext::remote_bridge_remove,
@@ -498,6 +514,8 @@ pub fn run() {
             commands::session::session_profile_get_active,
             commands::session::session_profile_set_active,
             commands::session::session_apply_account_to_workspace,
+            commands::session::session_account_check,
+            commands::session::session_prepare_account_relaunch,
             commands::session::app_set_terminal_detection,
             commands::session::app_set_terminal_safe_mode,
             // speedtest
@@ -531,6 +549,7 @@ pub fn run() {
             commands::shell::clipboard_read,
             commands::shell::clipboard_write_image,
             commands::shell::clipboard_read_image,
+            commands::shell::installer_write_script,
             commands::shell::drag_drop_paths,
             commands::shell::editor_detect,
             commands::shell::editor_open,
@@ -1215,6 +1234,9 @@ pub fn run() {
                 sessions.persist_live_buffers_to_disk();
                 let subs = subagents.archived_snapshot_json();
                 let _ = sessions.save_all_to_store(&subs);
+                // Normal quit: agents in termd stop like the in-process ones
+                // (no-op with the flag off or during the restart for an update).
+                commands::termd_link::shutdown_on_exit();
             }
         });
 }

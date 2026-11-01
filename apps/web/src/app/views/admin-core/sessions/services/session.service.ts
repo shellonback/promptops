@@ -117,7 +117,8 @@ export class SessionService {
     return this.api.resizeSession(sessionId, cols, rows);
   }
 
-  getSessionBuffer(sessionId: string): Promise<{ ok: boolean; data: string; bytes?: Uint8Array; endOffset?: number }> {
+  /** `vtSnapshot`: the bytes are the host's VT screen picture (exact), not the raw PTY tail. */
+  getSessionBuffer(sessionId: string): Promise<{ ok: boolean; data: string; bytes?: Uint8Array; endOffset?: number; vtSnapshot?: boolean; cols?: number; rows?: number }> {
     return this.api.getSessionBuffer(sessionId);
   }
 
@@ -390,6 +391,22 @@ export class SessionService {
       return { ok: true };
     } catch (err) {
       return { ok: false, error: (err as Error)?.message ?? String(err) };
+    }
+  }
+
+  /**
+   * Writes the provider auto-installer script to the app cache dir and returns
+   * its path (macOS/Linux only). null when unsupported (Windows) or on
+   * failure: the caller falls back to typing the script.
+   */
+  async installerWriteScript(content: string): Promise<string | null> {
+    try {
+      const fn = (window as any).promptops?.installerWriteScript;
+      if (!fn) return null;
+      const res = await fn(content);
+      return typeof res?.path === 'string' && res.path ? res.path : null;
+    } catch {
+      return null;
     }
   }
 

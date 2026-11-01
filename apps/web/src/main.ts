@@ -12,6 +12,11 @@ import { applyUiLanguage, uiLocale } from './app/core/helper/ui-locale';
 if (LOCAL_MODE && localStorage.getItem('token') !== LOCAL_SESSION_TOKEN) {
   localStorage.setItem('token', LOCAL_SESSION_TOKEN);
 }
+
+// WebKitGTK (Linux) often skips backdrop-filter: glass surfaces need an opaque fallback.
+if (/Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent)) {
+  document.documentElement.setAttribute('data-po-os', 'linux');
+}
 import 'iconify-icon';
 import { registerOfflineIcons } from './app/core/icons/offline-icons';
 

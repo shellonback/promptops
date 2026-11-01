@@ -225,6 +225,7 @@ export class SessionShortcutsModalComponent implements OnDestroy {
           { keys: k('1 … 9'), label: this.t('FocusByPosition'), hint: this.t('FocusByPositionHint') },
           { keys: k(key('prevAgent')), label: this.t('PrevAgent'), action: 'prevAgent' },
           { keys: k(key('nextAgent')), label: this.t('NextAgent'), action: 'nextAgent' },
+          { keys: k(key('nextWaiting')), label: this.t('NextWaiting'), action: 'nextWaiting' },
         ]),
       },
       {
@@ -250,7 +251,7 @@ export class SessionShortcutsModalComponent implements OnDestroy {
   readonly modLabel = computed(() => this.platform() === 'mac' ? '⌘⌥' : 'Alt');
 
   private readonly labelKeys: Record<SessionShortcutAction, string> = {
-    focusMain: 'FocusMain', prevAgent: 'PrevAgent', nextAgent: 'NextAgent',
+    focusMain: 'FocusMain', prevAgent: 'PrevAgent', nextAgent: 'NextAgent', nextWaiting: 'NextWaiting',
     expandAgent: 'LabelExpand', lockAgent: 'LabelLock', focusMode: 'LabelFocusMode',
   };
   private label(action: SessionShortcutAction): string { return this.t(this.labelKeys[action]); }

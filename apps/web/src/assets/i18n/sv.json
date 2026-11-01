@@ -2305,9 +2305,9 @@
       "INSTALL_HINT": "Hittades inte. Installera med: brew install opencode (eller se opencode.ai)."
     },
     "KORA": {
-      "BEST_FOR": "Strukturerade kodningssessioner med inbyggd planering och godkännandegrindar: en multi-provider-agent med resonemang, verktyg och ett strikt skrivskyddat PLAN-läge.",
-      "LIMITATIONS": "Kräver Kora CLI. Ta med din egen backend: kora-nyckeln (`kora key`) eller en OpenAI-kompatibel provider som läggs till i CLI:n (`/provider add`). Modell och ansträngning väljs inuti Kora.",
-      "MICROCOPY": "Använder din Kora-profil. Leverantör, modell och ansträngning väljs i CLI:n.",
+      "BEST_FOR": "Agentisk kodning med Kora CLI, på leverantören som är konfigurerad i Kora.",
+      "LIMITATIONS": "Kräver Kora CLI och en konfigurerad backend.",
+      "MICROCOPY": "Använder din Kora-konfiguration. Modell och effort väljs i CLI:n.",
       "INSTALL_HINT": "Inte hittad. Installera: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {

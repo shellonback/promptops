@@ -164,11 +164,11 @@ const BROWSER_FALLBACK: ProviderCapability[] = [
     ui: { icon: 'ti-bolt', accent: 'emerald', badgeKey: 'PROVIDERS.BADGE.FREE' },
   },
   {
-    id: 'kora', displayName: 'Kora', tier: 'local',
+    id: 'kora', displayName: 'Kora', tier: 'cloud',
     requiresApiKey: false, offlineCapable: false,
     cli: { command: 'kora', installHintKey: 'PROVIDERS.KORA.INSTALL_HINT', detectable: false },
     capabilities: { reasoning: true, execution: true, longContext: false, toolUse: true },
-    suggestionWeights: { refactor: 0.85, debug: 0.7, planning: 0.7, explore: 0.6 },
+    suggestionWeights: { refactor: 0.75, debug: 0.8, planning: 0.8, explore: 0.85 },
     i18n: {
       bestForKey: 'PROVIDERS.KORA.BEST_FOR',
       limitationsKey: 'PROVIDERS.KORA.LIMITATIONS',

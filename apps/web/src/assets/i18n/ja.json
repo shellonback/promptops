@@ -2305,9 +2305,9 @@
       "INSTALL_HINT": "検出されません。インストール: brew install opencode（または opencode.ai を参照）。"
     },
     "KORA": {
-      "BEST_FOR": "計画と承認ゲートを備えた構造化されたコーディングセッション。推論・ツール・厳格な読み取り専用 PLAN モードを持つマルチプロバイダーエージェントです。",
-      "LIMITATIONS": "Kora CLI が必要です。バックエンドは自分で用意できます：kora キー（`kora key`）または CLI 内で追加できる OpenAI 互換プロバイダー（`/provider add`）。モデルと推論の度合いは CLI 内で選択します。",
-      "MICROCOPY": "あなたの Kora プロファイルを使用します。プロバイダー・モデル・推論の度合いは CLI 内で選択します。",
+      "BEST_FOR": "Kora CLI によるエージェント型コーディング。Kora で設定したプロバイダーを使用します。",
+      "LIMITATIONS": "Kora CLI と設定済みのバックエンドが必要です。",
+      "MICROCOPY": "あなたの Kora 設定を使用します。モデルと推論の度合いは CLI 内で選択します。",
       "INSTALL_HINT": "未検出。インストール: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {

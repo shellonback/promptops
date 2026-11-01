@@ -346,15 +346,19 @@ fn parse_kora_sessions(out: &str, cwd: &str, spawned_at_ms: u128) -> Option<Stri
         else {
             continue;
         };
-        // The listing spans every folder in the profile: keep ours only.
-        if let Some(folders) = row.get("folders").and_then(|v| v.as_array()) {
-            if !folders
-                .iter()
-                .filter_map(|v| v.as_str())
-                .any(|dir| same_dir(dir, cwd))
-            {
-                continue;
-            }
+        // The listing spans every folder in the profile: keep ours only. A row
+        // without `folders` can't be tied to our cwd, so it is never ours.
+        let ours = row
+            .get("folders")
+            .and_then(|v| v.as_array())
+            .is_some_and(|folders| {
+                folders
+                    .iter()
+                    .filter_map(|v| v.as_str())
+                    .any(|dir| same_dir(dir, cwd))
+            });
+        if !ours {
+            continue;
         }
         let at = row_time_ms(&row);
         if at.is_some_and(|t| t + CLOCK_SKEW_MS < spawned_at_ms) {
@@ -638,9 +642,13 @@ mod tests {
             parse_kora_sessions(&json, cwd, spawned).as_deref(),
             Some("session-ours")
         );
-        // A row with no folders at all (legacy/empty) is not attributed to us.
-        let no_folders = r#"{"sessions":[{"id":"session-unknown","updatedAt":1700000000000}]}"#;
-        assert_eq!(parse_kora_sessions(no_folders, cwd, spawned), None);
+        // A row with no folders at all (legacy/empty) is not attributed to us,
+        // even when it is newer than the spawn.
+        let no_folders = format!(
+            r#"{{"sessions":[{{"id":"session-unknown","updatedAt":{upd}}}]}}"#,
+            upd = spawned + 2_000
+        );
+        assert_eq!(parse_kora_sessions(&no_folders, cwd, spawned), None);
         // Junk in, nothing out.
         assert_eq!(parse_kora_sessions("not json", cwd, spawned), None);
     }

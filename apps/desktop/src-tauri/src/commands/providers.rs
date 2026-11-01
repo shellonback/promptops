@@ -448,7 +448,7 @@ pub(crate) fn manifests() -> Vec<ProviderCapability> {
         ProviderCapability {
             id: "kora",
             display_name: "Kora",
-            tier: "local",
+            tier: "cloud",
             requires_api_key: false,
             offline_capable: false,
             cli: ProviderCli {
@@ -463,10 +463,10 @@ pub(crate) fn manifests() -> Vec<ProviderCapability> {
                 tool_use: true,
             },
             suggestion_weights: Some(SuggestionWeights {
-                refactor: 0.85,
-                debug: 0.7,
-                planning: 0.7,
-                explore: 0.6,
+                refactor: 0.75,
+                debug: 0.8,
+                planning: 0.8,
+                explore: 0.85,
             }),
             i18n: ProviderI18n {
                 best_for_key: "PROVIDERS.KORA.BEST_FOR",

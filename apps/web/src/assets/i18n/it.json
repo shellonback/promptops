@@ -2305,9 +2305,9 @@
       "INSTALL_HINT": "Non rilevato. Installa con: brew install opencode (o vai su opencode.ai)."
     },
     "KORA": {
-      "BEST_FOR": "Sessioni di coding strutturate con pianificazione e gate di approvazione integrati: agente multiprovider con reasoning, tool e una modalità PLAN rigorosa in sola lettura.",
-      "LIMITATIONS": "Richiede la CLI Kora. Porta il tuo backend: la chiave kora (`kora key`) oppure un provider OpenAI-compatibile aggiunto dentro la CLI (`/provider add`). Modello ed effort si scelgono dentro Kora.",
-      "MICROCOPY": "Usa il tuo profilo Kora. Provider, modello ed effort si scelgono dentro la CLI.",
+      "BEST_FOR": "Coding agentico con la CLI Kora, sul provider configurato in Kora.",
+      "LIMITATIONS": "Richiede la CLI Kora e un backend configurato.",
+      "MICROCOPY": "Usa la tua configurazione Kora. Modello ed effort si scelgono dentro la CLI.",
       "INSTALL_HINT": "Non rilevato. Installa: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {

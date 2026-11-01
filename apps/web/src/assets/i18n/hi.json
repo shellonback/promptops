@@ -2305,9 +2305,9 @@
       "INSTALL_HINT": "नहीं मिला। इंस्टॉल करें: brew install opencode (या opencode.ai देखें)।"
     },
     "KORA": {
-      "BEST_FOR": "अंतर्निहित योजना और अनुमोदन गेट के साथ संरचित कोडिंग सत्रें: तर्क, टूल और सख्त केवल-पढ़ने योग्य PLAN मोड वाला मल्टी-प्रोवाइडर एजेंट।",
-      "LIMITATIONS": "Kora CLI आवश्यक है। अपना बैकएंड लाएँ: kora कुंजी (`kora key`) या CLI के भीतर जोड़ा गया OpenAI-संगत प्रोवाइडर (`/provider add`)। मॉडल और प्रयास Kora के भीतर चुने जाते हैं।",
-      "MICROCOPY": "आपकी Kora प्रोफ़ाइल का उपयोग करता है। प्रोवाइडर, मॉडल और प्रयास CLI के भीतर चुने जाते हैं।",
+      "BEST_FOR": "Kora CLI के साथ एजेंटिक कोडिंग, Kora में कॉन्फ़िगर किए गए प्रोवाइडर पर।",
+      "LIMITATIONS": "Kora CLI और एक कॉन्फ़िगर किया गया बैकएंड आवश्यक है।",
+      "MICROCOPY": "आपके Kora सेटअप का उपयोग करता है। मॉडल और effort CLI के अंदर चुने जाते हैं।",
       "INSTALL_HINT": "नहीं मिला। इंस्टॉल करें: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "GENERIC_SHELL": {

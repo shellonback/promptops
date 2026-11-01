@@ -227,7 +227,7 @@ fn load_or_create_key_file(path: &Path) -> Result<VaultKey, String> {
         return Ok(VaultKey::from_bytes(bytes));
     }
     let mut bytes = [0u8; 32];
-    getrandom::getrandom(&mut bytes).map_err(|e| e.to_string())?;
+    getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
     write_private(path, B64.encode(bytes).as_bytes())?;
     Ok(VaultKey::from_bytes(bytes))
 }
@@ -692,7 +692,7 @@ pub fn new_id() -> String {
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0);
     let mut random = [0u8; 10];
-    let _ = getrandom::getrandom(&mut random);
+    let _ = getrandom::fill(&mut random);
     let mut value: u128 = (ms as u128) << 80;
     for (i, b) in random.iter().enumerate() {
         value |= (*b as u128) << (8 * (9 - i));

@@ -84,7 +84,7 @@ fn legacy_workspace_store_path() -> PathBuf {
 }
 
 /// Serializes read-modify-write of the recents (two windows picking folders).
-static RECENTS_LOCK: Mutex<()> = parking_lot::const_mutex(());
+static RECENTS_LOCK: Mutex<()> = Mutex::new(());
 
 fn load_recents_in(store: &crate::local_store::LocalStore, legacy: &Path) -> WorkspaceStore {
     if let Some(v) = store.get(UI_STATE, RECENTS_ID) {

@@ -45,7 +45,7 @@ fn device_id_at(path: &std::path::Path) -> String {
         return id.to_string();
     }
     let mut bytes = [0u8; 32];
-    let _ = getrandom::getrandom(&mut bytes);
+    let _ = getrandom::fill(&mut bytes);
     let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);

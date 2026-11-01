@@ -488,8 +488,16 @@ impl client::Handler for ClientHandler {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::PublicKey,
+        server_key: &russh::keys::PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
+        // Host certificates are not trusted: only plain keys pinned in known_hosts.
+        let russh::keys::PublicKeyOrCertificate::PublicKey {
+            key: server_public_key,
+            ..
+        } = server_key
+        else {
+            return Ok(false);
+        };
         use russh::keys::known_hosts::learn_known_hosts_path;
         use russh::keys::{check_known_hosts, check_known_hosts_path, Error as KeyError};
         let (host, port) = (self.host.as_str(), self.port);

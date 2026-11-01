@@ -2113,7 +2113,7 @@ p521 0.14.0
   Source: https://github.com/RustCrypto/elliptic-curves
   License text: [4], [128]
 
-pageant 0.2.4
+pageant 0.2.5
   License: Apache-2.0
   Source: https://github.com/warp-tech/russh
   License text: [4]

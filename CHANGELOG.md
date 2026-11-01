@@ -5,12 +5,30 @@ PromptOps Desktop, the hosted edition, have their own release notes.
 
 ## Unreleased
 
+## 2.2.1 — 2026-11-01
+
 ### Added
 
+- Worktrees in the Git Explorer: a "Worktree" button next to the branch
+  lists every worktree of the repo with its number of changed files, opens
+  one in the explorer, creates (new or existing branch), removes (with a
+  force confirmation when dirty) and prunes stale ones.
+- Voice onboarding for macOS, Windows and Linux: per-OS microphone steps, a
+  button to the OS microphone settings (not on Linux) and a microphone test.
+  The wizard and the voice widget show Alt+M (⌥M on macOS).
 - Kora CLI as an agent provider: launch (`kora`), resume by session id
   (`kora --resume <id>`, discovered by probing `kora sessions --json`) and
   auto-approve (`-y`). Model, provider and effort stay inside Kora's own
   CLI; state degrades to PTY activity like the other hookless CLIs.
+
+### Fixed
+
+- Session assets reach agents working in a git worktree: prompts, terminal
+  paste and attachments now give local agents the absolute path, since
+  `.promptops-assets/` is gitignored and missing from worktree checkouts.
+  Remote sessions (`cmd://`, `ssh://`) keep the relative path.
+- "Open in a dedicated window" creates a top-level window, so on macOS it
+  can be moved to another desktop (Space).
 
 ## 2.1.7 — 2026-10-24
 

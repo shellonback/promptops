@@ -4943,7 +4943,7 @@ dependencies = [
 
 [[package]]
 name = "promptops-oss"
-version = "2.2.1"
+version = "2.2.4"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

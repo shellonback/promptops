@@ -1,6 +1,6 @@
 [package]
 name = "promptops-oss"
-version = "2.2.1"
+version = "2.2.4"
 description = "PromptOps: run and coordinate AI coding agents on your machine"
 authors = ["PromptOps"]
 license = "Apache-2.0"

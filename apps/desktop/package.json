@@ -1,7 +1,7 @@
 {
   "name": "promptops-oss",
   "private": true,
-  "version": "2.2.1",
+  "version": "2.2.4",
   "description": "PromptOps: run and coordinate AI coding agents on your machine (Tauri 2)",
   "scripts": {
     "tauri": "tauri",

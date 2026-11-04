@@ -30,6 +30,34 @@ PromptOps Desktop, the hosted edition, have their own release notes.
 - "Open in a dedicated window" creates a top-level window, so on macOS it
   can be moved to another desktop (Space).
 
+## 2.2.4 — 2026-11-05
+
+### Added
+
+- Each agent can work in its own git worktree: a pine button on the agent card
+  in the right sidebar picks an existing worktree or creates one. Claude Code
+  sessions keep their conversation (`/cd`); other providers restart in the new
+  folder with a handoff prompt. In a folder holding several repositories each
+  worktree shows folder and branch.
+- A starting worktree can be chosen next to the microphone when spawning an
+  agent, and is remembered per workspace.
+- Import a folder of projects: dropping it or choosing it in New session
+  creates a sidebar folder with one workspace per repository.
+- Agents, Ports and Editor tabs above the terminals replace the layout switch.
+  Agent tabs wrap so they all stay visible.
+
+### Changed
+
+- The Auto Approve plugin is off by default; while off it also stops flags
+  that were already armed.
+- New git worktrees receive the gitignored files listed in `.worktreeinclude`.
+- Git ignore lookups are faster on large repositories.
+
+### Fixed
+
+- Windows builds with the terminal host close `promptops-termd` before the
+  installer overwrites it.
+
 ## 2.1.7 — 2026-10-24
 
 First public release of the source. From here the open-source edition uses

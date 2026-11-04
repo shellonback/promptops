@@ -12,6 +12,7 @@ import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { IntentService, IntentPlan, IntentAgent, EnhanceDepth } from '../services/intent.service';
 import { SubAgentProvider } from '../services/sub-agent.service';
+import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 
 const DEPTH_OPTIONS: { value: EnhanceDepth; labelKey: string; hintKey: string; icon: string }[] = [
   { value: 'short', labelKey: 'SESSIONS.INTENT.Depth short', hintKey: 'SESSIONS.INTENT.Depth short hint', icon: 'solar:minimalistic-magnifer-bold-duotone' },
@@ -216,6 +217,7 @@ const EXAMPLE_INTENTS: { i18nKey: string }[] = [
                 </select>
               </div>
 
+              @if (autoApproveAvailable) {
               <div class="option-row">
                 <div class="option-text">
                   <span class="option-label" id="intent-auto-approve-label">{{ 'SESSIONS.INTENT.Auto approve label' | translate }}</span>
@@ -228,6 +230,7 @@ const EXAMPLE_INTENTS: { i18nKey: string }[] = [
                   <div class="toggle-thumb"></div>
                 </div>
               </div>
+              }
             </div>
 
             <button
@@ -1705,6 +1708,8 @@ const EXAMPLE_INTENTS: { i18nKey: string }[] = [
 export class IntentModalComponent implements OnInit {
   modal = inject(NgbActiveModal);
   intentService = inject(IntentService);
+  /** Auto Approve plugin off: no switch, and no old draft can turn it back on. */
+  readonly autoApproveAvailable = inject(BuiltinPluginsService).isOn('auto-approve');
   private translate = inject(TranslateService);
 
   providers = PROVIDERS;
@@ -1735,7 +1740,7 @@ export class IntentModalComponent implements OnInit {
     if (sameSession && inFlight) {
       this.intentText = this.intentService.draftIntent();
       this.selectedProvider = this.intentService.draftProvider() ?? this.sessionProvider ?? 'claude-code-cli';
-      this.autoApprove.set(this.intentService.draftAutoApprove());
+      this.autoApprove.set(this.autoApproveAvailable && this.intentService.draftAutoApprove());
       return;
     }
 

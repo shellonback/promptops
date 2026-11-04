@@ -1654,6 +1654,39 @@
       "MessageMany": "열린 세션 {{count}}개가 {{oldName}} 계정으로 시작되었지만 현재 활성 계정은 {{newName}}입니다. 대화는 다른 계정에서 이어갈 수 없습니다. {{newName}}(으)로 다시 열면 새 대화가 시작됩니다.",
       "Reopen": "{{newName}}(으)로 다시 열기",
       "Keep": "{{oldName}} 유지"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "이 에이전트의 worktree 변경",
+      "Unavailable": "여기서는 Claude 메인 세션만 worktree를 변경할 수 있습니다: 서브 에이전트를 사용하세요",
+      "Busy": "에이전트가 작업 중입니다: 멈추면 전환할 수 있습니다.",
+      "RestartConfirm": "이 에이전트는 worktree에서 다시 시작되고 대화는 처음부터 시작됩니다.",
+      "Switch": "전환",
+      "Shared": "에이전트 {{count}}개",
+      "SharedTip": "여러 에이전트가 이 worktree에 쓰고 있습니다",
+      "NamePlaceholder": "브랜치, 예: fix/checkout",
+      "CreateHint": "worktree를 만들고 이 에이전트를 옮깁니다. 대화는 계속됩니다.",
+      "CreateRestartHint": "worktree를 만들고 이 에이전트를 옮깁니다. 새 대화로 다시 시작됩니다.",
+      "LoadError": "worktree를 사용할 수 없음: {{error}}",
+      "Filter": "worktree 필터",
+      "StartFrom": "시작 위치",
+      "SpawnTip": "새 에이전트의 시작 worktree",
+      "Repo": "저장소"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "프로젝트 폴더 가져오기",
+      "Intro": "프로젝트 {{count}}개를 찾았습니다. 폴더는 사이드바 폴더가 되고 각 프로젝트는 그 안의 워크스페이스가 됩니다.",
+      "Folder name": "폴더 이름",
+      "Workspaces": "워크스페이스",
+      "Select all": "모두 선택",
+      "Select none": "모두 해제",
+      "Already workspace": "이미 워크스페이스",
+      "Start sessions": "새 워크스페이스마다 세션도 시작",
+      "Provider": "제공자",
+      "Confirm": "워크스페이스 {{count}}개 가져오기",
+      "Hint": "이 폴더에는 프로젝트 {{count}}개가 있습니다. 프로젝트마다 워크스페이스가 있는 폴더로 가져올까요?",
+      "Hint action": "폴더로 가져오기",
+      "Partial failure": "워크스페이스 {{count}}개를 만들 수 없습니다: {{names}}",
+      "Empty workspace tooltip": "아직 세션이 없습니다 — 클릭하여 시작"
     }
   },
   "SUBAGENTS": {

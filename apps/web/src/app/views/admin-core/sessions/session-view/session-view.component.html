@@ -283,6 +283,7 @@
         (onEditSession)="sidebarEditSession($event)"
         (onDestroySession)="sidebarDestroySession($event)"
         (onEditWorkspace)="sidebarEditWorkspace($event)"
+        (onNewSessionInWorkspace)="openCreateModal(undefined, undefined, $event)"
         (onDestroyWorkspace)="sidebarDestroyWorkspace($event)"
         (onStandbySession)="sidebarStandbySession($event)"
         (onWakeSession)="sidebarWakeSession($event)"
@@ -330,11 +331,11 @@
         @if (!simulateEmpty() && activeSession(); as session) {
           <!-- Sub-agent bar heading: in the accordion, or in the header tab row
                when the "Multi-session workspace" plugin is off and the sub-agents cover the main. -->
-          <!-- Agents | Ports tabs: shared between the sub-agent bar and the "main only" bar. -->
+          <!-- Agents | Ports | Editor tabs: shared between the sub-agent bar, the "main only" bar and the editor layout. -->
           <ng-template #saPanelTabsTpl let-solo="solo">
             <div class="sa-panel-tabs" role="tablist">
-                <button class="sa-panel-tab" role="tab" [class.active]="saPanelTab() === 'agents'"
-                        [attr.aria-selected]="saPanelTab() === 'agents'"
+                <button class="sa-panel-tab" role="tab" [class.active]="saPanelTabActive('agents')"
+                        [attr.aria-selected]="saPanelTabActive('agents')"
                         (click)="selectSaPanelTab('agents', $event, solo)">
                   <iconify-icon icon="solar:cpu-bolt-linear" width="14"></iconify-icon>
                   @let agentCount = solo ? 1 : paneRoster().length;
@@ -342,8 +343,8 @@
                   <span class="sa-panel-count">{{ agentCount }}</span>
                 </button>
                 @if (forwardPorts.isAvailable) {
-                  <button class="sa-panel-tab" role="tab" [class.active]="saPanelTab() === 'ports'"
-                          [attr.aria-selected]="saPanelTab() === 'ports'"
+                  <button class="sa-panel-tab" role="tab" [class.active]="saPanelTabActive('ports')"
+                          [attr.aria-selected]="saPanelTabActive('ports')"
                           (click)="selectSaPanelTab('ports', $event, solo)">
                     <iconify-icon icon="codicon:plug" width="14"></iconify-icon>
                     <span>{{ 'SESSIONS.VIEW.Ports' | translate }}</span>
@@ -352,6 +353,12 @@
                     }
                   </button>
                 }
+                <button class="sa-panel-tab" role="tab" [class.active]="saPanelTabActive('editor')"
+                        [attr.aria-selected]="saPanelTabActive('editor')"
+                        (click)="selectSaPanelTab('editor', $event, solo)">
+                  <iconify-icon icon="tabler:code" width="14"></iconify-icon>
+                  <span>Editor</span>
+                </button>
               </div>
           </ng-template>
 
@@ -412,7 +419,6 @@
             [session]="session"
             [tabSessions]="tabSessionsForHeader()"
             [activeSessionId]="activeSessionId()"
-            [layoutMode]="currentLayoutMode()"
             [navSessions]="sessions()"
             (onNavigateSession)="selectSession($event)"
             (onAddTab)="addTabSession()"
@@ -428,11 +434,10 @@
             (onOpenTerminals)="openTerminalsPanel()"
             [dedicatedWindow]="!!dedicatedSessionId"
             (onDedicatedWindow)="toggleDedicatedWindow()"
-            (onToggleLayoutMode)="toggleLayoutMode()"
             (onToggleFocusMode)="toggleFocusMode()"
             (onOpenIntent)="openIntentModal()"
             [focusMode]="focusMode()"
-            [showFocusToggle]="!(subAgentService.hasActiveSubAgents() || portsSoloBar())"
+            [showFocusToggle]="!(subAgentService.hasActiveSubAgents() || mainSoloBar())"
             (onSetupWorkspace)="openWorkspaceSetupModal($event)"
             (onAddNote)="openAddNoteModal(session.id)"
             (onProjectBrief)="openProjectBriefModal(session.id)"
@@ -922,7 +927,7 @@
                      sub-agents. From the first spawn the main moves into the roster and
                      is drawn there, like all the other tiles. -->
                 <!-- Main only (no sub-agents): same tab bar, without layout icons. -->
-                @if (portsSoloBar()) {
+                @if (mainSoloBar()) {
                   <div class="subagents-accordion-header solo-bar">
                     <ng-container *ngTemplateOutlet="saPanelTabsTpl; context: { solo: true }"></ng-container>
                     @if (saPanelTab() === 'ports') {
@@ -957,7 +962,7 @@
                 }
 
                 @if (!mainIsFlattened()) {
-                <div class="main-pane" [class.hidden-by-ports]="portsSoloBar() && saPanelTab() === 'ports'" [class.pane-focused]="focusedPaneId() === 'main'"
+                <div class="main-pane" [class.hidden-by-ports]="mainSoloBar() && saPanelTab() === 'ports'" [class.pane-focused]="focusedPaneId() === 'main'"
                      [class.pane-aa-on]="interactionService.isAutoApproved(session.id)"
                      [class.aa-picked-quick]="aaSelectMode() && getAaMode(session.id) === 'quick'"
                      [class.aa-picked-ai]="aaSelectMode() && getAaMode(session.id) === 'ai'"
@@ -1374,6 +1379,7 @@
                   [activeSubAgentId]="activeSubAgentTab()"
                   [roster]="paneRoster()"
                   [benchedLead]="benchedLeadPane()"
+                  [loneLead]="loneLeadPane()"
                   (onCloseAgent)="destroySubAgent($event.id)"
                   (onApprove)="handleApprove($event)"
                   (onDeny)="handleDeny($event)"
@@ -1395,6 +1401,12 @@
 
           <!-- ═══ CODE EDITOR (IDE) LAYOUT ═══ -->
           @if (!providerMissing() && (currentLayoutMode() === 'code' || editorSessionId() === session.id)) {
+            <!-- Same tab bar as the standard layout: this is the way back to Agents or Ports. -->
+            @if (currentLayoutMode() === 'code' && !saBarInHeader()) {
+              <div class="subagents-accordion-header solo-bar">
+                <ng-container *ngTemplateOutlet="saPanelTabsTpl; context: { solo: mainSoloBar() }"></ng-container>
+              </div>
+            }
             @for (editorSession of [session.id]; track editorSession) {
             <div class="ide-layout" [style.display]="currentLayoutMode() === 'code' ? null : 'none'">
 
@@ -1421,13 +1433,19 @@
                   <div class="ide-terminal-tabs" role="tablist" [attr.aria-label]="'SESSIONS.VIEW.Terminals' | translate" (keydown)="onIdeTabKeydown($event)">
                     @if (!mainIsFlattened() && !mainDismissed()) {
                       <button role="tab" [attr.tabindex]="ideSelectedTerminal() === 'main' ? 0 : -1" [attr.aria-selected]="ideSelectedTerminal() === 'main'"
-                        [class.active]="ideSelectedTerminal() === 'main'" (click)="selectIdeTerminal('main')">{{ 'SESSIONS.VIEW.Main' | translate }}</button>
+                        [class.active]="ideSelectedTerminal() === 'main'" [class.needs-input]="session.status === 'waiting_input'" (click)="selectIdeTerminal('main')">
+                        <img [src]="getProviderLogo(session.provider)" width="13" height="13" alt="" class="provider-logo" />
+                        <span class="ide-tab-title">{{ 'SESSIONS.VIEW.Main' | translate }}</span>
+                        <span class="sa-status-dot-compact" [class]="'sadc-' + session.status"></span>
+                      </button>
                     }
                     @for (sa of paneRoster(); track sa.id) {
                       <button role="tab" [attr.tabindex]="ideSelectedTerminal() === sa.id ? 0 : -1" [attr.aria-selected]="ideSelectedTerminal() === sa.id"
-                        [class.active]="ideSelectedTerminal() === sa.id" (click)="selectIdeTerminal(sa.id)"
+                        [class.active]="ideSelectedTerminal() === sa.id" [class.needs-input]="sa.status === 'waiting_input'" (click)="selectIdeTerminal(sa.id)"
                         [appTooltip]="sa.userPrompt || sa.autoPrompt || sa.title">
-                        <span class="sa-status-dot-compact" [class]="'sadc-' + sa.status"></span>{{ sa.title }}
+                        <img [src]="getProviderLogo(sa.provider)" width="13" height="13" alt="" class="provider-logo" />
+                        <span class="ide-tab-title">{{ sa.title }}</span>
+                        <span class="sa-status-dot-compact" [class]="'sadc-' + sa.status"></span>
                       </button>
                     }
                   </div>

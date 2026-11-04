@@ -354,6 +354,7 @@ pub fn run() {
             // fs
             commands::fs::fs_list_dir,
             commands::fs::fs_list_dir_shallow,
+            commands::fs::fs_scan_projects,
             commands::fs::fs_read_file,
             commands::fs::fs_read_file_base64,
             commands::fs::fs_write_file,
@@ -609,6 +610,8 @@ pub fn run() {
             commands::subagent::subagent_list_all,
             commands::subagent::subagent_write,
             commands::subagent::subagent_switch_provider,
+            commands::subagent::subagent_switch_worktree,
+            commands::session::session_switch_worktree,
             commands::subagent::subagent_buffer,
             commands::subagent::subagent_resize,
             commands::subagent::subagent_list_archived,

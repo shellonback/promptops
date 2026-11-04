@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} otwartych sesji uruchomiono na koncie {{oldName}}, ale aktywne jest teraz konto {{newName}}. Rozmów nie można wznowić na innym koncie: ponowne otwarcie z {{newName}} rozpocznie nowe rozmowy.",
       "Reopen": "Otwórz ponownie z {{newName}}",
       "Keep": "Zostań przy {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Zmień worktree tego agenta",
+      "Unavailable": "Tutaj worktree mogą zmieniać tylko główne sesje Claude: użyj subagenta",
+      "Busy": "Agent pracuje: zmienisz, gdy się zatrzyma.",
+      "RestartConfirm": "Ten agent uruchomi się ponownie w worktree, a rozmowa zacznie się od nowa.",
+      "Switch": "Zmień",
+      "Shared": "Agenci: {{count}}",
+      "SharedTip": "Kilku agentów zapisuje w tym worktree",
+      "NamePlaceholder": "Gałąź, np. fix/checkout",
+      "CreateHint": "Tworzy worktree i przenosi tam tego agenta. Rozmowa trwa dalej.",
+      "CreateRestartHint": "Tworzy worktree i przenosi tam tego agenta. Uruchomi się z nową rozmową.",
+      "LoadError": "Worktree niedostępne: {{error}}",
+      "Filter": "Filtruj worktree",
+      "StartFrom": "Zacznij od",
+      "SpawnTip": "Początkowy worktree nowego agenta",
+      "Repo": "Repozytorium"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importuj folder projektów",
+      "Intro": "Znaleziono projekty: {{count}}. Folder stanie się folderem na pasku bocznym, a każdy projekt workspace'em w jego wnętrzu.",
+      "Folder name": "Nazwa folderu",
+      "Workspaces": "Workspace'y",
+      "Select all": "Zaznacz wszystkie",
+      "Select none": "Odznacz wszystkie",
+      "Already workspace": "Już jest workspace'em",
+      "Start sessions": "Uruchom też sesję w każdym nowym workspace",
+      "Provider": "Dostawca",
+      "Confirm": "Importuj workspace'y: {{count}}",
+      "Hint": "Ten folder zawiera projekty: {{count}}. Zaimportować go jako folder z jednym workspace na projekt?",
+      "Hint action": "Importuj jako folder",
+      "Partial failure": "Nie udało się utworzyć workspace'ów: {{count}} ({{names}})",
+      "Empty workspace tooltip": "Brak sesji — kliknij, aby ją uruchomić"
     }
   },
   "SUBAGENTS": {

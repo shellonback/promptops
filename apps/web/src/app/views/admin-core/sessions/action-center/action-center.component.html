@@ -82,6 +82,38 @@
 
     <div class="action-center-scroll">
 
+    @if (agentWorktrees.loadError(); as worktreeError) {
+      <div class="worktree-load-error">{{ 'SESSIONS.AGENT_WORKTREE.LoadError' | translate: { error: worktreeError } }}</div>
+    }
+
+    <!-- Lone main session: no roster, but the worktree can still be chosen -->
+    @if (activeAgents().length === 0 && loneLead(); as lead) {
+      <div class="active-agents-section">
+        <div class="agent-card agent-card-main">
+          <app-agent-worktree-picker #wt [agent]="lead" [agents]="[lead]" [defaultCwd]="spawnSessionPath()"></app-agent-worktree-picker>
+          <div class="agent-card-left">
+            <img [src]="getProviderLogo(lead.provider)" width="14" height="14" alt="" class="provider-logo" [appTooltip]="getProviderLabel(lead.provider)" />
+            <div class="agent-card-info">
+              <span class="agent-card-title">{{ lead.title }}</span>
+            </div>
+          </div>
+          <div class="agent-card-actions">
+            @if (wt.available()) {
+              <button
+                class="btn-agent-bench"
+                [class.wt-on]="wt.open() || wt.showSelected()"
+                [disabled]="!wt.canOpen()"
+                (click)="wt.toggle(); $event.stopPropagation()"
+                [appTooltip]="(wt.canOpen() ? 'SESSIONS.AGENT_WORKTREE.Select' : 'SESSIONS.AGENT_WORKTREE.Unavailable') | translate"
+              >
+                <iconify-icon icon="mdi:pine-tree" width="12"></iconify-icon>
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+    }
+
     <!-- Active Sub-Agents List -->
     @if (activeAgents().length > 0) {
       <div class="active-agents-section">
@@ -94,6 +126,8 @@
                [class.agent-card-main]="isMainPane(sa.id)"
                [class.active]="activeSubAgentId() === sa.id"
                (click)="onSelectSubAgent.emit(sa)">
+            <!-- Before the pine button: its reads need [agent] to be set. Visual order lives in the picker CSS. -->
+            <app-agent-worktree-picker #wt [agent]="sa" [agents]="activeAgents().concat(benchedAgents())" [defaultCwd]="spawnSessionPath()"></app-agent-worktree-picker>
             <div class="agent-card-left">
               <img [src]="getProviderLogo(sa.provider)" width="14" height="14" alt="" class="provider-logo" [appTooltip]="getProviderLabel(sa.provider)" />
               <div class="agent-card-info">
@@ -119,14 +153,27 @@
                   <iconify-icon [icon]="ecoService.isActiveForSession(sa.sessionId) ? 'solar:leaf-bold' : 'solar:leaf-bold-duotone'" width="12"></iconify-icon>
                 </button>
               }
-              <button
-                class="btn-agent-aa"
-                [class.aa-on]="isSubAgentAutoApproved(sa.sessionId)"
-                (click)="toggleSubAgentAutoApprove(sa.sessionId); $event.stopPropagation()"
-                [appTooltip]="isSubAgentAutoApproved(sa.sessionId) ? ('SESSIONS.AUTO_APPROVE.Agent on' | translate) : ('SESSIONS.AUTO_APPROVE.Agent off' | translate)"
-              >
-                <iconify-icon [icon]="isSubAgentAutoApproved(sa.sessionId) ? 'solar:shield-warning-bold' : 'solar:shield-check-bold-duotone'" width="12"></iconify-icon>
-              </button>
+              @if (builtins.isOn('auto-approve')) {
+                <button
+                  class="btn-agent-aa"
+                  [class.aa-on]="isSubAgentAutoApproved(sa.sessionId)"
+                  (click)="toggleSubAgentAutoApprove(sa.sessionId); $event.stopPropagation()"
+                  [appTooltip]="isSubAgentAutoApproved(sa.sessionId) ? ('SESSIONS.AUTO_APPROVE.Agent on' | translate) : ('SESSIONS.AUTO_APPROVE.Agent off' | translate)"
+                >
+                  <iconify-icon [icon]="isSubAgentAutoApproved(sa.sessionId) ? 'solar:shield-warning-bold' : 'solar:shield-check-bold-duotone'" width="12"></iconify-icon>
+                </button>
+              }
+              @if (wt.available()) {
+                <button
+                  class="btn-agent-bench"
+                  [class.wt-on]="wt.open() || wt.showSelected()"
+                  [disabled]="!wt.canOpen()"
+                  (click)="wt.toggle(); $event.stopPropagation()"
+                  [appTooltip]="(wt.canOpen() ? 'SESSIONS.AGENT_WORKTREE.Select' : 'SESSIONS.AGENT_WORKTREE.Unavailable') | translate"
+                >
+                  <iconify-icon icon="mdi:pine-tree" width="12"></iconify-icon>
+                </button>
+              }
               <button
                 class="btn-agent-bench"
                 [disabled]="subAgentService.benchFull()"
@@ -155,6 +202,8 @@
           <div class="agent-card benched"
                [class.active]="activeSubAgentId() === sa.id"
                (click)="onSelectSubAgent.emit(sa)">
+            <!-- Before the pine button: its reads need [agent] to be set. Visual order lives in the picker CSS. -->
+            <app-agent-worktree-picker #wt [agent]="sa" [agents]="activeAgents().concat(benchedAgents())" [defaultCwd]="spawnSessionPath()"></app-agent-worktree-picker>
             <div class="agent-card-left">
               <img [src]="getProviderLogo(sa.provider)" width="14" height="14" alt="" class="provider-logo" [appTooltip]="getProviderLabel(sa.provider)" />
               <div class="agent-card-info">
@@ -170,6 +219,17 @@
               </div>
             </div>
             <div class="agent-card-actions">
+              @if (wt.available()) {
+                <button
+                  class="btn-agent-bench"
+                  [class.wt-on]="wt.open() || wt.showSelected()"
+                  [disabled]="!wt.canOpen()"
+                  (click)="wt.toggle(); $event.stopPropagation()"
+                  [appTooltip]="(wt.canOpen() ? 'SESSIONS.AGENT_WORKTREE.Select' : 'SESSIONS.AGENT_WORKTREE.Unavailable') | translate"
+                >
+                  <iconify-icon icon="mdi:pine-tree" width="12"></iconify-icon>
+                </button>
+              }
               <button
                 class="btn-agent-bench bench-back"
                 (click)="unbenchAgent(sa); $event.stopPropagation()"
@@ -941,6 +1001,58 @@
               placement="top-end bottom-end"
               (valueChange)="newAgentAccountId.set($event)"
             />
+            <!-- Starting worktree of the new agent -->
+            @if (spawnWorktrees().length > 0 && newAgentProvider() !== 'generic-shell') {
+              <div
+                class="tool-btn provider-tool worktree-tool"
+                [class.open]="worktreeMenuOpen()"
+                [class.worktree-picked]="spawnWorktree()"
+                [appTooltip]="worktreeMenuOpen() ? '' : (spawnWorktreeLabel() || ('SESSIONS.AGENT_WORKTREE.SpawnTip' | translate))"
+              >
+                <button type="button" class="provider-trigger" (mousedown)="$event.preventDefault()" (click)="toggleWorktreeMenu($event)">
+                  <iconify-icon icon="mdi:pine-tree" width="14"></iconify-icon>
+                  @if (spawnWorktreeLabel(); as label) { <span class="worktree-pick-label">{{ label }}</span> }
+                  <iconify-icon icon="solar:alt-arrow-down-linear" width="9" class="provider-caret"></iconify-icon>
+                </button>
+                @if (worktreeMenuOpen()) {
+                  <div class="provider-menu worktree-menu" role="listbox" (click)="$event.stopPropagation()">
+                    @for (wt of spawnWorktrees(); track wt.path) {
+                      <button
+                        type="button"
+                        role="option"
+                        class="provider-menu-item"
+                        [class.selected]="wt.path === spawnWorktreePath()"
+                        (mousedown)="$event.preventDefault()"
+                        (click)="selectSpawnWorktree(wt)"
+                      >
+                        <iconify-icon icon="mdi:pine-tree" width="13"></iconify-icon>
+                        <span class="provider-menu-label">{{ agentWorktrees.title(wt) }}</span>
+                        @if (wt.path === spawnWorktreePath()) {
+                          <iconify-icon class="provider-menu-check" icon="solar:check-circle-bold" width="13"></iconify-icon>
+                        }
+                      </button>
+                    }
+                    @if (spawnWorktreeCreating()) {
+                      <app-worktree-create-form
+                        [cwd]="spawnSessionPath()!"
+                        (created)="onSpawnWorktreeCreated($event)"
+                        (canceled)="spawnWorktreeCreating.set(false)"
+                      ></app-worktree-create-form>
+                    } @else {
+                      <button
+                        type="button"
+                        class="provider-menu-item"
+                        (mousedown)="$event.preventDefault()"
+                        (click)="$event.stopPropagation(); spawnWorktreeCreating.set(true)"
+                      >
+                        <iconify-icon icon="mdi:plus" width="13"></iconify-icon>
+                        <span class="provider-menu-label">{{ 'SESSIONS.WORKTREES.New' | translate }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
             <button
               type="button"
               class="tool-btn voice-btn"

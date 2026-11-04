@@ -332,12 +332,14 @@
         <div class="workspace-group">
           <div
             class="workspace-header"
+            [class.empty]="group.sessions.length === 0"
             [class.needs-attention]="minimal() && !!groupAttention(group)"
             [attr.draggable]="minimal() ? 'true' : null"
             (dragstart)="onItemDragStart($event, 'workspace', group.workspace.id)"
             (dragend)="onItemDragEnd()"
-            (click)="toggleWorkspace(group.workspace.id)"
+            (click)="onWorkspaceHeaderClick(group)"
             (contextmenu)="onWorkspaceContext($event, group.workspace)"
+            [appTooltip]="group.sessions.length === 0 ? ('SESSIONS.IMPORT_FOLDER.Empty workspace tooltip' | translate) : null"
           >
             <iconify-icon
               class="workspace-chevron"
@@ -346,12 +348,17 @@
             ></iconify-icon>
             <iconify-icon class="workspace-icon" icon="solar:folder-bold-duotone" width="16"></iconify-icon>
             <span class="workspace-name">{{ group.workspace.name }}</span>
+            @if (group.sessions.length === 0) {
+              <iconify-icon class="workspace-add" icon="solar:add-circle-linear" width="15"></iconify-icon>
+            }
             @if (minimal() && groupAttention(group); as ga) {
               <span class="attention-badge" [appTooltip]="attentionTooltip(ga)">
                 <span class="attention-dot"></span>{{ attentionLabel(ga) }}
               </span>
             }
-            <span class="workspace-badge">{{ group.sessions.length }}</span>
+            @if (group.sessions.length > 0) {
+              <span class="workspace-badge">{{ group.sessions.length }}</span>
+            }
           </div>
 
           @if (isWorkspaceExpanded(group.workspace.id)) {

@@ -981,6 +981,7 @@
       return call('git_show_file_base64', { cwd: cwd, rev: rev, filePath: filePath });
     },
     gitWorktreeList: function (cwd) { return call('git_worktree_list', { cwd: cwd }); },
+    sessionSwitchWorktree: function (sessionId, path) { return call('session_switch_worktree', { sessionId: sessionId, path: path }); },
     gitWorktreeAdd: function (cwd, path, branch, newBranch, base) {
       return call('git_worktree_add', { cwd: cwd, path: path, branch: branch, newBranch: !!newBranch, base: base });
     },
@@ -1079,6 +1080,11 @@
     // In-place provider switch (same PTY): exits the TUI, relaunches, injects.
     switchSubAgentProvider: function (request) {
       return call('subagent_switch_provider', { request: request })
+        .then(function (subAgent) { return { ok: true, subAgent: subAgent }; })
+        .catch(function (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; });
+    },
+    switchSubAgentWorktree: function (request) {
+      return call('subagent_switch_worktree', { request: request })
         .then(function (subAgent) { return { ok: true, subAgent: subAgent }; })
         .catch(function (e) { return { ok: false, error: String(e && e.message ? e.message : e) }; });
     },
@@ -1217,6 +1223,7 @@
     // ── File System (code editor) ────────────────────────────────────────
     fsListDir: function (cwd) { return call('fs_list_dir', { cwd: cwd }); },
     fsListDirShallow: function (cwd, relPath) { return call('fs_list_dir_shallow', { cwd: cwd, relPath: relPath }); },
+    fsScanProjects: function (path) { return call('fs_scan_projects', { path: path }); },
     fsReadFile: function (cwd, filePath) { return call('fs_read_file', { cwd: cwd, filePath: filePath }); },
     fsReadFileBase64: function (cwd, filePath) {
       return call('fs_read_file_base64', { cwd: cwd, filePath: filePath });

@@ -766,6 +766,13 @@ impl SessionManager {
     /// bytes are a snapshot of the host screen (term_state) instead of the raw
     /// tail: same [endOffset][bytes] contract, nothing changes downstream.
     /// Snapshot taken outside the state lock (up to ~10 ms on full screens).
+    /// Tail of the main session's raw PTY buffer; None if unavailable.
+    fn raw_tail(&self, session_id: &str) -> Option<Vec<u8>> {
+        let (bytes, _) = self.buffer_bytes(session_id).ok()?;
+        let start = bytes.len().saturating_sub(8192);
+        Some(bytes[start..].to_vec())
+    }
+
     fn replay_payload(&self, session_id: &str) -> Result<Vec<u8>, String> {
         let raw = |(bytes, end_offset): (Vec<u8>, u64)| {
             let mut payload = Vec::with_capacity(8 + bytes.len());
@@ -2449,6 +2456,63 @@ pub async fn session_handoff_context(
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// session:switch-worktree — moves the main session to another worktree.
+/// Claude family only: `/cd` keeps the conversation alive in the same PTY.
+#[tauri::command]
+pub async fn session_switch_worktree(
+    manager: tauri::State<'_, Arc<SessionManager>>,
+    session_id: String,
+    path: String,
+) -> Result<OkResult, String> {
+    let path = path.trim().to_string();
+    let (provider, cwd, root, account) = {
+        let state = manager.state.lock();
+        let Some(session) = state.sessions.get(&session_id) else {
+            return Ok(OkResult::err(format!("Session not found: {session_id}")));
+        };
+        if session.pty.is_none() {
+            return Ok(OkResult::err("Session has no live PTY (standby?)"));
+        }
+        (
+            session.provider.clone(),
+            session_cwd(session),
+            session.workspace.as_ref().map(|w| w.path.clone()),
+            session.config.provider_account_id.clone(),
+        )
+    };
+    if provider_resume_family(&provider) != "claude-code-cli" {
+        return Ok(OkResult::err(
+            "Only Claude sessions can change worktree in place",
+        ));
+    }
+    let Some(cwd) = cwd else {
+        return Ok(OkResult::err("The session has no working directory"));
+    };
+    if let Err(err) =
+        crate::commands::subagent::validate_worktree_target(&cwd, root.as_deref(), &path)
+    {
+        return Ok(OkResult::err(err));
+    }
+    let mgr = manager.inner().clone();
+    let id = session_id.clone();
+    let target = path.clone();
+    let family = provider.clone();
+    let moved = tauri::async_runtime::spawn_blocking(move || {
+        let write = |data: &str| mgr.write(&id, data, false);
+        let buffer = || mgr.raw_tail(&id);
+        crate::commands::subagent::claude_cd_in_place(&target, &family, account, &write, &buffer)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if let Err(err) = moved {
+        return Ok(OkResult::err(err));
+    }
+    if let Some(session) = manager.state.lock().sessions.get_mut(&session_id) {
+        session.config.cwd = Some(path);
+    }
+    Ok(OkResult::ok())
 }
 
 /// session:switch-provider — switches the provider of the MAIN session in the same

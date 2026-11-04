@@ -4067,6 +4067,21 @@ pub async fn git_worktree_list(cwd: String) -> JsonValue {
                 let s = run_git(&e.path, &["--no-optional-locks", "status", "--porcelain"]);
                 if s.ok { Some(s.out.lines().filter(|l| !l.trim().is_empty()).count()) } else { None }
             };
+            // Relative to the upstream: absent if the branch has none.
+            let (mut ahead, mut behind) = (None, None);
+            if changes.is_some() {
+                let c = run_git(&e.path, &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"]);
+                if c.ok {
+                    let mut parts = c.out.split_whitespace().map(|n| n.parse::<usize>().ok());
+                    ahead = parts.next().flatten();
+                    behind = parts.next().flatten();
+                }
+            }
+            let last_commit = if changes.is_some() {
+                run_git(&e.path, &["log", "-1", "--format=%ct"]).out.trim().parse::<i64>().ok()
+            } else {
+                None
+            };
             json!({
                 "path": e.path,
                 "name": Path::new(&e.path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| e.path.clone()),
@@ -4081,6 +4096,9 @@ pub async fn git_worktree_list(cwd: String) -> JsonValue {
                 "main": i == 0,
                 "current": same_path(&e.path, &top),
                 "changes": changes,
+                "ahead": ahead,
+                "behind": behind,
+                "lastCommit": last_commit,
             })
         })
         .collect();
@@ -4143,10 +4161,97 @@ pub async fn git_worktree_add(
         run_git(&cwd, &["worktree", "add", &abs_str, &branch])
     };
     if r.ok {
+        if let Some(root) = main_worktree_of(&cwd).as_deref() {
+            copy_worktree_include(root, &abs);
+            if abs.starts_with(Path::new(root).join(".claude").join("worktrees")) {
+                exclude_claude_worktrees(root);
+            }
+        }
         json!({ "ok": true, "path": abs_str })
     } else {
         json!({ "ok": false, "error": err_detail(&r) })
     }
+}
+
+/// Path of the main worktree of the repository of `cwd`.
+pub(crate) fn main_worktree_of(cwd: &str) -> Option<String> {
+    let list = run_git(cwd, &["worktree", "list", "--porcelain"]);
+    if !list.ok {
+        return None;
+    }
+    parse_worktree_porcelain(&list.out)
+        .first()
+        .map(|e| e.path.clone())
+}
+
+/// Is `path` a worktree of the same repository as `cwd`?
+pub(crate) fn is_worktree_of(cwd: &str, path: &str) -> bool {
+    if path.trim().is_empty() || !Path::new(path).is_dir() {
+        return false;
+    }
+    let list = run_git(cwd, &["worktree", "list", "--porcelain"]);
+    list.ok
+        && parse_worktree_porcelain(&list.out)
+            .iter()
+            .any(|e| same_path(&e.path, path))
+}
+
+/// Same rule as `claude --worktree`: copies into the new worktree the files
+/// that match `.worktreeinclude` AND are gitignored (e.g. `.env`).
+fn copy_worktree_include(root: &str, dest: &Path) {
+    if !Path::new(root).join(".worktreeinclude").is_file() {
+        return;
+    }
+    let listed = |exclude: &str| -> std::collections::HashSet<String> {
+        let r = run_git(root, &["ls-files", "-z", "--others", "--ignored", exclude]);
+        if !r.ok {
+            return Default::default();
+        }
+        r.out
+            .split('\0')
+            .filter(|f| !f.is_empty())
+            .map(str::to_string)
+            .collect()
+    };
+    let included = listed("--exclude-from=.worktreeinclude");
+    let ignored = listed("--exclude-standard");
+    for rel in included.intersection(&ignored) {
+        if Path::new(rel)
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            continue;
+        }
+        let target = dest.join(rel);
+        if let Some(dir) = target.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        if let Err(err) = std::fs::copy(Path::new(root).join(rel), &target) {
+            eprintln!("[worktree] copy failed for {rel}: {err}");
+        }
+    }
+}
+
+/// Keeps `.claude/worktrees/` out of git status without touching the project
+/// `.gitignore`: it goes in `info/exclude`, which stays local.
+fn exclude_claude_worktrees(root: &str) {
+    let dir = run_git(root, &["rev-parse", "--git-common-dir"]);
+    if !dir.ok {
+        return;
+    }
+    let git_dir = Path::new(root).join(dir.out.trim());
+    let file = git_dir.join("info").join("exclude");
+    let current = std::fs::read_to_string(&file).unwrap_or_default();
+    if current.lines().any(|l| l.trim() == ".claude/worktrees/") {
+        return;
+    }
+    let sep = if current.is_empty() || current.ends_with('\n') {
+        ""
+    } else {
+        "\n"
+    };
+    let _ = std::fs::create_dir_all(git_dir.join("info"));
+    let _ = std::fs::write(&file, format!("{current}{sep}.claude/worktrees/\n"));
 }
 
 /// git:worktree-remove — refuses the main worktree and the open one;

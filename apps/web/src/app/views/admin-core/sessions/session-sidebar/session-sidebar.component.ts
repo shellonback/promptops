@@ -394,6 +394,15 @@ const NO_SUB_AGENTS: SubAgent[] = [];
       color: var(--po-text-primary);
       background: rgba(255, 255, 255, 0.08);
     }
+    .workspace-header.empty .workspace-name,
+    .workspace-header.empty .workspace-icon { opacity: 0.6; }
+    .workspace-header.empty .workspace-add {
+      margin-left: auto;
+      color: var(--po-text-secondary, #6b7280);
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+    .workspace-header.empty:hover .workspace-add { opacity: 1; }
     .workspace-group.solo .sub-agent-item {
       padding-left: 1.9rem;
     }
@@ -1229,6 +1238,8 @@ export class SessionSidebarComponent {
   onEditSession = output<string>();
   onDestroySession = output<string>();
   onEditWorkspace = output<string>();
+  /** Click on an empty workspace (filed in a folder, no sessions yet): open "new session" bound to it. */
+  onNewSessionInWorkspace = output<{ id: string; path: string; name: string }>();
   onDestroyWorkspace = output<string>();
   onConfigureSession = output<string>();
   onOpenTerminal = output<string>();
@@ -1382,6 +1393,9 @@ export class SessionSidebarComponent {
     const wsList = this.workspaces();
     const sessions = this.sessions();
     const assigned = new Set<string>();
+    // Minimal: workspaces filed in a sidebar folder stay visible even with no
+    // session (e.g. just imported from a folder of projects) — click = new session.
+    const filed = this.minimal() ? this.foldersService.workspaceFolderMap() : null;
 
     // Immutable workspace keys also keep older servers (updated_at order)
     // from moving groups while their sessions are used or restored.
@@ -1401,7 +1415,7 @@ export class SessionSidebarComponent {
           .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime() || a.name.localeCompare(b.name)),
       }))
       // Workspace positions must not depend on activity in their sessions.
-      .filter(g => g.sessions.length > 0);
+      .filter(g => g.sessions.length > 0 || !!filed?.has(g.workspace.id));
   });
 
   /** Sessions grouped by workspace, plus standalone sessions */
@@ -1522,6 +1536,18 @@ export class SessionSidebarComponent {
   soloSession(group: WorkspaceGroup): SessionSummary | null {
     if (this.builtins.isOn('multi-session')) return null;
     return group.sessions.length === 1 ? group.sessions[0] : null;
+  }
+
+  onWorkspaceHeaderClick(group: WorkspaceGroup): void {
+    if (group.sessions.length === 0) {
+      this.onNewSessionInWorkspace.emit({
+        id: group.workspace.id,
+        path: group.workspace.projectPath,
+        name: group.workspace.name,
+      });
+      return;
+    }
+    this.toggleWorkspace(group.workspace.id);
   }
 
   toggleWorkspace(wsId: string): void {

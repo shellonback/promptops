@@ -1,3 +1,4 @@
+import { OrgPolicyService } from '@core/services/org-policy.service';
 import { signal } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
@@ -43,6 +44,7 @@ describe('IntentModalComponent', () => {
       imports: [IntentModalComponent, TranslateModule.forRoot()],
       providers: [
         { provide: IntentService, useValue: intentServiceSpy },
+        { provide: OrgPolicyService, useValue: { autoApproveAllowed: () => true, canEnableBuiltinPlugins: () => true } },
         { provide: NgbActiveModal, useValue: modalSpy },
       ],
     }).compileComponents();

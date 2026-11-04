@@ -1654,6 +1654,39 @@
       "MessageMany": "بدأت {{count}} جلسات مفتوحة بالحساب {{oldName}}، لكن الحساب النشط الآن هو {{newName}}. لا يمكن استئناف المحادثات على حساب آخر: إعادة فتحها باستخدام {{newName}} تبدأ محادثات جديدة.",
       "Reopen": "إعادة الفتح باستخدام {{newName}}",
       "Keep": "الإبقاء على {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "تغيير worktree لهذا الوكيل",
+      "Unavailable": "هنا يمكن لجلسات Claude الرئيسية فقط تغيير worktree: استخدم وكيلاً فرعياً",
+      "Busy": "الوكيل يعمل: يمكنك التبديل عندما يتوقف.",
+      "RestartConfirm": "سيُعاد تشغيل هذا الوكيل في worktree وتبدأ محادثته من جديد.",
+      "Switch": "تبديل",
+      "Shared": "{{count}} وكلاء",
+      "SharedTip": "عدة وكلاء يكتبون في هذا worktree",
+      "NamePlaceholder": "الفرع، مثل fix/checkout",
+      "CreateHint": "ينشئ worktree وينقل هذا الوكيل إليه. تستمر المحادثة.",
+      "CreateRestartHint": "ينشئ worktree وينقل هذا الوكيل إليه. سيُعاد تشغيله بمحادثة جديدة.",
+      "LoadError": "worktree غير متاحة: {{error}}",
+      "Filter": "تصفية worktree",
+      "StartFrom": "البدء من",
+      "SpawnTip": "worktree البداية للوكيل الجديد",
+      "Repo": "المستودع"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "استيراد مجلد مشاريع",
+      "Intro": "تم العثور على {{count}} مشاريع. يصبح المجلد مجلدًا في الشريط الجانبي ويصبح كل مشروع مساحة عمل بداخله.",
+      "Folder name": "اسم المجلد",
+      "Workspaces": "مساحات العمل",
+      "Select all": "تحديد الكل",
+      "Select none": "إلغاء تحديد الكل",
+      "Already workspace": "مساحة عمل موجودة",
+      "Start sessions": "ابدأ أيضًا جلسة في كل مساحة عمل جديدة",
+      "Provider": "المزوّد",
+      "Confirm": "استيراد {{count}} مساحات عمل",
+      "Hint": "يحتوي هذا المجلد على {{count}} مشاريع. هل تريد استيراده كمجلد بمساحة عمل لكل مشروع؟",
+      "Hint action": "استيراد كمجلد",
+      "Partial failure": "تعذّر إنشاء {{count}} مساحات عمل: {{names}}",
+      "Empty workspace tooltip": "لا توجد جلسات بعد — انقر لبدء جلسة"
     }
   },
   "SUBAGENTS": {

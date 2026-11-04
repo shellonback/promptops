@@ -65,6 +65,10 @@ import { TerminalViewComponent } from '../../terminal/terminal-view/terminal-vie
 import { BrowserModeModalComponent } from '../../browser/browser-mode-modal.component';
 import { TerminalManagerService } from '../../terminal/services/terminal-manager.service';
 import { CreateSessionModalComponent } from '../create-session-modal/create-session-modal.component';
+import { ImportProjectFolderModalComponent, ImportProjectFolderResult } from '../import-project-folder-modal/import-project-folder-modal.component';
+import { ProjectFolderImportService, ProjectFolderScan } from '../services/project-folder-import.service';
+import { SpawnSelectionService } from '../services/spawn-selection.service';
+import { ProviderService } from '@core/services/provider.service';
 import { ContextSnapshotModalComponent } from '../context-snapshot-modal/context-snapshot-modal.component';
 import { RenameSessionModalComponent } from '../rename-session-modal/rename-session-modal.component';
 import { ResumeSubAgentModalComponent } from '../resume-subagent-modal/resume-subagent-modal.component';
@@ -2471,12 +2475,58 @@ function safeSetItem(key: string, value: string): void {
       min-height: 0;
     }
 
-    .ide-terminal-tabs { display: flex; flex-shrink: 0; overflow-x: auto; border-bottom: 1px solid var(--po-border-subtle); padding-right: 24px; }
-    .ide-terminal-tabs button { display: flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 220px; overflow: hidden; white-space: nowrap; background: transparent; color: var(--po-text-muted); border: 0; border-bottom: 2px solid transparent; padding: 10px 12px; }
-    .ide-terminal-tabs button.active { color: var(--po-text-primary); border-bottom-color: #818cf8; }
+    /* Agent tabs wrap instead of scrolling, so all stay visible (status included). */
+    .ide-terminal-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      flex-shrink: 0;
+      gap: 4px;
+      max-height: 88px;
+      overflow-y: auto;
+      padding: 6px 8px;
+      background: var(--po-bg-1, #161b22);
+      border-bottom: 1px solid var(--po-border-subtle);
+    }
+    .ide-terminal-tabs button {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      max-width: 170px;
+      height: 26px;
+      padding: 0 8px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--po-text-secondary);
+      font-size: 0.74rem;
+      font-weight: 500;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color var(--po-duration-base), background var(--po-duration-base);
+    }
+    .ide-terminal-tabs button:hover { color: var(--po-text-primary); background: color-mix(in srgb, var(--po-text-primary) 7%, transparent); }
+    .ide-terminal-tabs button.active {
+      color: var(--po-text-primary);
+      background: color-mix(in srgb, var(--po-accent, #6366F1) 16%, transparent);
+      border-color: color-mix(in srgb, var(--po-accent, #6366F1) 45%, transparent);
+    }
+    .ide-terminal-tabs button.needs-input:not(.active) { border-color: color-mix(in srgb, var(--po-warning) 55%, transparent); }
+    .ide-terminal-tabs button:focus-visible { outline: 1px solid var(--po-info, #3794ff); outline-offset: 1px; }
+    .ide-terminal-tabs .provider-logo { flex-shrink: 0; }
+    .ide-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
     .ide-terminal-stack { display: flex; flex-direction: column; flex: 1; min-height: 120px; overflow: hidden; }
     .ide-terminal-stack > .subagent-pane { flex: 1; min-height: 0; }
-    .ide-spawn-composer { flex-shrink: 0; max-height: 55%; overflow-y: auto; }
+    /* The status is already on the tab: the pane header keeps the prompt and actions. */
+    .ide-terminal-stack > .subagent-pane:not(.sa-expanded) .subagent-status,
+    .ide-terminal-stack > .subagent-pane:not(.sa-expanded) .sa-attention-badge { display: none; }
+    /* Input always at the bottom and visible: the terminal shrinks, not the input. */
+    .ide-spawn-composer {
+      flex-shrink: 0;
+      max-height: 55%;
+      overflow-y: auto;
+      border-top: 1px solid var(--po-border-subtle);
+    }
 
     /* ── IDE Accordion Sections ── */
 
@@ -2582,9 +2632,11 @@ function safeSetItem(key: string, value: string): void {
        Same visual language as the active panes (radius/padding/layout),
        distinguished by a recessed "disabled" background + muted text. */
     .ide-bench-list {
-      margin-top: 0.4rem;
-      padding-top: 0.4rem;
-      border-top: 1px dashed var(--po-border);
+      flex-shrink: 0;
+      max-height: 96px;
+      overflow-y: auto;
+      padding: 0.4rem 0.5rem;
+      border-top: 1px solid var(--po-border-subtle);
       display: flex;
       flex-direction: column;
       gap: 0.25rem;
@@ -3568,6 +3620,9 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   protected slotService = inject(ActionSlotService);
   private historyService = inject(SessionHistoryService);
   private workspaceApiService = inject(WorkspaceApiService);
+  private projectFolderImport = inject(ProjectFolderImportService);
+  private spawnSelectionForImport = inject(SpawnSelectionService);
+  private providerServiceForImport = inject(ProviderService);
   private desktopSessionApiService = inject(DesktopSessionApiService);
   private providerSwitch = inject(ProviderSwitchService);
   private providerLimit = inject(ProviderLimitService);
@@ -3785,6 +3840,12 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     return lead ? all.filter(p => p !== lead) : all;
   });
 
+  /** The main session when it has no sub-agents: the right sidebar still needs its card. */
+  loneLeadPane = computed<SubAgent | null>(() => {
+    if (this.paneRoster().length > 0 || this.benchedLeadPane()) return null;
+    return this.agentRoster.rosterFor(this.activeSession(), [], true)[0] ?? null;
+  });
+
   /** The main/lead tile when it's on the bench (null otherwise). */
   benchedLeadPane = computed<SubAgent | null>(() => {
     const id = this.activeSessionId();
@@ -3842,6 +3903,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       autoPrompt: '',
       provider: session.provider as unknown as SubAgent['provider'],
       icon: 'solar:monitor-bold',
+      cwd: session.workspace?.path,
       executionMode: 'interactive',
     };
     return [main, ...subs];
@@ -4126,11 +4188,11 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     await this.selectSession(sessionId);
   }
   protected forwardPorts = inject(ForwardPortsService);
-  /** Tabs of the bar above the agent terminals: Agents | Ports (VS Code panel style). */
+  /** Tabs of the bar above the agent terminals: Agents | Ports (VS Code panel style). Editor is the `code` layout. */
   saPanelTab = signal<'agents' | 'ports'>(this.readSaPanelTab());
-  /** Tab bar above the main alone: no active sub-agent, but Ports stays reachable. */
-  portsSoloBar = computed(() =>
-    this.forwardPorts.isAvailable && !this.mainIsFlattened()
+  /** No active sub-agent: tab bar above the main alone, Editor and Ports stay reachable. */
+  mainSoloBar = computed(() =>
+    !this.mainIsFlattened()
     && !(this.ff.canAccess('sub_agents') && this.subAgentService.hasActiveSubAgents()),
   );
 
@@ -4146,18 +4208,38 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
   /** The Full focus toggle in the sub-agent bar is on screen in focus mode (the session header is hidden there). */
   saFocusToggleVisible = computed(() =>
-    this.portsSoloBar()
+    this.mainSoloBar()
     || (this.ff.canAccess('sub_agents') && this.subAgentService.hasActiveSubAgents()
         && !this.saBarInHeader() && !this.saTabsInPane()),
   );
 
   private readSaPanelTab(): 'agents' | 'ports' {
+    if (!this.forwardPorts.isAvailable) return 'agents';
     try { return localStorage.getItem('po.saPanelTab') === 'ports' ? 'ports' : 'agents'; } catch { return 'agents'; }
   }
 
+  /** Editor is active with the `code` layout, which covers Agents and Ports. */
+  saPanelTabActive(tab: 'agents' | 'ports' | 'editor'): boolean {
+    const inEditor = this.currentLayoutMode() === 'code';
+    return tab === 'editor' ? inEditor : !inEditor && this.saPanelTab() === tab;
+  }
+
   /** Click on a tab: if it is already active it acts as a header (open/close), otherwise it switches view and opens. */
-  selectSaPanelTab(tab: 'agents' | 'ports', ev: Event, solo = false): void {
+  selectSaPanelTab(tab: 'agents' | 'ports' | 'editor', ev: Event, solo = false): void {
     ev.stopPropagation();
+    const inEditor = this.currentLayoutMode() === 'code';
+    if (tab === 'editor') {
+      if (!inEditor) this.toggleLayoutMode();
+      return;
+    }
+    if (inEditor) {
+      this.toggleLayoutMode();
+      this.saPanelTab.set(tab);
+      try { localStorage.setItem('po.saPanelTab', tab); } catch { /* storage bloccato */ }
+      if (!solo && !this.subAgentsExpanded()) this.toggleSubAgentsAccordion();
+      else if (tab === 'agents') this.nudgeLayoutForRefit(250);
+      return;
+    }
     if (solo) {
       this.saPanelTab.set(tab);
       try { localStorage.setItem('po.saPanelTab', tab); } catch { /* storage blocked */ }
@@ -4663,6 +4745,23 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       }
     }, 500);
   }
+
+  /**
+   * Editor layout: an agent launched from the composer lands on a hidden tab, so activate it and
+   * move the caret there at once. No auto-focus guard: the composer still has the caret and the
+   * user asked for the spawn. MCP spawns stay in autoFocusEffect.
+   */
+  private userSpawnFocusEffect = effect(() => {
+    const id = this.subAgentService.userSpawnedId();
+    if (!id) return;
+    untracked(() => {
+      if (this.currentLayoutMode() !== 'code') return;
+      this.selectIdeTerminal(id);
+      setTimeout(() => {
+        if (this.ideSelectedTerminal() === id) this.subAgentTerminals?.find(t => t.subAgentId === id)?.focus();
+      }, 400);
+    });
+  });
 
   private flashJustSpawned(saId: string): void {
     if (this.justSpawnedTimer) clearTimeout(this.justSpawnedTimer);
@@ -5398,11 +5497,19 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   openCreateModal(
     presetName?: string,
     presetFolder?: { path: string; name: string },
+    presetWorkspace?: { id: string; path: string; name: string },
   ): void {
     const modalRef = this.modalService.open(CreateSessionModalComponent, {
       centered: true,
       size: 'lg',
     });
+
+    // Empty workspace clicked in the sidebar: the new session is bound to it.
+    if (presetWorkspace) {
+      modalRef.componentInstance.forceMode = 'workspace';
+      modalRef.componentInstance.presetWorkspace = presetWorkspace;
+      modalRef.componentInstance.name = presetName ?? presetWorkspace.name;
+    }
 
     if (presetName) {
       modalRef.componentInstance.name = presetName;
@@ -5425,6 +5532,10 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
     modalRef.result.then(
       (result) => {
+        if (result?.mode === 'import-project-folder' && result.scan) {
+          void this.openImportProjectFolderModal(result.scan);
+          return;
+        }
         if (result && result.mode === 'create') {
           // The modal may have created the workspace inline (find-or-create).
           // Refresh the workspaces store so the sidebar groups the new session
@@ -5502,8 +5613,77 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // New folder → create a standalone session pre-filled with this path.
-    this.openCreateModal(undefined, { path: target, name });
+    // Folder of projects (not a project itself, ≥2 repos/manifests inside) →
+    // offer the import: sidebar folder + one workspace per project.
+    void this.projectFolderImport.scan(target).then((scan) => {
+      if (this.projectFolderImport.isProjectContainer(scan)) {
+        void this.openImportProjectFolderModal(scan);
+        return;
+      }
+      // New folder → create a standalone session pre-filled with this path.
+      this.openCreateModal(undefined, { path: target, name });
+    });
+  }
+
+  /**
+   * Preview + import of a "folder of projects": creates (or reuses) a sidebar
+   * folder named after the parent and a workspace per selected child project;
+   * optionally starts one session per workspace with the chosen provider.
+   */
+  async openImportProjectFolderModal(scan: ProjectFolderScan): Promise<void> {
+    const norm = (p?: string | null) => (p ?? '').replace(/[\\/]+$/, '').trim();
+    let defaultProvider = this.spawnSelectionForImport.provider() as ProviderType | null;
+    if (!defaultProvider) {
+      try {
+        defaultProvider = (await this.providerServiceForImport.resolveDefaultProvider(this.currentUser() ?? null)) as ProviderType;
+      } catch {
+        defaultProvider = 'claude-code-cli';
+      }
+    }
+
+    const modalRef = this.modalService.open(ImportProjectFolderModalComponent, { centered: true, size: 'lg' });
+    const cmp = modalRef.componentInstance as ImportProjectFolderModalComponent;
+    cmp.scan = scan;
+    cmp.existing = new Set(this.workspaces().map((w) => norm(w.projectPath)));
+    cmp.defaultProvider = defaultProvider ?? 'claude-code-cli';
+    cmp.init();
+
+    let result: ImportProjectFolderResult;
+    try {
+      result = await modalRef.result;
+    } catch {
+      return; // dismissed
+    }
+    if (!result?.projects?.length) return;
+
+    const imported = await this.projectFolderImport.import(result.folderName, result.projects);
+    this.store.dispatch(loadWorkspaces());
+
+    if (result.startSessions) {
+      const liveWsIds = new Set(this.sessions().map((s) => s.workspaceId).filter(Boolean));
+      for (const ws of imported.workspaces) {
+        if (liveWsIds.has(ws.id)) continue; // already has a session: don't add another
+        const categoryId = await this.historyService.createSessionCategory(ws.name);
+        this.store.dispatch(createSession({
+          name: ws.name,
+          provider: result.provider,
+          config: { cwd: ws.path, cols: 120, rows: 30 },
+          categoryId,
+          teamId: null,
+          projectId: null,
+          workspaceId: ws.id,
+        }));
+      }
+    }
+
+    if (imported.failed.length) {
+      this.swalService.error(
+        this.translateService.instant('SESSIONS.IMPORT_FOLDER.Partial failure', {
+          count: imported.failed.length,
+          names: imported.failed.join(', '),
+        }),
+      );
+    }
   }
 
   /**
@@ -5523,6 +5703,10 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
     modalRef.result.then(
       (result) => {
+        if (result?.mode === 'import-project-folder' && result.scan) {
+          void this.openImportProjectFolderModal(result.scan);
+          return;
+        }
         if (result?.mode === 'create-workspace-only') {
           // Refresh the workspaces store so the new empty workspace shows up.
           this.store.dispatch(loadWorkspaces());

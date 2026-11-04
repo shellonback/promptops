@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} offene Sitzungen wurden mit dem Konto {{oldName}} gestartet, aktiv ist jetzt aber {{newName}}. Unterhaltungen lassen sich nicht in einem anderen Konto fortsetzen: Beim erneuten Öffnen mit {{newName}} beginnen neue Unterhaltungen.",
       "Reopen": "Mit {{newName}} neu öffnen",
       "Keep": "{{oldName}} behalten"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Worktree dieses Agenten ändern",
+      "Unavailable": "Hier können nur Claude-Hauptsitzungen den Worktree wechseln: Verwende einen Sub-Agenten",
+      "Busy": "Der Agent arbeitet: Du kannst wechseln, sobald er stoppt.",
+      "RestartConfirm": "Dieser Agent startet im Worktree neu und seine Unterhaltung beginnt von vorn.",
+      "Switch": "Wechseln",
+      "Shared": "{{count}} Agenten",
+      "SharedTip": "Mehrere Agenten schreiben in diesen Worktree",
+      "NamePlaceholder": "Branch, z. B. fix/checkout",
+      "CreateHint": "Erstellt den Worktree und verschiebt diesen Agenten dorthin. Die Unterhaltung läuft weiter.",
+      "CreateRestartHint": "Erstellt den Worktree und verschiebt diesen Agenten dorthin. Er startet mit einer neuen Unterhaltung.",
+      "LoadError": "Worktrees nicht verfügbar: {{error}}",
+      "Filter": "Worktrees filtern",
+      "StartFrom": "Ausgehend von",
+      "SpawnTip": "Start-Worktree des neuen Agenten",
+      "Repo": "Repository"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Projektordner importieren",
+      "Intro": "{{count}} Projekte gefunden. Der Ordner wird zu einem Seitenleisten-Ordner und jedes Projekt zu einem Workspace darin.",
+      "Folder name": "Ordnername",
+      "Workspaces": "Workspaces",
+      "Select all": "Alle auswählen",
+      "Select none": "Auswahl aufheben",
+      "Already workspace": "Bereits ein Workspace",
+      "Start sessions": "Auch in jedem neuen Workspace eine Sitzung starten",
+      "Provider": "Anbieter",
+      "Confirm": "{{count}} Workspaces importieren",
+      "Hint": "Dieser Ordner enthält {{count}} Projekte. Als Ordner mit einem Workspace pro Projekt importieren?",
+      "Hint action": "Als Ordner importieren",
+      "Partial failure": "{{count}} Workspaces konnten nicht erstellt werden: {{names}}",
+      "Empty workspace tooltip": "Noch keine Sitzung — klicken, um eine zu starten"
     }
   },
   "SUBAGENTS": {

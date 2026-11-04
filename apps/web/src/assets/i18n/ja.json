@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} 件の開いているセッションはアカウント {{oldName}} で開始されましたが、現在のアクティブアカウントは {{newName}} です。会話は別のアカウントでは再開できません。{{newName}} で開き直すと新しい会話が始まります。",
       "Reopen": "{{newName}} で開き直す",
       "Keep": "{{oldName}} のまま続ける"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "このエージェントの worktree を変更",
+      "Unavailable": "ここで worktree を変更できるのは Claude のメインセッションのみです。サブエージェントを使用してください",
+      "Busy": "エージェントが作業中です。停止後に切り替えられます。",
+      "RestartConfirm": "このエージェントは worktree で再起動し、会話は最初からになります。",
+      "Switch": "切り替え",
+      "Shared": "{{count}} 個のエージェント",
+      "SharedTip": "複数のエージェントがこの worktree に書き込んでいます",
+      "NamePlaceholder": "ブランチ（例: fix/checkout）",
+      "CreateHint": "worktree を作成し、このエージェントを移動します。会話は継続します。",
+      "CreateRestartHint": "worktree を作成し、このエージェントを移動します。新しい会話で再起動します。",
+      "LoadError": "worktree を利用できません: {{error}}",
+      "Filter": "worktree を絞り込む",
+      "StartFrom": "開始元",
+      "SpawnTip": "新しいエージェントの開始 worktree",
+      "Repo": "リポジトリ"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "プロジェクトフォルダーをインポート",
+      "Intro": "{{count}} 件のプロジェクトが見つかりました。フォルダーはサイドバーのフォルダーになり、各プロジェクトはその中のワークスペースになります。",
+      "Folder name": "フォルダー名",
+      "Workspaces": "ワークスペース",
+      "Select all": "すべて選択",
+      "Select none": "すべて解除",
+      "Already workspace": "既存のワークスペース",
+      "Start sessions": "新しい各ワークスペースでセッションも開始する",
+      "Provider": "プロバイダー",
+      "Confirm": "{{count}} 件のワークスペースをインポート",
+      "Hint": "このフォルダーには {{count}} 件のプロジェクトがあります。プロジェクトごとにワークスペースを持つフォルダーとしてインポートしますか？",
+      "Hint action": "フォルダーとしてインポート",
+      "Partial failure": "{{count}} 件のワークスペースを作成できませんでした: {{names}}",
+      "Empty workspace tooltip": "セッションはまだありません — クリックして開始"
     }
   },
   "SUBAGENTS": {

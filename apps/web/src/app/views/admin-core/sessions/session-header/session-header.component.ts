@@ -467,44 +467,6 @@ function pathSegments(path: string): string[] {
       background-clip: text;
     }
 
-    /* Segmented control: both modes visible, the active one filled — reads
-       at a glance, unlike a bare on/off switch. */
-    .layout-mode-toggle {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      padding: 2px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--po-border-subtle);
-      cursor: pointer;
-      user-select: none;
-      flex-shrink: 0;
-      height: 26px;
-    }
-
-    .lmt-label {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      height: 100%;
-      padding: 0 0.45rem;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: var(--po-text-secondary);
-      white-space: nowrap;
-      transition: color var(--po-duration-base), background var(--po-duration-base);
-    }
-    .layout-mode-toggle:hover .lmt-label:not(.active) {
-      color: var(--po-text-primary, var(--po-text-secondary));
-    }
-    .lmt-label.active {
-      background: rgba(139, 92, 246, 0.18);
-      color: var(--po-accent);
-      font-weight: 600;
-    }
-
     /* ── Actions ── */
     .header-actions {
       display: flex;
@@ -1083,15 +1045,6 @@ function pathSegments(path: string): string[] {
         margin: 0 0.1rem;
       }
 
-      /* Toggle: hide text labels, keep icons + switch */
-      .lmt-label {
-        font-size: 0;
-        gap: 0;
-        padding: 0 0.35rem;
-      }
-      .lmt-label iconify-icon {
-        font-size: initial;
-      }
     }
 
     /* Step 2: ≤1000px — hide more metadata */
@@ -1215,12 +1168,10 @@ export class SessionHeaderComponent implements OnDestroy {
   /** This view is the session's dedicated window. */
   dedicatedWindow = input(false);
   readonly canDetach = canDetach();
-  onToggleLayoutMode = output<void>();
   onToggleFocusMode = output<void>();
   onOpenIntent = output<void>();
   onSetupWorkspace = output<string>();
   onDevLinks = output<void>();
-  layoutMode = input<string>('standard');
   focusMode = input<boolean>(false);
   /** false = the Focus toggle lives in the sub-agent bar (next to AUTO/split/tabs) */
   showFocusToggle = input<boolean>(true);

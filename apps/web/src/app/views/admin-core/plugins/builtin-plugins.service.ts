@@ -4,7 +4,7 @@ import { Injectable, inject, signal } from '@angular/core';
 /**
  * PromptOps built-in plugins: native sections of the app presented as plugins.
  * They have no repository or third-party code: they are part of the signed app, start
- * installed and enabled, and can be turned off from the Plugins page. Off = the part
+ * installed and enabled (except DEFAULT_OFF), and can be turned off from the Plugins page. Off = the part
  * disappears from the interface (menu item, badge, button or chip), nothing is deleted.
  * The choice stays on this device.
  */
@@ -41,7 +41,7 @@ export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
   { key: 'docker', pluginId: 'promptops.docker', name: 'Docker containers', category: 'Session header', where: 'Session header › Docker',
     description: 'The containers of your project, from the session header.' },
   { key: 'auto-approve', pluginId: 'promptops.auto-approve', name: 'Auto Approve', category: 'Action Center + terminal toolbar', where: 'Action Center › Auto Approve, and the shield under each terminal',
-    description: 'Answers the confirmation prompts of your agents for you, in Quick or AI mode. Turning it off also stops it on every session.' },
+    description: 'Answers the confirmation prompts of your agents for you, in Quick or AI mode. Off by default: turn it on to get the controls. Turning it off also stops it on every session.' },
   { key: 'ai-squad', pluginId: 'promptops.ai-squad', name: 'AI Squad', category: 'Squad · Goal · Worker row', where: 'Spawn composer › AI Squad',
     description: 'Turns an intent into a small team of agents working in waves.' },
   { key: 'goal', pluginId: 'promptops.goal', name: 'Goal', category: 'Squad · Goal · Worker row', where: 'Spawn composer › Goal',
@@ -72,14 +72,19 @@ export const ABSORBED_BY_BUILTIN: Record<string, BuiltinKey> = {
 };
 
 const STORAGE_KEY = 'po.builtinPlugins.off';
+/** Built-ins that start off: they turn on only by an explicit choice, saved in ENABLED_KEY. */
+const DEFAULT_OFF: ReadonlySet<BuiltinKey> = new Set<BuiltinKey>(['auto-approve']);
+const ENABLED_KEY = 'po.builtinPlugins.on';
 /** Uninstalled: they disappear from Installed and stay in the Catalog with "Install". They are also off. */
 const REMOVED_KEY = 'po.builtinPlugins.removed';
 
 @Injectable({ providedIn: 'root' })
 export class BuiltinPluginsService {
   private orgPolicy = inject(OrgPolicyService);
-  /** Keys that are off. Everything else is on: built-in plugins start enabled. */
+  /** Keys that are off. Everything else is on: built-in plugins start enabled, except DEFAULT_OFF. */
   readonly off = signal<ReadonlySet<BuiltinKey>>(this.load(STORAGE_KEY));
+  /** Plugin DEFAULT_OFF accesi dalla persona. */
+  readonly enabled = signal<ReadonlySet<BuiltinKey>>(this.load(ENABLED_KEY));
   readonly removed = signal<ReadonlySet<BuiltinKey>>(this.load(REMOVED_KEY));
 
   isInstalled(key: BuiltinKey): boolean {
@@ -99,10 +104,17 @@ export class BuiltinPluginsService {
     // Organization policy (Enterprise) wins over the local switch.
     if (key === 'auto-approve' && !this.orgPolicy.autoApproveAllowed()) return false;
     if (!this.orgPolicy.canEnableBuiltinPlugins()) return false;
-    return !this.off().has(key);
+    return DEFAULT_OFF.has(key) ? this.enabled().has(key) : !this.off().has(key);
   }
 
   setOn(key: BuiltinKey, on: boolean): void {
+    if (DEFAULT_OFF.has(key)) {
+      const enabled = new Set(this.enabled());
+      if (on) enabled.add(key); else enabled.delete(key);
+      this.enabled.set(enabled);
+      try { localStorage.setItem(ENABLED_KEY, JSON.stringify([...enabled])); } catch { /* stays in memory */ }
+      return;
+    }
     const next = new Set(this.off());
     if (on) next.delete(key); else next.add(key);
     this.off.set(next);

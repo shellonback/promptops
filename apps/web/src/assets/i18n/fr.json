@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} sessions ouvertes ont démarré avec le compte {{oldName}}, mais le compte actif est maintenant {{newName}}. Les conversations ne peuvent pas reprendre sur un autre compte : les rouvrir avec {{newName}} démarre de nouvelles conversations.",
       "Reopen": "Rouvrir avec {{newName}}",
       "Keep": "Garder {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Changer le worktree de cet agent",
+      "Unavailable": "Seules les sessions principales Claude peuvent changer de worktree ici : utilisez un sous-agent",
+      "Busy": "L'agent travaille : vous pourrez changer quand il s'arrêtera.",
+      "RestartConfirm": "Cet agent redémarre dans le worktree et sa conversation repart de zéro.",
+      "Switch": "Changer",
+      "Shared": "{{count}} agents",
+      "SharedTip": "Plusieurs agents écrivent dans ce worktree",
+      "NamePlaceholder": "Branche, ex. fix/checkout",
+      "CreateHint": "Crée le worktree et y déplace cet agent. La conversation continue.",
+      "CreateRestartHint": "Crée le worktree et y déplace cet agent. Il redémarre avec une nouvelle conversation.",
+      "LoadError": "Worktrees indisponibles : {{error}}",
+      "Filter": "Filtrer les worktrees",
+      "StartFrom": "Partir de",
+      "SpawnTip": "Worktree de départ du nouvel agent",
+      "Repo": "Dépôt"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importer un dossier de projets",
+      "Intro": "{{count}} projets trouvés. Le dossier devient un dossier de la barre latérale et chaque projet un workspace à l'intérieur.",
+      "Folder name": "Nom du dossier",
+      "Workspaces": "Workspaces",
+      "Select all": "Tout sélectionner",
+      "Select none": "Tout désélectionner",
+      "Already workspace": "Déjà un workspace",
+      "Start sessions": "Démarrer aussi une session dans chaque nouveau workspace",
+      "Provider": "Fournisseur",
+      "Confirm": "Importer {{count}} workspaces",
+      "Hint": "Ce dossier contient {{count}} projets. L'importer comme dossier avec un workspace par projet ?",
+      "Hint action": "Importer comme dossier",
+      "Partial failure": "Impossible de créer {{count}} workspaces : {{names}}",
+      "Empty workspace tooltip": "Aucune session — cliquez pour en démarrer une"
     }
   },
   "SUBAGENTS": {

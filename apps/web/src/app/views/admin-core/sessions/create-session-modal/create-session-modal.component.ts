@@ -11,6 +11,7 @@ import { SwalService } from '@core/services/swal.service';
 import { UiStyleService } from '@core/services/ui-style.service';
 import { AuthenticationService } from '@core/services/auth.service';
 import { ProviderService } from '@core/services/provider.service';
+import { ProjectFolderImportService, ProjectFolderScan } from '../services/project-folder-import.service';
 import { ProviderId } from '@core/providers/provider-capability';
 import { getUser } from '@/store/authentication/authentication.selector';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
@@ -477,6 +478,17 @@ import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
     }
 
     /* ── Provider read-only row (edit mode) ── */
+    .project-container-hint {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      border: 1px solid color-mix(in oklab, var(--po-accent, #6366F1) 35%, transparent);
+      background: color-mix(in oklab, var(--po-accent, #6366F1) 8%, transparent);
+    }
+    .project-container-hint iconify-icon { color: var(--po-accent, #6366F1); flex-shrink: 0; }
     .provider-readonly {
       display: flex;
       align-items: center;
@@ -703,6 +715,7 @@ export class CreateSessionModalComponent implements OnInit {
   private translateService = inject(TranslateService);
   private auth = inject(AuthenticationService);
   private providers = inject(ProviderService);
+  private folderImport = inject(ProjectFolderImportService);
   private store = inject(Store);
   private uiStyle = inject(UiStyleService);
 
@@ -1146,6 +1159,25 @@ export class CreateSessionModalComponent implements OnInit {
     return this.shellId || null;
   }
 
+  /**
+   * Set when the picked folder holds several projects (and is not one itself):
+   * the modal then offers "import as folder" → one workspace per project.
+   */
+  readonly projectContainer = signal<ProjectFolderScan | null>(null);
+
+  private async checkProjectContainer(path: string): Promise<void> {
+    this.projectContainer.set(null);
+    if (this.isEdit || this.presetWorkspace || !this.folderImport.supported) return;
+    const scan = await this.folderImport.scan(path);
+    if (this.workspace?.path !== path) return; // user picked another folder meanwhile
+    this.projectContainer.set(this.folderImport.isProjectContainer(scan) ? scan : null);
+  }
+
+  importAsProjectFolder(): void {
+    const scan = this.projectContainer();
+    if (scan) this.modal.close({ mode: 'import-project-folder', scan });
+  }
+
   async selectWorkspace(): Promise<void> {
     if (this.pathLocked) return;
     try {
@@ -1158,6 +1190,7 @@ export class CreateSessionModalComponent implements OnInit {
         if (!this.name && result.name) {
           this.name = result.name;
         }
+        void this.checkProjectContainer(result.path);
       }
     } catch (err) {
     }

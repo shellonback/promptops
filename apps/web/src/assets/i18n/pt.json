@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} sessões abertas foram iniciadas com a conta {{oldName}}, mas a conta ativa agora é {{newName}}. As conversas não podem ser retomadas em outra conta: reabri-las com {{newName}} inicia novas conversas.",
       "Reopen": "Reabrir com {{newName}}",
       "Keep": "Manter {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Alterar o worktree deste agente",
+      "Unavailable": "Aqui apenas as sessões principais do Claude podem mudar de worktree: use um subagente",
+      "Busy": "O agente está a trabalhar: poderá mudar quando ele parar.",
+      "RestartConfirm": "Este agente reinicia no worktree e a conversa recomeça do zero.",
+      "Switch": "Mudar",
+      "Shared": "{{count}} agentes",
+      "SharedTip": "Vários agentes estão a escrever neste worktree",
+      "NamePlaceholder": "Branch, ex. fix/checkout",
+      "CreateHint": "Cria o worktree e move este agente para lá. A conversa continua.",
+      "CreateRestartHint": "Cria o worktree e move este agente para lá. Reinicia com uma nova conversa.",
+      "LoadError": "Worktrees indisponíveis: {{error}}",
+      "Filter": "Filtrar worktrees",
+      "StartFrom": "Partir de",
+      "SpawnTip": "Worktree inicial do novo agente",
+      "Repo": "Repositório"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importar pasta de projetos",
+      "Intro": "{{count}} projetos encontrados. A pasta torna-se uma pasta da barra lateral e cada projeto um workspace dentro dela.",
+      "Folder name": "Nome da pasta",
+      "Workspaces": "Workspaces",
+      "Select all": "Selecionar todos",
+      "Select none": "Desmarcar todos",
+      "Already workspace": "Já é um workspace",
+      "Start sessions": "Iniciar também uma sessão em cada novo workspace",
+      "Provider": "Provedor",
+      "Confirm": "Importar {{count}} workspaces",
+      "Hint": "Esta pasta contém {{count}} projetos. Importá-la como pasta com um workspace por projeto?",
+      "Hint action": "Importar como pasta",
+      "Partial failure": "Não foi possível criar {{count}} workspaces: {{names}}",
+      "Empty workspace tooltip": "Sem sessões — clique para iniciar uma"
     }
   },
   "SUBAGENTS": {

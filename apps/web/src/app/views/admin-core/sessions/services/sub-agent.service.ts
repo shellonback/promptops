@@ -103,6 +103,8 @@ export interface SubAgent {
   userPrompt?: string;
   provider: SubAgentProvider;
   icon: string;
+  /** Folder the agent works in: the worktree selected on its card. */
+  cwd?: string;
   createdAt?: string;
   mode?: SubAgentMode;
   config?: SubAgentConfig;
@@ -535,6 +537,8 @@ export class SubAgentService {
 
   /** ID of the last spawned sub-agent (used for auto-focus) */
   lastSpawnedId = signal<string | null>(null);
+  /** Agente appena lanciato dal composer: spawn esplicito dell'utente, a differenza di quelli via MCP. */
+  userSpawnedId = signal<string | null>(null);
 
   /** Context of the last spawn: auto-focus ignores other sessions and restored agents. */
   lastSpawned = signal<{ id: string; parentSessionId: string; restored: boolean } | null>(null);
@@ -1287,6 +1291,7 @@ export class SubAgentService {
     goalSpec?: { maxIterations?: number; maxTotalTokens?: number; stuckThreshold?: number; native?: boolean },
     effort?: string,
     softSkill?: SoftSkillPayload,
+    worktreePath?: string,
   ): Promise<SubAgent | null> {
     if (!this.isDesktop) return null;
     // Organization policy (Enterprise): refuse providers the admin disallowed.
@@ -1331,6 +1336,8 @@ export class SubAgentService {
       // A saved workspace command must execute in its source folder, including
       // when the active workspace is a monorepo root or another project.
       ...(provider === 'generic-shell' && workspacePath ? { workspaceOverride: workspacePath } : {}),
+      // Starting worktree picked in the spawn composer.
+      ...(worktreePath ? { workspaceOverride: worktreePath } : {}),
       ...(spawnMode ? { mode: spawnMode } : {}),
       ...(customConfig ? { customConfig } : {}),
       ...(ecoLevel ? { ecoLevel } : {}),
@@ -1434,6 +1441,26 @@ export class SubAgentService {
     } catch (err) {
       console.error('[SubAgentService] switchProvider threw:', err);
       return false;
+    }
+  }
+
+  /** Move a sub-agent to another worktree in the same pane. */
+  async switchWorktree(subAgentId: string, path: string, prompt: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isDesktop || !this.api.switchSubAgentWorktree) return { ok: false };
+    try {
+      return await this.api.switchSubAgentWorktree({ subAgentId, path, prompt });
+    } catch (err: any) {
+      return { ok: false, error: err?.message };
+    }
+  }
+
+  /** Move the main/lead session to another worktree (Claude family only). */
+  async switchLeadWorktree(sessionId: string, path: string): Promise<{ ok: boolean; error?: string }> {
+    if (!this.isDesktop || !this.api.sessionSwitchWorktree) return { ok: false };
+    try {
+      return await this.api.sessionSwitchWorktree(sessionId, path);
+    } catch (err: any) {
+      return { ok: false, error: err?.message };
     }
   }
 

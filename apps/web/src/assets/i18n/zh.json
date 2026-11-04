@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} 个打开的会话是用账户 {{oldName}} 启动的，但当前活动账户是 {{newName}}。对话无法在其他账户上恢复：用 {{newName}} 重新打开将开始新的对话。",
       "Reopen": "用 {{newName}} 重新打开",
       "Keep": "保留 {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "更改此代理的 worktree",
+      "Unavailable": "此处仅 Claude 主会话可切换 worktree：请使用子代理",
+      "Busy": "代理正在工作：停止后即可切换。",
+      "RestartConfirm": "此代理将在该 worktree 中重启，对话从头开始。",
+      "Switch": "切换",
+      "Shared": "{{count}} 个代理",
+      "SharedTip": "多个代理正在写入此 worktree",
+      "NamePlaceholder": "分支，例如 fix/checkout",
+      "CreateHint": "创建 worktree 并将此代理移至其中。对话将继续。",
+      "CreateRestartHint": "创建 worktree 并将此代理移至其中。它将以新对话重启。",
+      "LoadError": "worktree 不可用：{{error}}",
+      "Filter": "筛选 worktree",
+      "StartFrom": "起始于",
+      "SpawnTip": "新代理的起始 worktree",
+      "Repo": "仓库"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "导入项目文件夹",
+      "Intro": "找到 {{count}} 个项目。该文件夹将成为侧边栏文件夹，每个项目成为其中的一个工作区。",
+      "Folder name": "文件夹名称",
+      "Workspaces": "工作区",
+      "Select all": "全选",
+      "Select none": "全不选",
+      "Already workspace": "已是工作区",
+      "Start sessions": "同时在每个新工作区中启动会话",
+      "Provider": "提供商",
+      "Confirm": "导入 {{count}} 个工作区",
+      "Hint": "此文件夹包含 {{count}} 个项目。是否作为文件夹导入，每个项目一个工作区？",
+      "Hint action": "作为文件夹导入",
+      "Partial failure": "无法创建 {{count}} 个工作区：{{names}}",
+      "Empty workspace tooltip": "暂无会话 — 点击启动一个"
     }
   },
   "SUBAGENTS": {

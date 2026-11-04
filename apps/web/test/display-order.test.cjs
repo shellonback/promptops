@@ -154,7 +154,7 @@ test('workspace positions ignore API order, activity, creation of sessions and t
     { id: 'sb', workspaceId: 'b', createdAt: '2026-04' },
   ]);
   const groups = computedProperty('session-sidebar/session-sidebar.component.ts', 'SessionSidebarComponent', 'groupedSessions',
-    { workspaces, sessions });
+    { workspaces, sessions, minimal: () => false });
   assert.deepEqual(groups().map(g => g.workspace.id), ['a', 'b']);
   workspaces.set(workspaces().slice().reverse());
   sessions.set([...sessions(), { id: 'sa2', workspaceId: 'a', createdAt: '2026-09' }]);

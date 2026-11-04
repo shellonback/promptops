@@ -61,6 +61,14 @@ export interface GitFolder {
 }
 
 export interface GitWorktree {
+  /** Commits ahead of / behind the upstream; absent without an upstream. */
+  ahead?: number | null;
+  behind?: number | null;
+  /** Unix seconds of the last commit. */
+  lastCommit?: number | null;
+  /** Repo name, set only when listing a folder that holds several repos. */
+  repo?: string;
+  repoPath?: string;
   path: string;
   name: string;
   head: string;

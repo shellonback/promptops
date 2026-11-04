@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} open sessions were started with the {{oldName}} account, but the active account is now {{newName}}. Conversations cannot be resumed on another account: reopening them with {{newName}} starts new conversations.",
       "Reopen": "Reopen with {{newName}}",
       "Keep": "Keep {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Change this agent's worktree",
+      "Unavailable": "Only Claude main sessions can change worktree here: use a sub-agent",
+      "Busy": "The agent is working: you can switch when it stops.",
+      "RestartConfirm": "This agent restarts in the worktree and its conversation starts over.",
+      "Switch": "Switch",
+      "Shared": "{{count}} agents",
+      "SharedTip": "Several agents are writing in this worktree",
+      "NamePlaceholder": "Branch, e.g. fix/checkout",
+      "CreateHint": "Creates the worktree and moves this agent there. The conversation continues.",
+      "CreateRestartHint": "Creates the worktree and moves this agent there. It restarts with a new conversation.",
+      "LoadError": "Worktrees unavailable: {{error}}",
+      "Filter": "Filter worktrees",
+      "StartFrom": "Start from",
+      "SpawnTip": "Starting worktree for the new agent",
+      "Repo": "Repository"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Import folder of projects",
+      "Intro": "{{count}} projects found. The folder becomes a sidebar folder and each project a workspace inside it.",
+      "Folder name": "Folder name",
+      "Workspaces": "Workspaces",
+      "Select all": "Select all",
+      "Select none": "Select none",
+      "Already workspace": "Already a workspace",
+      "Start sessions": "Also start a session in each new workspace",
+      "Provider": "Provider",
+      "Confirm": "Import {{count}} workspaces",
+      "Hint": "This folder contains {{count}} projects. Import it as a folder with one workspace per project?",
+      "Hint action": "Import as folder",
+      "Partial failure": "{{count}} workspaces could not be created: {{names}}",
+      "Empty workspace tooltip": "No sessions yet — click to start one"
     }
   },
   "SUBAGENTS": {

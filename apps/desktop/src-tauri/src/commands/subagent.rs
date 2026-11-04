@@ -149,6 +149,9 @@ pub struct SubAgentView {
     pub icon: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub claude_session_id: Option<String>,
+    /// Folder the agent works in: the worktree selected on its card.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub defer_prompt: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -888,6 +891,9 @@ struct AgentEntry {
     /// Directory the CLI runs in: used to resolve the provider's session log
     /// (claude transcript), which is indexed by cwd.
     cwd: Option<String>,
+    /// The CLI changed folder with `/cd`: the PTY shell stayed in the old one
+    /// and must go back to `cwd` before a new launch.
+    shell_cwd_stale: bool,
     provider_account_id: Option<Option<String>>,
 }
 
@@ -1145,6 +1151,14 @@ impl SubAgentManager {
     }
 
     /// Replay buffer of a sub-agent.
+    /// Tail of an agent's raw PTY buffer; None if the PTY is gone.
+    fn raw_tail(&self, sub_agent_id: &str) -> Option<Vec<u8>> {
+        let agents = self.agents.lock();
+        let inter = agents.get(sub_agent_id)?.interactive.as_ref()?;
+        let start = inter.buffer.len().saturating_sub(8192);
+        Some(inter.buffer[start..].to_vec())
+    }
+
     pub fn buffer_of(&self, sub_agent_id: &str) -> String {
         let agents = self.agents.lock();
         agents
@@ -2828,6 +2842,7 @@ pub(crate) fn do_spawn(
     }
 
     let view = SubAgentView {
+        cwd: cwd.clone(),
         id: sub_agent_id.clone(),
         role: request.role.clone(),
         title: request.title.clone(),
@@ -2903,6 +2918,7 @@ pub(crate) fn do_spawn(
             }),
             worker: None,
             cwd: cwd.clone(),
+            shell_cwd_stale: false,
             provider_account_id: account_explicit.clone(),
         },
     );
@@ -3843,6 +3859,13 @@ fn spawn_worker(
     }
 
     let view = SubAgentView {
+        cwd: request.workspace_override.clone().or_else(|| {
+            manager
+                .parents
+                .lock()
+                .get(&request.parent_session_id)
+                .and_then(|p| p.workspace_path.clone())
+        }),
         id: sub_agent_id.to_string(),
         role: request.role.clone(),
         title: request.title.clone(),
@@ -3929,6 +3952,7 @@ fn spawn_worker(
                     .get(&request.parent_session_id)
                     .and_then(|p| p.workspace_path.clone())
             }),
+            shell_cwd_stale: false,
             provider_account_id: account_explicit.clone(),
         },
     );
@@ -4237,6 +4261,21 @@ pub struct SwitchProviderRequest {
     pub prompt: String,
     #[serde(default)]
     pub model: Option<String>,
+    /// New working folder (worktree switch): the PTY shell enters it before the
+    /// launch. Absent in a plain provider switch.
+    #[serde(default)]
+    pub cwd: Option<String>,
+}
+
+/// Worktree switch request from the Action Center card.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwitchWorktreeRequest {
+    pub sub_agent_id: String,
+    pub path: String,
+    /// Handoff prompt for the providers that restart the CLI.
+    #[serde(default)]
+    pub prompt: String,
 }
 
 /// Does the buffer tail (ANSI-stripped) end with a shell prompt?
@@ -4422,7 +4461,12 @@ pub(crate) fn input_ready_markers(provider: &str) -> &'static [&'static str] {
 /// An Enter injected there picks the default option instead of the user
 /// (UX audit 10/2026: "Yes, continue" and "Update now" accepted on their own).
 /// Lowercase markers without spaces: compared with `squash_for_match`.
-const STARTUP_DIALOG_MARKERS: &[&str] = &["doyoutrust", "trustthisfolder", "yes,continue"];
+const STARTUP_DIALOG_MARKERS: &[&str] = &[
+    "doyoutrust",
+    "trustthisfolder",
+    "yes,continue",
+    "movingtoanewdirectory",
+];
 /// Only codex asks for the update with a dialog; claude prints "Update
 /// available" in the footer next to the input box (it's not a dialog).
 const CODEX_UPDATE_DIALOG_MARKERS: &[&str] = &["updatenow"];
@@ -4557,14 +4601,23 @@ pub async fn subagent_switch_provider(
     if provider == "generic-shell" {
         return Err("Cannot switch an agent to generic-shell".into());
     }
-    let (parent_session_id, cwd, mode, custom_config, soft_skill, is_worker, writer) = {
+    let (
+        parent_session_id,
+        cwd,
+        mode,
+        custom_config,
+        soft_skill,
+        is_worker,
+        writer,
+        shell_cwd_stale,
+    ) = {
         let agents = manager.agents.lock();
         let entry = agents
             .get(&request.sub_agent_id)
             .ok_or_else(|| format!("Agent not found: {}", request.sub_agent_id))?;
         (
             entry.view.parent_session_id.clone(),
-            entry.cwd.clone(),
+            request.cwd.clone().or_else(|| entry.cwd.clone()),
             entry.view.mode.clone().unwrap_or_else(|| {
                 crate::commands::subagent_modes::default_mode_for_role(&entry.view.role).to_string()
             }),
@@ -4572,8 +4625,12 @@ pub async fn subagent_switch_provider(
             entry.view.soft_skill.clone(),
             entry.is_worker(),
             entry.interactive.as_ref().map(|i| i.writer.clone()),
+            entry.shell_cwd_stale,
         )
     };
+    let shell_cd = (request.cwd.is_some() || shell_cwd_stale)
+        .then(|| cwd.clone())
+        .flatten();
 
     // Full prompt as at spawn: mode preamble (+ soft skill) + squad context.
     let cfg = crate::commands::subagent_modes::resolve_config(&mode, custom_config.as_ref());
@@ -4646,6 +4703,11 @@ pub async fn subagent_switch_provider(
         entry.view.provider = provider.clone();
         entry.view.model = model.clone();
         entry.view.effort = None;
+        if request.cwd.is_some() {
+            entry.cwd = cwd.clone();
+            entry.view.cwd = cwd.clone();
+        }
+        entry.shell_cwd_stale = false;
         entry.view.claude_session_id = resume_sid.clone().or_else(|| fresh_sid.clone());
         entry.view.auto_prompt = full_prompt.clone();
         entry.view.status = SubAgentStatus::Spawning;
@@ -4655,6 +4717,9 @@ pub async fn subagent_switch_provider(
             w.turn_env = turn_env;
             w.provider_session_id = None;
             w.model = model.clone();
+            if let Some(c) = request.cwd.as_ref() {
+                w.cwd = c.clone();
+            }
         }
         entry.view.clone()
     };
@@ -4746,6 +4811,11 @@ pub async fn subagent_switch_provider(
     let app2 = app.clone();
     std::thread::spawn(move || {
         exit_tui_in_place(&mgr, &id, &writer);
+        if let Some(dir) = shell_cd.as_deref() {
+            let line = format!("cd {}\r", crate::commands::remote::sh_quote(dir));
+            let _ = writer.lock().write_all(line.as_bytes());
+            std::thread::sleep(std::time::Duration::from_millis(300));
+        }
         // Launch with retry: a CLI that self-updates and exits ("Update ran
         // successfully! Please restart Codex.") or a broken binary bring
         // the shell back to the prompt — relaunching is the only sensible thing, and NEVER
@@ -4806,6 +4876,217 @@ pub async fn subagent_switch_provider(
 }
 
 // ── Commands: buffer ──────────────────────────────────────────────────
+
+/// Moves a running Claude CLI into the worktree with `/cd`: the conversation
+/// stays alive. If the folder is new to the session Claude asks to confirm:
+/// as with startup dialogs no key is ever sent, the app waits for the user.
+/// `write` writes to the PTY, `buffer` reads the tail of the raw buffer.
+pub(crate) fn claude_cd_in_place(
+    path: &str,
+    provider: &str,
+    account: Option<Option<String>>,
+    write: &dyn Fn(&str) -> Result<(), String>,
+    buffer: &dyn Fn() -> Option<Vec<u8>>,
+) -> Result<(), String> {
+    if let Err(err) = crate::commands::hook::ensure_hook_script().and_then(|script| {
+        crate::commands::hook::write_hook_settings(
+            path,
+            &script.to_string_lossy(),
+            crate::commands::hook::global_port(),
+            crate::commands::hook::claude_supports_http_hooks_on_windows(),
+            None,
+        )
+    }) {
+        eprintln!("[worktree] hook settings not written in {path}: {err}");
+    }
+    write(&format!("/cd {path}"))?;
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    write("\r")?;
+    std::thread::sleep(std::time::Duration::from_millis(1500));
+    let asked = buffer().is_some_and(|b| startup_dialog_visible(&b, provider));
+    let wait = wait_startup_dialog_cleared(&|| {
+        buffer().map(|b| {
+            (
+                startup_dialog_visible(&b, provider),
+                shell_prompt_visible(&b),
+            )
+        })
+    });
+    if !matches!(wait, DialogWait::Cleared) {
+        return Err("The folder change was not confirmed in the terminal".into());
+    }
+    // "No, stay put" prints nothing: the sign is the project folder, which
+    // Claude creates only when it really moves.
+    if asked && claude_declined_move(provider, account, path) {
+        return Err("The folder change was declined in the terminal".into());
+    }
+    let tail = buffer()
+        .map(|b| String::from_utf8_lossy(&b).into_owned())
+        .unwrap_or_default();
+    let tail = crate::commands::session::strip_ansi(&tail);
+    if tail.contains("Unknown command") || tail.contains("Unknown skill") {
+        return Err("This Claude Code version has no /cd: update the CLI".into());
+    }
+    Ok(())
+}
+
+/// Did the user answer no? Only for plain Claude: other aliases keep their
+/// sessions elsewhere. In doubt it counts as moved.
+fn claude_declined_move(provider: &str, account: Option<Option<String>>, path: &str) -> bool {
+    if provider != "claude-code-cli" {
+        return false;
+    }
+    let dir = crate::commands::provider_account::resolve_account_env(provider, account)
+        .filter(|(var, dir, _)| var.is_some() && !dir.is_empty())
+        .map(|(_, dir, _)| std::path::PathBuf::from(dir))
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::Path::new(&h).join(".claude")));
+    let Some(projects) = dir.map(|d| d.join("projects")).filter(|d| d.is_dir()) else {
+        return false;
+    };
+    let name: String = path
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    name.len() <= 200 && !projects.join(name).is_dir()
+}
+
+/// Checks shared by the sub-agent and main session switch: local agents only,
+/// worktrees of the same repository only.
+pub(crate) fn validate_worktree_target(
+    cwd: &str,
+    root: Option<&str>,
+    path: &str,
+) -> Result<(), String> {
+    if crate::commands::remote::parse_remote_path(cwd).is_some()
+        || crate::commands::remote::parse_cmd_path(cwd).is_some()
+    {
+        return Err("Worktrees are not available on remote agents".into());
+    }
+    // Workspace with several repos: the repository sits under the session folder.
+    let nested = crate::commands::git::main_worktree_of(path).is_some_and(|main| {
+        let main = std::path::Path::new(&main);
+        main.starts_with(cwd) || root.is_some_and(|r| main.starts_with(r))
+    });
+    if !nested && !crate::commands::git::is_worktree_of(cwd, path) {
+        return Err("Not a worktree of this repository".into());
+    }
+    Ok(())
+}
+
+/// subagent:switch-worktree — moves the agent to another worktree in the same
+/// pane. Claude family: `/cd`, the conversation stays. Worker: changes the
+/// folder of the next turn. Other providers: the CLI restarts in the new
+/// folder with a handoff prompt.
+#[tauri::command]
+pub async fn subagent_switch_worktree(
+    app: tauri::AppHandle,
+    manager: tauri::State<'_, Arc<SubAgentManager>>,
+    request: SwitchWorktreeRequest,
+) -> Result<SubAgentView, String> {
+    let path = request.path.trim().to_string();
+    let (provider, model, cwd, status, is_worker, writer, parent_id, account) = {
+        let agents = manager.agents.lock();
+        let entry = agents
+            .get(&request.sub_agent_id)
+            .ok_or_else(|| format!("Agent not found: {}", request.sub_agent_id))?;
+        (
+            entry.view.provider.clone(),
+            entry.view.model.clone(),
+            entry.cwd.clone(),
+            entry.view.status,
+            entry.is_worker(),
+            entry.interactive.as_ref().map(|i| i.writer.clone()),
+            entry.view.parent_session_id.clone(),
+            entry.provider_account_id.clone(),
+        )
+    };
+    if matches!(
+        status,
+        SubAgentStatus::Spawning | SubAgentStatus::InProgress | SubAgentStatus::WaitingInput
+    ) {
+        return Err("The agent is busy: wait until it stops".into());
+    }
+    if matches!(
+        status,
+        SubAgentStatus::Completed | SubAgentStatus::Error | SubAgentStatus::Exited
+    ) {
+        return Err("The agent is not running".into());
+    }
+    let cwd = cwd.ok_or("The agent has no working directory")?;
+    let root = manager
+        .parents
+        .lock()
+        .get(&parent_id)
+        .and_then(|p| p.workspace_path.clone());
+    validate_worktree_target(&cwd, root.as_deref(), &path)?;
+
+    let in_place = is_worker
+        || crate::commands::session::provider_resume_family(&provider) == "claude-code-cli";
+    if !in_place {
+        return subagent_switch_provider(
+            app,
+            manager,
+            SwitchProviderRequest {
+                sub_agent_id: request.sub_agent_id,
+                provider,
+                prompt: request.prompt,
+                model,
+                cwd: Some(path),
+            },
+        )
+        .await;
+    }
+
+    if !is_worker {
+        let writer = writer.ok_or("Agent has no PTY")?;
+        let mgr = Arc::clone(manager.inner());
+        let id = request.sub_agent_id.clone();
+        let target = path.clone();
+        let family = provider.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            let write = |data: &str| {
+                writer
+                    .lock()
+                    .write_all(data.as_bytes())
+                    .map_err(|e| e.to_string())
+            };
+            let buffer = || mgr.raw_tail(&id);
+            claude_cd_in_place(&target, &family, account, &write, &buffer)
+        })
+        .await
+        .map_err(|e| e.to_string())??;
+    }
+
+    let view = {
+        let mut agents = manager.agents.lock();
+        let entry = agents
+            .get_mut(&request.sub_agent_id)
+            .ok_or_else(|| format!("Agent not found: {}", request.sub_agent_id))?;
+        entry.cwd = Some(path.clone());
+        entry.view.cwd = Some(path.clone());
+        entry.shell_cwd_stale = !is_worker;
+        if let Some(w) = entry.worker.as_mut() {
+            w.cwd = path.clone();
+            w.provider_session_id = None;
+        }
+        entry.view.clone()
+    };
+    if !is_worker {
+        if let Some(tailer) = crate::commands::session_tailer::global_tailer() {
+            tailer.stop_tailing(&request.sub_agent_id);
+            tailer.start_tailing(&request.sub_agent_id, &provider, &path);
+        }
+    }
+    let _ = app.emit(
+        "subagent:updated",
+        UpdatedEvent {
+            sub_agent: view.clone(),
+            parent_session_id: parent_id.clone(),
+        },
+    );
+    push_stash_snapshot(&app, manager.inner(), &parent_id);
+    Ok(view)
+}
 
 /// subagent:buffer — a sub-agent's terminal buffer (replay on
 /// reopen). For workers it returns the text buffer.
@@ -6114,6 +6395,7 @@ mod lock_order_tests {
         assert!(chrono::DateTime::parse_from_rfc3339(&at).is_ok(), "{at}");
         let m = Arc::new(SubAgentManager::default());
         let view = SubAgentView {
+            cwd: None,
             id: "a".into(),
             role: "custom".into(),
             title: "t".into(),

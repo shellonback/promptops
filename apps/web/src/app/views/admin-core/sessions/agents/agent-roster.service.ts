@@ -16,6 +16,7 @@ const EMPTY_META: AgentsMeta = { leadId: null, order: [], leadClosed: false };
 
 /** The minimum needed from a store session to draw the lead. */
 export interface AgentSessionLike {
+  workspace?: { path?: string | null } | null;
   id: string;
   name?: string | null;
   status?: string | null;
@@ -131,6 +132,7 @@ export class AgentRosterService {
         ? session.status : 'idle') as SubAgent['status'],
       autoPrompt: '',
       provider: session.provider as SubAgent['provider'],
+      cwd: session.workspace?.path ?? undefined,
       icon: 'solar:monitor-bold',
       executionMode: 'interactive',
     };

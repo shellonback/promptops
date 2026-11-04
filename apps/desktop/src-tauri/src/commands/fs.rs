@@ -503,7 +503,21 @@ fn ignore_cache_delete(cwd: &str) {
     }
 }
 
+/// One lock per cwd: parallel lists (tree re-expansion) with an empty cache must
+/// wait for a single `git status`, not run one each.
+static IGNORE_COMPUTE: Mutex<Option<HashMap<String, Arc<Mutex<()>>>>> = Mutex::new(None);
+
 fn get_git_ignored_paths_cached(cwd: &str) -> HashSet<String> {
+    if let Some(set) = ignore_cache_get(cwd) {
+        return set;
+    }
+    let lock = IGNORE_COMPUTE
+        .lock()
+        .get_or_insert_with(HashMap::new)
+        .entry(cwd.to_string())
+        .or_default()
+        .clone();
+    let _computing = lock.lock();
     if let Some(set) = ignore_cache_get(cwd) {
         return set;
     }
@@ -527,12 +541,15 @@ fn git_show_prefix(cwd: &str) -> String {
     }
 }
 
-/// `git status --ignored --porcelain` → collects entries with the "!! " prefix,
-/// rebased onto the cwd (entries outside the cwd are discarded).
+/// `git status --ignored=matching --porcelain` → collects entries with the "!! "
+/// prefix, rebased onto the cwd (entries outside the cwd are discarded).
+/// `matching` stops at folders matching a pattern: the default walks through
+/// them all (node_modules, target), which costs seconds on large repos.
 fn get_git_ignored_paths(cwd: &str) -> HashSet<String> {
     let out = crate::commands::util_cmd::cmd("git")
+        .arg("--no-optional-locks")
         .arg("status")
-        .arg("--ignored")
+        .arg("--ignored=matching")
         .arg("--porcelain")
         .current_dir(cwd)
         .output();
@@ -887,6 +904,111 @@ fn stop_watcher(manager: &WatchManager, key: &str) {
 }
 
 // ─── Tauri commands ───────────────────────────────────────────────────────────
+
+/// Markers identifying a folder as a project (repo or manifest).
+const PROJECT_MARKERS: &[&str] = &[
+    ".git",
+    "package.json",
+    "composer.json",
+    "Cargo.toml",
+    "pyproject.toml",
+    "requirements.txt",
+    "setup.py",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "Gemfile",
+    "mix.exs",
+    "pubspec.yaml",
+    "Package.swift",
+    "deno.json",
+    "CMakeLists.txt",
+    "Makefile",
+];
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScannedProject {
+    pub name: String,
+    pub path: String,
+    /// "git" if it contains `.git`, otherwise the first manifest found.
+    pub marker: String,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScanProjectsResponse {
+    pub ok: bool,
+    pub root: String,
+    pub root_name: String,
+    /// Marker of the root folder (Some if it already is a project itself).
+    pub root_marker: Option<String>,
+    pub projects: Vec<ScannedProject>,
+    pub error: Option<String>,
+}
+
+fn project_marker(dir: &Path) -> Option<String> {
+    PROJECT_MARKERS
+        .iter()
+        .find(|m| dir.join(m).exists())
+        .map(|m| {
+            if *m == ".git" {
+                "git".to_string()
+            } else {
+                (*m).to_string()
+            }
+        })
+}
+
+/// fs:scan-projects — immediate children of `path` that are projects (git repo
+/// or manifest). Used by the "folder of projects" import → folder + workspace.
+#[tauri::command]
+pub fn fs_scan_projects(path: String) -> Result<ScanProjectsResponse, String> {
+    let root = resolve_single(&path);
+    let root_str = root.to_string_lossy().into_owned();
+    let root_name = basename(&root_str);
+    let fail = |e: String| ScanProjectsResponse {
+        ok: false,
+        root: root_str.clone(),
+        root_name: root_name.clone(),
+        root_marker: None,
+        projects: vec![],
+        error: Some(e),
+    };
+    if !root.is_dir() {
+        return Ok(fail("Not a directory".to_string()));
+    }
+    let read = match std::fs::read_dir(&root) {
+        Ok(r) => r,
+        Err(e) => return Ok(fail(e.to_string())),
+    };
+    let mut projects: Vec<ScannedProject> = read
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.starts_with('.') || is_ignored_dir(&name) {
+                return None;
+            }
+            let p = e.path();
+            project_marker(&p).map(|marker| ScannedProject {
+                name,
+                path: p.to_string_lossy().into_owned(),
+                marker,
+            })
+        })
+        .collect();
+    projects.sort_by_key(|p| p.name.to_lowercase());
+    Ok(ScanProjectsResponse {
+        ok: true,
+        root_marker: project_marker(&root),
+        root: root_str.clone(),
+        root_name: root_name.clone(),
+        projects,
+        error: None,
+    })
+}
 
 /// fs:list-dir — recursive tree listing (legacy).
 // Off the main thread: a slow disk, a network mount or a big `git status`
@@ -1695,7 +1817,7 @@ fn split_ext(name: &str) -> (String, String) {
 /// `Channel<WatchEvent>` passed by the renderer (analogous to the terminal's
 /// `on_output`). Bursts are coalesced with a `WATCH_FLUSH_MS` debounce;
 /// events on ignored dirs are discarded.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_watch_start(
     manager: tauri::State<'_, Arc<WatchManager>>,
     cwd: String,
@@ -1767,8 +1889,11 @@ pub fn fs_watch_start(
                     p.clear();
                     v
                 };
-                // Invalidate the gitignore cache so the next list reflects the state.
-                ignore_cache_delete(&cwd_flush);
+                // Drop the cache only when the rules change: with an agent at work
+                // every flush would run git again. The TTL covers the rest.
+                if paths.iter().any(|p| p.ends_with(".gitignore")) {
+                    ignore_cache_delete(&cwd_flush);
+                }
                 let _ = channel_flush.send(WatchEvent {
                     cwd: cwd_flush.clone(),
                     paths,
@@ -1797,7 +1922,7 @@ pub fn fs_watch_start(
 /// fs:watch-stop — stops the watcher (idempotent).
 ///
 /// The `cwd` is needed to identify which watcher to stop.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn fs_watch_stop(
     manager: tauri::State<'_, Arc<WatchManager>>,
     cwd: Option<String>,

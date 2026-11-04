@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { OrgPolicyService } from '@core/services/org-policy.service';
+import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { SessionSummary, AgentProfile } from '../../../../../store/sessions/session.state';
 
 /**
@@ -9,6 +10,7 @@ import { SessionSummary, AgentProfile } from '../../../../../store/sessions/sess
 @Injectable({ providedIn: 'root' })
 export class SessionService {
   private orgPolicy = inject(OrgPolicyService);
+  private builtins = inject(BuiltinPluginsService);
   private get api(): any {
     const api = (window as any).promptops;
     if (!api) throw new Error('Not running inside the desktop app');
@@ -53,7 +55,7 @@ export class SessionService {
     if (!this.orgPolicy.isProviderAllowed(request.provider)) {
       return Promise.resolve({ ok: false, error: this.orgPolicy.deniedMessage(request.provider) });
     }
-    if (!this.orgPolicy.autoApproveAllowed() && request.config?.['autoApprove']) {
+    if (request.config?.['autoApprove'] && !this.builtins.isOn('auto-approve')) {
       request = { ...request, config: { ...request.config, autoApprove: false } };
     }
     return this.api.createSession(request);

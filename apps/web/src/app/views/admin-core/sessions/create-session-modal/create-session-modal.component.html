@@ -250,6 +250,15 @@
                 <small class="text-success" style="font-family: monospace; font-size: 12px;">{{ workspace.path }}</small>
               </div>
             }
+            @if (projectContainer(); as pc) {
+              <div class="project-container-hint mt-2">
+                <iconify-icon icon="solar:folder-with-files-linear" width="18"></iconify-icon>
+                <span class="flex-grow-1">{{ 'SESSIONS.IMPORT_FOLDER.Hint' | translate: { count: pc.projects.length } }}</span>
+                <button type="button" class="btn btn-sm btn-outline-primary" (click)="importAsProjectFolder()">
+                  {{ 'SESSIONS.IMPORT_FOLDER.Hint action' | translate }}
+                </button>
+              </div>
+            }
           </div>
         } @else if (pathMode() === 'remote') {
           <!-- Remote Folder, guided setup: 1) verified connection (OS/arch) → 2) folder (dropdown / typed / terminal) -->

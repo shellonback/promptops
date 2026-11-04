@@ -1,3 +1,7 @@
+import { AgentWorktreePickerComponent } from './agent-worktree-picker.component';
+import { WorktreeCreateFormComponent } from './worktree-create-form.component';
+import { AgentWorktreeService } from '../services/agent-worktree.service';
+import { GitWorktree } from '../services/git.service';
 import { OrgPolicyService } from '@core/services/org-policy.service';
 import { SwalService } from '@core/services/swal.service';
 import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, HostListener, inject, input, output, signal, computed, effect, OnInit, OnDestroy, ViewChild, viewChild, untracked, ChangeDetectionStrategy } from '@angular/core';
@@ -74,6 +78,8 @@ type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity
   imports: [
     TranslateModule,
     PluginSessionButtonsComponent,
+    AgentWorktreePickerComponent,
+    WorktreeCreateFormComponent,
     CdkDropList,
     CdkDrag,
     CdkDragHandle,
@@ -1974,6 +1980,7 @@ type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity
     }
     .toolbar-row-top { flex-wrap: nowrap; }
     .provider-menu.effort-menu { min-width: 140px; right: 0; left: auto; }
+    .provider-menu.worktree-menu { min-width: 220px; max-width: 280px; right: 0; left: auto; }
     .model-menu {
       width: 100%;
       min-width: 150px;
@@ -2331,15 +2338,27 @@ type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity
     }
 
 
+    .worktree-picked .provider-trigger iconify-icon:first-child { color: var(--po-accent, #6366F1); }
+    .worktree-pick-label { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.68rem; }
+    .btn-agent-bench.wt-on { color: var(--po-accent, #6366F1); }
+
+    .worktree-load-error {
+      padding: 0.2rem 0.45rem;
+      font-size: 0.66rem;
+      color: var(--po-error, #f85149);
+      overflow-wrap: anywhere;
+    }
+
     .agent-card {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       justify-content: space-between;
-      padding: 0.2rem 0.4rem;
+      padding: 0.35rem 0.45rem;
       background: var(--po-bg-0);
       border: 1px solid var(--po-border-subtle);
       border-radius: 5px;
-      margin-bottom: 0.15rem;
+      margin-bottom: 0.25rem;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s;
     }
@@ -3091,6 +3110,8 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
   });
   /** Main/lead tile on the bench (from the parent), null when it's in view. */
   benchedLead = input<SubAgent | null>(null);
+  /** The main session when it is the only agent: the roster stays empty. */
+  loneLead = input<SubAgent | null>(null);
   /** Full bench: lead (if any) + sub-agents. */
   benchedAgents = computed<SubAgent[]>(() => {
     const lead = this.benchedLead();
@@ -3557,6 +3578,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
   private intentService = inject(IntentService);
   private assetsService = inject(SessionAssetsService);
   protected git = inject(GitService);
+  protected agentWorktrees = inject(AgentWorktreeService);
   protected gitSettings = inject(GitSettingsService);
 
   private quickActionsPanel = viewChild<ElementRef<HTMLElement>>('quickActionsPanel');
@@ -3779,6 +3801,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     if (this.showEnhanceDepthPicker()) {
       this.showEnhanceDepthPicker.set(false);
     }
+    this.worktreeMenuOpen.set(false);
     if (this.providerMenuOpen()) {
       this.providerMenuOpen.set(false);
     }
@@ -3868,12 +3891,71 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.modeMenuOpen.set(false);
     this.modelMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
     this.providerMenuOpen.update(v => !v);
+  }
+
+  /** Chosen starting worktree, remembered per workspace; null = session folder. */
+  private readonly spawnPick = signal<string | null>(null);
+  readonly spawnWorktree = computed(() =>
+    this.spawnWorktrees().find(w => w.path === this.spawnPick()) ?? null);
+  readonly worktreeMenuOpen = signal(false);
+  readonly spawnWorktrees = computed(() => {
+    const path = this.spawnSessionPath();
+    return path && !this.sessionService.isRemotePath(path) ? this.agentWorktrees.listOf(path) ?? [] : [];
+  });
+  readonly spawnWorktreePath = computed(() =>
+    this.spawnWorktree()?.path ?? this.spawnWorktrees().find(w => w.current)?.path ?? null);
+  readonly spawnWorktreeLabel = computed(() => {
+    const wt = this.spawnWorktree();
+    return wt ? this.agentWorktrees.title(wt) : '';
+  });
+  /** A string: it does not change on every session status update. */
+  readonly spawnSessionPath = computed(() => this.activeSession()?.workspace?.path);
+  readonly spawnWorktreeCreating = signal(false);
+  private readonly spawnWorktreeLoader = effect(() => {
+    const path = this.spawnSessionPath();
+    this.spawnPick.set(path ? localStorage.getItem(`po:spawn-worktree:${path}`) : null);
+    if (path && !this.sessionService.isRemotePath(path)) void this.agentWorktrees.load(path);
+  });
+
+  toggleWorktreeMenu(event: MouseEvent): void {
+    event.stopPropagation();
+    this.effortMenuOpen.set(false);
+    this.modeMenuOpen.set(false);
+    this.modelMenuOpen.set(false);
+    this.providerMenuOpen.set(false);
+    this.spawnWorktreeCreating.set(false);
+    this.worktreeMenuOpen.update(v => !v);
+    const path = this.activeSession()?.workspace?.path;
+    if (this.worktreeMenuOpen() && path) void this.agentWorktrees.load(path, true);
+  }
+
+  selectSpawnWorktree(wt: GitWorktree): void {
+    // Second click on the same one: back to the session folder.
+    const same = this.spawnWorktree()?.path === wt.path;
+    this.rememberSpawnPick(wt.current || same ? null : wt.path);
+    this.worktreeMenuOpen.set(false);
+  }
+
+  private rememberSpawnPick(path: string | null): void {
+    this.spawnPick.set(path);
+    const key = `po:spawn-worktree:${this.spawnSessionPath()}`;
+    if (path) localStorage.setItem(key, path);
+    else localStorage.removeItem(key);
+  }
+
+  /** The new agent starts in the worktree just created. */
+  onSpawnWorktreeCreated(wt: GitWorktree): void {
+    this.rememberSpawnPick(wt.path);
+    this.spawnWorktreeCreating.set(false);
+    this.worktreeMenuOpen.set(false);
   }
 
   selectProvider(value: string): void {
     void this.onSpawnProviderChange(value);
     this.providerMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
   }
 
   activeSessionId = toSignal(this.store.select(getActiveSessionId), { initialValue: null });
@@ -3927,6 +4009,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     this.modelMenuOpen.set(false);
     this.providerMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
     this.modeMenuOpen.set(false);
     this.effortMenuOpen.update(v => !v);
   }
@@ -3960,6 +4043,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     this.effortMenuOpen.set(false);
     event.stopPropagation();
     this.providerMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
     this.modeMenuOpen.set(false);
     this.modelMenuOpen.update(v => !v);
   }
@@ -4215,6 +4299,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     if (this.showCustomConfig()) return;
     this.providerMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
     this.modeMenuOpen.update(v => !v);
   }
 
@@ -4236,6 +4321,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     this.effortMenuOpen.set(false);
     this.providerMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
     this.modeMenuOpen.set(false);
     const modalRef = this.modalService.open(SoftSkillModalComponent, {
       centered: true,
@@ -4832,7 +4918,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
 
     this.spawningQuickId.set(agent.id);
     try {
-      await this.subAgentService.spawnCustom(
+      const spawned = await this.subAgentService.spawnCustom(
         sessionId,
         agent.id,
         agent.title,
@@ -4850,6 +4936,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
         undefined,
         this.spawnSoftSkill(),
       );
+      this.subAgentService.userSpawnedId.set(spawned?.id ?? null);
       // History logging happens via onSubAgentCreated push event in SubAgentService
     } catch (err) {
     } finally {
@@ -4885,6 +4972,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
   @HostListener('document:keydown.escape')
   onEscapeKey(): void {
     this.effortMenuOpen.set(false);
+    this.worktreeMenuOpen.set(false);
   }
 
   async toggleVoice(): Promise<void> {
@@ -4953,7 +5041,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
     try {
       // Spawn the sub-agent. Selected extensions (MCP/Skills) are materialized
       // for real into the agent at spawn — no prompt-injection preamble.
-      await this.subAgentService.spawnCustom(
+      const spawned = await this.subAgentService.spawnCustom(
         sessionId, 'custom', title, prompt, provider,
         this.selectedMode(), this.resolvedCustomConfig(),
         this.activeSession()?.workspace?.path,
@@ -4965,7 +5053,9 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
         this.spawnGoalSpec(),
         this.selectedEffort() ?? undefined,
         this.spawnSoftSkill(),
+        provider === 'generic-shell' ? undefined : this.spawnWorktree()?.path,
       );
+      this.subAgentService.userSpawnedId.set(spawned?.id ?? null);
 
       // Clear form — inside the try on purpose: on failure the prompt is
       // preserved so the user can retry.
@@ -5004,7 +5094,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
       const prompt = await this.slotService.getPrompt(slot.prompt_id);
       if (!prompt.body?.trim()) return;
       const command = readCommandAction(prompt.notes);
-      await this.subAgentService.spawnCustom(
+      const spawned = await this.subAgentService.spawnCustom(
         sessionId, 'custom', prompt.title || slot.label, prompt.body,
         command ? 'generic-shell' : undefined,
         command ? 'clean' : this.selectedMode(),
@@ -5019,6 +5109,7 @@ export class ActionCenterComponent implements OnInit, OnDestroy {
         undefined,
         command ? undefined : this.spawnSoftSkill(),
       );
+      this.subAgentService.userSpawnedId.set(spawned?.id ?? null);
     } catch {
       this.showProviderToast('MESSAGE.Generic error');
     } finally {

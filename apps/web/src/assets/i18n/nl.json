@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} open sessies zijn gestart met het account {{oldName}}, maar het actieve account is nu {{newName}}. Gesprekken kunnen niet op een ander account worden hervat: opnieuw openen met {{newName}} start nieuwe gesprekken.",
       "Reopen": "Opnieuw openen met {{newName}}",
       "Keep": "{{oldName}} behouden"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Worktree van deze agent wijzigen",
+      "Unavailable": "Hier kunnen alleen Claude-hoofdsessies van worktree wisselen: gebruik een subagent",
+      "Busy": "De agent is bezig: je kunt wisselen zodra hij stopt.",
+      "RestartConfirm": "Deze agent herstart in de worktree en het gesprek begint opnieuw.",
+      "Switch": "Wisselen",
+      "Shared": "{{count}} agents",
+      "SharedTip": "Meerdere agents schrijven in deze worktree",
+      "NamePlaceholder": "Branch, bijv. fix/checkout",
+      "CreateHint": "Maakt de worktree aan en verplaatst deze agent erheen. Het gesprek gaat door.",
+      "CreateRestartHint": "Maakt de worktree aan en verplaatst deze agent erheen. Hij herstart met een nieuw gesprek.",
+      "LoadError": "Worktrees niet beschikbaar: {{error}}",
+      "Filter": "Worktrees filteren",
+      "StartFrom": "Starten vanaf",
+      "SpawnTip": "Start-worktree van de nieuwe agent",
+      "Repo": "Repository"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Map met projecten importeren",
+      "Intro": "{{count}} projecten gevonden. De map wordt een zijbalkmap en elk project een workspace daarin.",
+      "Folder name": "Mapnaam",
+      "Workspaces": "Workspaces",
+      "Select all": "Alles selecteren",
+      "Select none": "Alles deselecteren",
+      "Already workspace": "Al een workspace",
+      "Start sessions": "Start ook een sessie in elke nieuwe workspace",
+      "Provider": "Provider",
+      "Confirm": "{{count}} workspaces importeren",
+      "Hint": "Deze map bevat {{count}} projecten. Importeren als map met één workspace per project?",
+      "Hint action": "Importeren als map",
+      "Partial failure": "{{count}} workspaces konden niet worden aangemaakt: {{names}}",
+      "Empty workspace tooltip": "Nog geen sessies — klik om er een te starten"
     }
   },
   "SUBAGENTS": {

@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} sesiones abiertas se iniciaron con la cuenta {{oldName}}, pero ahora la cuenta activa es {{newName}}. Las conversaciones no se pueden reanudar en otra cuenta: al reabrirlas con {{newName}} empezarán conversaciones nuevas.",
       "Reopen": "Reabrir con {{newName}}",
       "Keep": "Seguir con {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Cambiar el worktree de este agente",
+      "Unavailable": "Aquí solo las sesiones principales de Claude pueden cambiar de worktree: usa un subagente",
+      "Busy": "El agente está trabajando: podrás cambiar cuando se detenga.",
+      "RestartConfirm": "Este agente se reinicia en el worktree y su conversación empieza de cero.",
+      "Switch": "Cambiar",
+      "Shared": "{{count}} agentes",
+      "SharedTip": "Varios agentes están escribiendo en este worktree",
+      "NamePlaceholder": "Rama, p. ej. fix/checkout",
+      "CreateHint": "Crea el worktree y mueve allí a este agente. La conversación continúa.",
+      "CreateRestartHint": "Crea el worktree y mueve allí a este agente. Se reinicia con una conversación nueva.",
+      "LoadError": "Worktrees no disponibles: {{error}}",
+      "Filter": "Filtrar worktrees",
+      "StartFrom": "Partir de",
+      "SpawnTip": "Worktree inicial del nuevo agente",
+      "Repo": "Repositorio"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importar carpeta de proyectos",
+      "Intro": "Se encontraron {{count}} proyectos. La carpeta pasa a ser una carpeta de la barra lateral y cada proyecto un workspace dentro de ella.",
+      "Folder name": "Nombre de la carpeta",
+      "Workspaces": "Workspaces",
+      "Select all": "Seleccionar todos",
+      "Select none": "Deseleccionar todos",
+      "Already workspace": "Ya es un workspace",
+      "Start sessions": "Iniciar también una sesión en cada nuevo workspace",
+      "Provider": "Proveedor",
+      "Confirm": "Importar {{count}} workspaces",
+      "Hint": "Esta carpeta contiene {{count}} proyectos. ¿Importarla como carpeta con un workspace por proyecto?",
+      "Hint action": "Importar como carpeta",
+      "Partial failure": "No se pudieron crear {{count}} workspaces: {{names}}",
+      "Empty workspace tooltip": "Sin sesiones — haz clic para iniciar una"
     }
   },
   "SUBAGENTS": {

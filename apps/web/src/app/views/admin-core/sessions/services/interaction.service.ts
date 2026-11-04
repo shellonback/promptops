@@ -1,5 +1,5 @@
-import { Injectable, signal, computed, inject } from '@angular/core';
-import { OrgPolicyService } from '@core/services/org-policy.service';
+import { Injectable, signal, computed, inject, effect, untracked } from '@angular/core';
+import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { Interaction } from '../../../../../store/sessions/session.state';
 
 export interface AutoApproveFlags {
@@ -18,7 +18,7 @@ export interface TailerResponseReady {
 
 @Injectable({ providedIn: 'root' })
 export class InteractionService {
-  private orgPolicy = inject(OrgPolicyService);
+  private builtins = inject(BuiltinPluginsService);
   private _pendingInteractions = signal<Interaction[]>([]);
   private unsubCreated: (() => void) | null = null;
   private unsubResolved: (() => void) | null = null;
@@ -28,6 +28,15 @@ export class InteractionService {
 
   /** Per-session auto-approve flags. */
   readonly sessionFlags = signal<Map<string, AutoApproveFlags>>(new Map());
+
+  /** Plugin off = no Auto Approve, not even one already armed (sessions opened before the update,
+   *  flags from the native process): with its controls hidden it could no longer be stopped. */
+  private readonly stopWhenPluginOff = effect(() => {
+    if (this.builtins.isOn('auto-approve')) return;
+    for (const [id, f] of this.sessionFlags()) {
+      if (f.quick || f.ai || f.modal) untracked(() => void this.setAutoApprove(id, false));
+    }
+  });
 
   /** Latest tailer response ready for preview (null = no pending preview). */
   readonly tailerResponse = signal<TailerResponseReady | null>(null);
@@ -159,8 +168,8 @@ export class InteractionService {
 
   /** Set one or more auto-approve flags for a session. */
   async setFlags(sessionId: string, flags: Partial<AutoApproveFlags>): Promise<void> {
-    // Organization policy (Enterprise): auto-approve can only be turned off.
-    if (!this.orgPolicy.autoApproveAllowed()) {
+    // Plugin off: it can only be turned off.
+    if (!this.builtins.isOn('auto-approve')) {
       flags = { modal: false, quick: false, ai: false };
     }
     // Optimistic update

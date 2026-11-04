@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} sessioni aperte sono state avviate con l'account {{oldName}}, ma ora l'account attivo è {{newName}}. Le conversazioni non si possono riprendere su un altro account: riaprendole con {{newName}} partiranno conversazioni nuove.",
       "Reopen": "Riapri con {{newName}}",
       "Keep": "Continua con {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Cambia il worktree di questo agente",
+      "Unavailable": "Qui solo le sessioni main Claude possono cambiare worktree: usa un sub-agent",
+      "Busy": "L'agente sta lavorando: potrai cambiare quando si ferma.",
+      "RestartConfirm": "L'agente si riavvia nel worktree e la conversazione riparte da zero.",
+      "Switch": "Cambia",
+      "Shared": "{{count}} agenti",
+      "SharedTip": "Più agenti stanno scrivendo in questo worktree",
+      "NamePlaceholder": "Branch, es. fix/checkout",
+      "CreateHint": "Crea il worktree e ci sposta questo agente. La conversazione continua.",
+      "CreateRestartHint": "Crea il worktree e ci sposta questo agente. Si riavvia con una nuova conversazione.",
+      "LoadError": "Worktree non disponibili: {{error}}",
+      "Filter": "Filtra i worktree",
+      "StartFrom": "Parti da",
+      "SpawnTip": "Worktree di partenza del nuovo agente",
+      "Repo": "Repository"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importa cartella di progetti",
+      "Intro": "Trovati {{count}} progetti. La cartella diventa una folder nella sidebar e ogni progetto un workspace al suo interno.",
+      "Folder name": "Nome della folder",
+      "Workspaces": "Workspace",
+      "Select all": "Seleziona tutti",
+      "Select none": "Deseleziona tutti",
+      "Already workspace": "Già workspace",
+      "Start sessions": "Avvia anche una sessione in ogni nuovo workspace",
+      "Provider": "Provider",
+      "Confirm": "Importa {{count}} workspace",
+      "Hint": "Questa cartella contiene {{count}} progetti. Vuoi importarla come folder con un workspace per progetto?",
+      "Hint action": "Importa come folder",
+      "Partial failure": "Non è stato possibile creare {{count}} workspace: {{names}}",
+      "Empty workspace tooltip": "Nessuna sessione — clicca per avviarne una"
     }
   },
   "SUBAGENTS": {

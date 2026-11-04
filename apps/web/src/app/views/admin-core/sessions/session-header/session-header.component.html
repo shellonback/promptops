@@ -328,7 +328,7 @@
         <!-- Multisession plugin off: the sub-agent bar takes the place of the tabs, if the view passes it -->
         <ng-content select="[poHeaderBar]"></ng-content>
       }
-      <!-- Spacer pushes toggle to the right -->
+      <!-- Spacer pushes actions to the right -->
       <div class="tabs-spacer"></div>
       <!-- Terminals button -->
       <button class="terminals-toggle-btn" (click)="onOpenTerminals.emit()" [appTooltip]="'SESSIONS.Open Terminal' | translate">
@@ -367,23 +367,6 @@
           }
         </button>
       }
-      <!-- ═══ LAYOUT MODE TOGGLE ═══ -->
-      <div class="layout-mode-toggle" role="group" [attr.aria-label]="'SESSIONS.Layout mode' | translate">
-        <span class="lmt-label" role="button" tabindex="0" [attr.aria-pressed]="layoutMode() === 'standard'" [class.active]="layoutMode() === 'standard'"
-          (click)="layoutMode() !== 'standard' && onToggleLayoutMode.emit()"
-          (keydown.enter)="layoutMode() !== 'standard' && onToggleLayoutMode.emit()"
-          (keydown.space)="$event.preventDefault(); layoutMode() !== 'standard' && onToggleLayoutMode.emit()">
-          <iconify-icon icon="tabler:prompt" width="14"></iconify-icon>
-          {{ 'SESSIONS.Standard' | translate }}
-        </span>
-        <span class="lmt-label" role="button" tabindex="0" [attr.aria-pressed]="layoutMode() === 'code'" [class.active]="layoutMode() === 'code'"
-          (click)="layoutMode() !== 'code' && onToggleLayoutMode.emit()"
-          (keydown.enter)="layoutMode() !== 'code' && onToggleLayoutMode.emit()"
-          (keydown.space)="$event.preventDefault(); layoutMode() !== 'code' && onToggleLayoutMode.emit()">
-          <iconify-icon icon="tabler:code" width="14"></iconify-icon>
-          {{ 'SESSIONS.Code Editor' | translate }}
-        </span>
-      </div>
     </div>
     <!-- Context menu (positioned absolutely) -->
     @if (contextMenuTab()) {

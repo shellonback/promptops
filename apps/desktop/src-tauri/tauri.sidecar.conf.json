@@ -1,5 +1,12 @@
 {
   "bundle": {
-    "externalBin": ["binaries/promptops-termd"]
+    "externalBin": [
+      "binaries/promptops-termd"
+    ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/termd-hook.nsh"
+      }
+    }
   }
 }

@@ -1654,6 +1654,39 @@
       "MessageMany": "{{count}} öppna sessioner startades med kontot {{oldName}}, men det aktiva kontot är nu {{newName}}. Konversationer kan inte återupptas på ett annat konto: om du öppnar dem igen med {{newName}} startar nya konversationer.",
       "Reopen": "Öppna igen med {{newName}}",
       "Keep": "Behåll {{oldName}}"
+    },
+    "AGENT_WORKTREE": {
+      "Select": "Byt worktree för den här agenten",
+      "Unavailable": "Här kan bara Claude-huvudsessioner byta worktree: använd en underagent",
+      "Busy": "Agenten arbetar: du kan byta när den stannar.",
+      "RestartConfirm": "Agenten startas om i worktree och konversationen börjar om.",
+      "Switch": "Byt",
+      "Shared": "{{count}} agenter",
+      "SharedTip": "Flera agenter skriver i det här worktree",
+      "NamePlaceholder": "Gren, t.ex. fix/checkout",
+      "CreateHint": "Skapar worktree och flyttar agenten dit. Konversationen fortsätter.",
+      "CreateRestartHint": "Skapar worktree och flyttar agenten dit. Den startas om med en ny konversation.",
+      "LoadError": "Worktrees är inte tillgängliga: {{error}}",
+      "Filter": "Filtrera worktrees",
+      "StartFrom": "Börja från",
+      "SpawnTip": "Start-worktree för den nya agenten",
+      "Repo": "Arkiv"
+    },
+    "IMPORT_FOLDER": {
+      "Title": "Importera mapp med projekt",
+      "Intro": "{{count}} projekt hittades. Mappen blir en sidofältsmapp och varje projekt en workspace i den.",
+      "Folder name": "Mappnamn",
+      "Workspaces": "Workspaces",
+      "Select all": "Markera alla",
+      "Select none": "Avmarkera alla",
+      "Already workspace": "Redan en workspace",
+      "Start sessions": "Starta även en session i varje ny workspace",
+      "Provider": "Leverantör",
+      "Confirm": "Importera {{count}} workspaces",
+      "Hint": "Den här mappen innehåller {{count}} projekt. Importera den som en mapp med en workspace per projekt?",
+      "Hint action": "Importera som mapp",
+      "Partial failure": "{{count}} workspaces kunde inte skapas: {{names}}",
+      "Empty workspace tooltip": "Inga sessioner än — klicka för att starta en"
     }
   },
   "SUBAGENTS": {

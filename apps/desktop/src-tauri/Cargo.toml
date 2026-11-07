@@ -62,7 +62,7 @@ sqlx = { version = "0.9", default-features = false, features = [
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 bigdecimal = "0.4"
 # system_info domain (hardware scan / memory diagnostics)
-sysinfo = "0.39"
+sysinfo = "0.40"
 # HTTP client for the services you choose (AI providers with your keys,
 # Whisper model download, plugin catalog); there is no PromptOps backend.
 reqwest = { version = "0.13", features = ["json", "blocking"] }
@@ -70,7 +70,7 @@ reqwest = { version = "0.13", features = ["json", "blocking"] }
 sha2 = "0.11"
 # Plugin runtime: encrypted secrets on disk (AES-256-GCM), key in the system keychain.
 # aes-gcm and getrandom are already in the lock as transitive dependencies.
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 getrandom = "0.4"
 # Encrypted backups (local_backup.rs): Argon2id derives the key from the
 # passphrase. Already in the lock as a transitive dependency; MIT OR Apache-2.0.

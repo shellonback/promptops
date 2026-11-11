@@ -621,8 +621,12 @@
     agentsMetaGet: function (sessionId) {
       return call('agents_meta_get', { sessionId: sessionId });
     },
-    agentsSetLead: function (sessionId, leadId) {
-      return call('agents_set_lead', { sessionId: sessionId, leadId: leadId == null ? null : leadId });
+    agentsSetLead: function (sessionId, leadId, leadKey) {
+      return call('agents_set_lead', {
+        sessionId: sessionId,
+        leadId: leadId == null ? null : leadId,
+        leadKey: leadId == null || leadKey == null ? null : leadKey,
+      });
     },
     agentsSetOrder: function (sessionId, order) {
       return call('agents_set_order', { sessionId: sessionId, order: order || [] });
@@ -1113,6 +1117,10 @@
       return call('subagent_list_archived')
         .then(function (list) { return { ok: true, archived: list || [] }; })
         .catch(function (e) { return { ok: false, error: String(e) }; });
+    },
+    // Sessions and agents open in the previous run (open-state.json), or null.
+    getLastClosure: function () {
+      return call('open_state_last_closure').catch(function () { return null; });
     },
     clearArchivedSubAgent: function (parentSessionId, index) {
       return call('subagent_clear_archived', { parentSessionId: parentSessionId, index: index });

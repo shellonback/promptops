@@ -154,19 +154,10 @@ export const sessionsReducer = createReducer(
     const sessions = state.sessions.map((s) =>
       s.id === sessionId ? { ...s, standbyAt } : s,
     );
-    // Parking the active session: a parked session has no live terminal, so
-    // move focus to a non-parked sibling (same workspace first), else the first
-    // non-parked session, else the welcome state (null).
-    let activeSessionId = state.activeSessionId;
-    if (standbyAt && state.activeSessionId === sessionId) {
-      const parked = state.sessions.find((s) => s.id === sessionId);
-      const candidates = sessions.filter((s) => s.id !== sessionId && !s.standbyAt);
-      const sibling = parked?.workspaceId
-        ? candidates.find((s) => s.workspaceId === parked.workspaceId)
-        : null;
-      activeSessionId = sibling?.id ?? candidates[0]?.id ?? null;
-    }
-    return { ...state, sessions, activeSessionId };
+    // Parking the active session keeps it active: the view shows the standby
+    // cover (wake CTA) instead of jumping to an unrelated session the user
+    // wasn't working on (e.g. auto-standby while idle on it).
+    return { ...state, sessions };
   }),
 
   on(interactionCreated, (state, { interaction }): SessionsState => {

@@ -1687,6 +1687,32 @@
       "Hint action": "フォルダーとしてインポート",
       "Partial failure": "{{count}} 件のワークスペースを作成できませんでした: {{names}}",
       "Empty workspace tooltip": "セッションはまだありません — クリックして開始"
+    },
+    "HOST": {
+      "Step title": "実行場所を選択",
+      "Step short": "マシン",
+      "Title": "実行場所",
+      "Hint": "このコンピューターまたはリモートマシンでセッションを実行します。",
+      "Group local": "ローカル",
+      "Group remote": "リモートマシン",
+      "Local name": "このコンピューター",
+      "Local detail": "このデバイス上のフォルダー",
+      "Kind ssh": "SSH",
+      "Kind command": "コマンド",
+      "Add": "リモートマシンを追加",
+      "Add hint": "SSH 接続または接続コマンド（ssh、AWS SSM など）",
+      "Forget": "リストから削除",
+      "Change": "マシンを変更"
+    },
+    "MACHINES": {
+      "Unknown remote": "リモートマシン",
+      "New folder here": "このマシンに新しいフォルダー",
+      "Empty hint": "このマシンにはまだ何もありません"
+    },
+    "SEARCH": {
+      "Placeholder": "プロジェクトを検索",
+      "Clear": "検索をクリア",
+      "No results": "プロジェクトが見つかりません"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "エージェントを新しいセッションに移動できませんでした。",
     "Move failed resume": "会話を続けるには「サブエージェントを再開」から再開してください（会話 ID：{{id}}）。",
-    "Move locked": "このエージェントはロックされているため移動されませんでした。ロックを解除してもう一度お試しください。"
+    "Move locked": "このエージェントはロックされているため移動されませんでした。ロックを解除してもう一度お試しください。",
+    "Last closure": "前回の終了時",
+    "Last closure hint": "前回アプリを終了したときに開いていたセッションとエージェントです。自動では再開されません。",
+    "Closed unexpectedly": "予期しない終了",
+    "Reopen": "再度開く",
+    "Reopen all": "すべて再度開く",
+    "Already open": "すでに開いています",
+    "Session no longer exists": "セッションはもう存在しません"
   },
   "INJECT": {
     "Title": "プラグインとスキル",
@@ -3506,7 +3539,10 @@
     "Copy": "コピー",
     "Copied": "コピーしました",
     "Copy link": "リンクをコピー",
-    "Run command": "実行: {{command}}"
+    "Run command": "実行: {{command}}",
+    "Open link": "リンクを開く",
+    "Copy command": "コマンドをコピー",
+    "Open file": "{{path}} を開く"
   },
   "BOTTOM_BAR": {
     "Used": "使用",

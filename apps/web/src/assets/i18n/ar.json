@@ -1687,6 +1687,32 @@
       "Hint action": "استيراد كمجلد",
       "Partial failure": "تعذّر إنشاء {{count}} مساحات عمل: {{names}}",
       "Empty workspace tooltip": "لا توجد جلسات بعد — انقر لبدء جلسة"
+    },
+    "HOST": {
+      "Step title": "اختر مكان التشغيل",
+      "Step short": "الجهاز",
+      "Title": "مكان التشغيل",
+      "Hint": "شغّل الجلسة على هذا الحاسوب أو على جهاز بعيد.",
+      "Group local": "محلي",
+      "Group remote": "الأجهزة البعيدة",
+      "Local name": "هذا الحاسوب",
+      "Local detail": "مجلدات على هذا الجهاز",
+      "Kind ssh": "SSH",
+      "Kind command": "أمر",
+      "Add": "إضافة جهاز بعيد",
+      "Add hint": "اتصال SSH أو أمر اتصال (ssh، AWS SSM، …)",
+      "Forget": "إزالة من القائمة",
+      "Change": "تغيير الجهاز"
+    },
+    "MACHINES": {
+      "Unknown remote": "جهاز بعيد",
+      "New folder here": "مجلد جديد على هذا الجهاز",
+      "Empty hint": "لا يوجد شيء على هذا الجهاز بعد"
+    },
+    "SEARCH": {
+      "Placeholder": "البحث في المشاريع",
+      "Clear": "مسح البحث",
+      "No results": "لم يتم العثور على مشاريع"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "تعذّر نقل الوكيل إلى جلسة جديدة.",
     "Move failed resume": "لمتابعة محادثته، استأنفها من «استئناف الوكيل الفرعي» (معرّف المحادثة: {{id}}).",
-    "Move locked": "هذا الوكيل مقفل، لذلك لم يُنقل. ألغِ قفله واطلب مرة أخرى."
+    "Move locked": "هذا الوكيل مقفل، لذلك لم يُنقل. ألغِ قفله واطلب مرة أخرى.",
+    "Last closure": "آخر إغلاق",
+    "Last closure hint": "الجلسات والوكلاء الذين كانوا مفتوحين عند آخر إغلاق للتطبيق. لا شيء يُعاد تشغيله تلقائيًا.",
+    "Closed unexpectedly": "إغلاق غير متوقع",
+    "Reopen": "إعادة الفتح",
+    "Reopen all": "إعادة فتح الكل",
+    "Already open": "مفتوح بالفعل",
+    "Session no longer exists": "الجلسة لم تعد موجودة"
   },
   "INJECT": {
     "Title": "الإضافات والمهارات",
@@ -3506,7 +3539,10 @@
     "Copy": "نسخ",
     "Copied": "تم النسخ",
     "Copy link": "نسخ الرابط",
-    "Run command": "تشغيل: {{command}}"
+    "Run command": "تشغيل: {{command}}",
+    "Open link": "فتح الرابط",
+    "Copy command": "نسخ الأمر",
+    "Open file": "فتح {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "المستخدم",

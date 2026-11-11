@@ -1687,6 +1687,32 @@
       "Hint action": "Importeren als map",
       "Partial failure": "{{count}} workspaces konden niet worden aangemaakt: {{names}}",
       "Empty workspace tooltip": "Nog geen sessies — klik om er een te starten"
+    },
+    "HOST": {
+      "Step title": "Kies waar het draait",
+      "Step short": "Machine",
+      "Title": "Waar het draait",
+      "Hint": "Start de sessie op deze computer of op een externe machine.",
+      "Group local": "Lokaal",
+      "Group remote": "Externe machines",
+      "Local name": "Deze computer",
+      "Local detail": "Mappen op dit apparaat",
+      "Kind ssh": "SSH",
+      "Kind command": "Opdracht",
+      "Add": "Externe machine toevoegen",
+      "Add hint": "SSH-verbinding of verbindingsopdracht (ssh, AWS SSM, …)",
+      "Forget": "Uit de lijst verwijderen",
+      "Change": "Andere machine kiezen"
+    },
+    "MACHINES": {
+      "Unknown remote": "Externe machine",
+      "New folder here": "Nieuwe map op deze machine",
+      "Empty hint": "Nog niets op deze machine"
+    },
+    "SEARCH": {
+      "Placeholder": "Projecten zoeken",
+      "Clear": "Zoekopdracht wissen",
+      "No results": "Geen projecten gevonden"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Kan de agent niet naar een nieuwe sessie verplaatsen.",
     "Move failed resume": "Hervat het gesprek via Subagent hervatten om verder te gaan (gesprek-id: {{id}}).",
-    "Move locked": "Deze agent is vergrendeld en is dus niet verplaatst. Ontgrendel hem en vraag het opnieuw."
+    "Move locked": "Deze agent is vergrendeld en is dus niet verplaatst. Ontgrendel hem en vraag het opnieuw.",
+    "Last closure": "Laatste afsluiting",
+    "Last closure hint": "Sessies en agents die open waren toen de app voor het laatst werd gesloten. Niets start vanzelf opnieuw.",
+    "Closed unexpectedly": "onverwacht afgesloten",
+    "Reopen": "Opnieuw openen",
+    "Reopen all": "Alles opnieuw openen",
+    "Already open": "Al geopend",
+    "Session no longer exists": "Sessie bestaat niet meer"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Kopiëren",
     "Copied": "Gekopieerd",
     "Copy link": "Link kopiëren",
-    "Run command": "Uitvoeren: {{command}}"
+    "Run command": "Uitvoeren: {{command}}",
+    "Open link": "Link openen",
+    "Copy command": "Opdracht kopiëren",
+    "Open file": "{{path}} openen"
   },
   "BOTTOM_BAR": {
     "Used": "GEBRUIKT",

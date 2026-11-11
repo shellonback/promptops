@@ -1687,6 +1687,32 @@
       "Hint action": "Importera som mapp",
       "Partial failure": "{{count}} workspaces kunde inte skapas: {{names}}",
       "Empty workspace tooltip": "Inga sessioner än — klicka för att starta en"
+    },
+    "HOST": {
+      "Step title": "Välj var den körs",
+      "Step short": "Maskin",
+      "Title": "Var den körs",
+      "Hint": "Kör sessionen på den här datorn eller på en fjärrmaskin.",
+      "Group local": "Lokalt",
+      "Group remote": "Fjärrmaskiner",
+      "Local name": "Den här datorn",
+      "Local detail": "Mappar på den här enheten",
+      "Kind ssh": "SSH",
+      "Kind command": "Kommando",
+      "Add": "Lägg till en fjärrmaskin",
+      "Add hint": "SSH-anslutning eller anslutningskommando (ssh, AWS SSM, …)",
+      "Forget": "Ta bort från listan",
+      "Change": "Byt maskin"
+    },
+    "MACHINES": {
+      "Unknown remote": "Fjärrmaskin",
+      "New folder here": "Ny mapp på den här maskinen",
+      "Empty hint": "Inget på den här maskinen ännu"
+    },
+    "SEARCH": {
+      "Placeholder": "Sök projekt",
+      "Clear": "Rensa sökning",
+      "No results": "Inga projekt hittades"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Det gick inte att flytta agenten till en ny session.",
     "Move failed resume": "Fortsätt konversationen genom att återuppta den från Återuppta underagent (konversations-id: {{id}}).",
-    "Move locked": "Agenten är låst och flyttades därför inte. Lås upp den och fråga igen."
+    "Move locked": "Agenten är låst och flyttades därför inte. Lås upp den och fråga igen.",
+    "Last closure": "Senaste stängning",
+    "Last closure hint": "Sessioner och agenter som var öppna när appen senast stängdes. Inget startar om av sig självt.",
+    "Closed unexpectedly": "stängdes oväntat",
+    "Reopen": "Öppna igen",
+    "Reopen all": "Öppna alla igen",
+    "Already open": "Redan öppen",
+    "Session no longer exists": "Sessionen finns inte längre"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Kopiera",
     "Copied": "Kopierad",
     "Copy link": "Kopiera länk",
-    "Run command": "Kör: {{command}}"
+    "Run command": "Kör: {{command}}",
+    "Open link": "Öppna länk",
+    "Copy command": "Kopiera kommando",
+    "Open file": "Öppna {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "ANVÄNT",

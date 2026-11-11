@@ -1687,6 +1687,32 @@
       "Hint action": "Als Ordner importieren",
       "Partial failure": "{{count}} Workspaces konnten nicht erstellt werden: {{names}}",
       "Empty workspace tooltip": "Noch keine Sitzung — klicken, um eine zu starten"
+    },
+    "HOST": {
+      "Step title": "Wähle, wo sie läuft",
+      "Step short": "Rechner",
+      "Title": "Wo sie läuft",
+      "Hint": "Starte die Sitzung auf diesem Computer oder auf einem entfernten Rechner.",
+      "Group local": "Lokal",
+      "Group remote": "Entfernte Rechner",
+      "Local name": "Dieser Computer",
+      "Local detail": "Ordner auf diesem Gerät",
+      "Kind ssh": "SSH",
+      "Kind command": "Befehl",
+      "Add": "Entfernten Rechner hinzufügen",
+      "Add hint": "SSH-Verbindung oder Verbindungsbefehl (ssh, AWS SSM, …)",
+      "Forget": "Aus der Liste entfernen",
+      "Change": "Rechner wechseln"
+    },
+    "MACHINES": {
+      "Unknown remote": "Entfernter Rechner",
+      "New folder here": "Neuer Ordner auf diesem Rechner",
+      "Empty hint": "Noch nichts auf diesem Rechner"
+    },
+    "SEARCH": {
+      "Placeholder": "Projekte suchen",
+      "Clear": "Suche löschen",
+      "No results": "Keine Projekte gefunden"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Der Agent konnte nicht in eine neue Sitzung verschoben werden.",
     "Move failed resume": "Um die Unterhaltung fortzusetzen, setze sie über „Sub-Agent fortsetzen“ fort (Unterhaltungs-ID: {{id}}).",
-    "Move locked": "Dieser Agent ist gesperrt und wurde daher nicht verschoben. Entsperre ihn und frage erneut."
+    "Move locked": "Dieser Agent ist gesperrt und wurde daher nicht verschoben. Entsperre ihn und frage erneut.",
+    "Last closure": "Letztes Schließen",
+    "Last closure hint": "Sitzungen und Agenten, die beim letzten Schließen der App geöffnet waren. Nichts startet von selbst neu.",
+    "Closed unexpectedly": "unerwartet geschlossen",
+    "Reopen": "Wieder öffnen",
+    "Reopen all": "Alle wieder öffnen",
+    "Already open": "Bereits geöffnet",
+    "Session no longer exists": "Sitzung existiert nicht mehr"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Kopieren",
     "Copied": "Kopiert",
     "Copy link": "Link kopieren",
-    "Run command": "Ausführen: {{command}}"
+    "Run command": "Ausführen: {{command}}",
+    "Open link": "Link öffnen",
+    "Copy command": "Befehl kopieren",
+    "Open file": "{{path}} öffnen"
   },
   "BOTTOM_BAR": {
     "Used": "VERBRAUCHT",

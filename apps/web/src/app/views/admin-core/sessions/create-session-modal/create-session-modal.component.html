@@ -6,11 +6,7 @@
       } @else if (skipSessionCreation) {
         {{ 'SESSIONS.New workspace' | translate }}
       } @else {
-        @if (currentStep() === 1) {
-          {{ 'SESSIONS.Step provider title' | translate }}
-        } @else {
-          {{ 'SESSIONS.Step config title' | translate }}
-        }
+        {{ stepTitleKey(stepId) | translate }}
       }
     </h5>
     <button type="button" class="btn-close" (click)="modal.dismiss()" [attr.aria-label]="'BUTTONS.Close' | translate"></button>
@@ -18,32 +14,125 @@
 
   @if (useWizard) {
     <div class="wizard-stepper">
-      <button type="button"
-        class="wizard-step"
-        [class.is-active]="currentStep() === 1"
-        [class.is-done]="currentStep() > 1"
-        [attr.aria-current]="currentStep() === 1 ? 'step' : null"
-        (click)="goToStep(1)">
-        <span class="step-num">1</span>
-        <span class="step-label">{{ 'SESSIONS.Step provider short' | translate }}</span>
-      </button>
-      <span class="wizard-step-divider" aria-hidden="true"></span>
-      <button type="button"
-        class="wizard-step"
-        [class.is-active]="currentStep() === 2"
-        [attr.aria-current]="currentStep() === 2 ? 'step' : null"
-        [disabled]="!canGoNextFromStep1"
-        (click)="goToStep(2)">
-        <span class="step-num">2</span>
-        <span class="step-label">{{ 'SESSIONS.Step config short' | translate }}</span>
-      </button>
+      @for (step of wizardSteps; track step; let i = $index) {
+        @if (i > 0) {
+          <span class="wizard-step-divider" aria-hidden="true"></span>
+        }
+        <button type="button"
+          class="wizard-step"
+          [class.is-active]="currentStep() === i + 1"
+          [class.is-done]="currentStep() > i + 1"
+          [attr.aria-current]="currentStep() === i + 1 ? 'step' : null"
+          [disabled]="!canReachStep(i + 1)"
+          (click)="goToStep(i + 1)">
+          <span class="step-num">{{ i + 1 }}</span>
+          <span class="step-label">{{ stepShortKey(step) | translate }}</span>
+        </button>
+      }
     </div>
   }
 </div>
 
 <div class="modal-body create-session-body">
-  <!-- ─── STEP 1 (create only): Provider picker ─── -->
-  @if (useWizard && currentStep() === 1) {
+  <!-- ─── STEP "host" (create only, Tauri): where the session runs ─── -->
+  @if (useWizard && stepId === 'host') {
+      <!-- Host: where the session runs (this computer / configured remote machines) -->
+      <section class="form-section host-section">
+        <div class="section-head">
+          <iconify-icon icon="solar:monitor-bold-duotone" width="18" class="section-head-icon"></iconify-icon>
+          <div class="section-head-text">
+            <h6 class="section-title">{{ 'SESSIONS.HOST.Title' | translate }}</h6>
+            <p class="section-hint">{{ 'SESSIONS.HOST.Hint' | translate }}</p>
+          </div>
+        </div>
+
+        <div class="host-list" role="radiogroup" [attr.aria-label]="'SESSIONS.HOST.Title' | translate">
+          <div class="host-group-label">{{ 'SESSIONS.HOST.Group local' | translate }}</div>
+          <div class="host-row-wrap">
+            <button type="button" role="radio" class="host-row"
+              [class.is-active]="hostKey() === localHostKey"
+              [attr.aria-checked]="hostKey() === localHostKey"
+              [disabled]="remoteProbing()"
+              (click)="selectLocalHost()">
+              <iconify-icon icon="solar:monitor-bold-duotone" width="18" class="host-row-icon"></iconify-icon>
+              <span class="host-row-text">
+                <span class="host-row-name">{{ 'SESSIONS.HOST.Local name' | translate }}</span>
+                <span class="host-row-detail">{{ 'SESSIONS.HOST.Local detail' | translate }}</span>
+              </span>
+              @if (hostKey() === localHostKey) {
+                <iconify-icon icon="solar:check-circle-bold" width="18" class="host-row-check"></iconify-icon>
+              }
+            </button>
+          </div>
+
+          <div class="host-group-label">{{ 'SESSIONS.HOST.Group remote' | translate }}</div>
+          @for (h of remoteHosts(); track h.key) {
+            <div class="host-row-wrap">
+              <button type="button" role="radio" class="host-row"
+                [class.is-active]="hostKey() === h.key"
+                [attr.aria-checked]="hostKey() === h.key"
+                [disabled]="remoteProbing()"
+                (click)="selectRemoteHost(h)">
+                <iconify-icon icon="solar:server-bold-duotone" width="18" class="host-row-icon"></iconify-icon>
+                <span class="host-row-text">
+                  <span class="host-row-name">
+                    <span class="host-row-name-text">{{ h.name }}</span>
+                    <span class="host-kind">{{ (h.kind === 'ssh' ? 'SESSIONS.HOST.Kind ssh' : 'SESSIONS.HOST.Kind command') | translate }}</span>
+                  </span>
+                  <span class="host-row-detail is-mono">{{ h.detail }}</span>
+                </span>
+                @if (hostKey() === h.key) {
+                  @if (remoteProbing()) {
+                    <span class="spinner-border spinner-border-sm host-row-check"></span>
+                  } @else {
+                    <iconify-icon icon="solar:check-circle-bold" width="18" class="host-row-check"></iconify-icon>
+                  }
+                }
+              </button>
+              @if (h.kind === 'command') {
+                <button type="button" class="host-forget"
+                  [disabled]="remoteProbing()"
+                  [appTooltip]="'SESSIONS.HOST.Forget' | translate"
+                  [attr.aria-label]="'SESSIONS.HOST.Forget' | translate"
+                  (click)="forgetRemoteHost(h, $event)">
+                  <iconify-icon icon="solar:close-circle-linear" width="16"></iconify-icon>
+                </button>
+              }
+            </div>
+          }
+        </div>
+
+        <div class="host-row-wrap host-add-wrap">
+          <button type="button" class="host-row host-add"
+            [class.is-active]="addingHost()"
+            [attr.aria-expanded]="addingHost()"
+            [disabled]="remoteProbing()"
+            (click)="startAddHost()">
+            <iconify-icon icon="solar:add-circle-linear" width="18" class="host-row-icon"></iconify-icon>
+            <span class="host-row-text">
+              <span class="host-row-name">{{ 'SESSIONS.HOST.Add' | translate }}</span>
+              <span class="host-row-detail">{{ 'SESSIONS.HOST.Add hint' | translate }}</span>
+            </span>
+          </button>
+        </div>
+        @if (addingHost()) {
+          <div class="host-detail">
+            <ng-container *ngTemplateOutlet="remoteConnFields"></ng-container>
+            <ng-container *ngTemplateOutlet="remoteStatus"></ng-container>
+            <button type="button" class="btn btn-link btn-sm p-0 align-self-start" (click)="cancelAddHost()">
+              {{ 'SESSIONS.Cancel' | translate }}
+            </button>
+          </div>
+        } @else if (isRemoteHost) {
+          <div class="host-detail">
+            <ng-container *ngTemplateOutlet="remoteStatus"></ng-container>
+          </div>
+        }
+      </section>
+  }
+
+  <!-- ─── STEP "provider" (create only): Provider picker ─── -->
+  @if (useWizard && stepId === 'provider') {
     <section class="form-section provider-section">
       <div class="section-head">
         <iconify-icon icon="solar:magic-stick-3-bold-duotone" width="18" class="section-head-icon"></iconify-icon>
@@ -60,8 +149,8 @@
     </section>
   }
 
-  <!-- ─── STEP 2 (create) / EDIT single page ─── -->
-  @if (!useWizard || currentStep() === 2) {
+  <!-- ─── STEP "config" (create) / EDIT single page ─── -->
+  @if (!useWizard || stepId === 'config') {
 
     <!-- Session name (edit + create) -->
     <div class="form-section">
@@ -143,7 +232,7 @@
         </label>
 
         <!-- Path mode toggle -->
-        @if (!pathLocked) {
+        @if (!pathLocked && !isRemoteHost) {
           <div class="path-mode-toggle">
             <button type="button" class="path-mode-btn" [class.is-active]="pathMode() === 'browse'" (click)="setPathMode('browse')">
               <iconify-icon icon="solar:folder-open-bold-duotone" width="16"></iconify-icon>
@@ -157,7 +246,7 @@
               <iconify-icon icon="solar:cloud-download-bold-duotone" width="16"></iconify-icon>
               {{ 'SESSIONS.DEVICE_WORKSPACE.Clone repository' | translate }}
             </button>
-            @if (remoteAvailable) {
+            @if (remoteAvailable && !hostPickerVisible) {
               <button type="button" class="path-mode-btn" [class.is-active]="pathMode() === 'remote'" (click)="setPathMode('remote')">
                 <iconify-icon icon="solar:server-path-bold-duotone" width="16"></iconify-icon>
                 {{ 'SESSIONS.REMOTE.Remote folder' | translate }}
@@ -263,183 +352,32 @@
         } @else if (pathMode() === 'remote') {
           <!-- Remote Folder, guided setup: 1) verified connection (OS/arch) → 2) folder (dropdown / typed / terminal) -->
           <div class="clone-inline-form">
-            <div class="remote-steps">
-              <span class="remote-step" [class.is-done]="remoteConnected" [class.is-active]="!remoteConnected">
-                <span class="remote-step-num">@if (remoteConnected) {<iconify-icon icon="solar:check-read-linear" width="12"></iconify-icon>} @else {1}</span>
-                {{ 'SESSIONS.REMOTE.Step connect' | translate }}
-              </span>
-              <span class="remote-step-sep"></span>
-              <span class="remote-step" [class.is-active]="remoteConnected" [class.is-done]="!!workspace?.path && isRemoteWorkspace">
-                <span class="remote-step-num">2</span>
-                {{ 'SESSIONS.REMOTE.Step folder' | translate }}
-              </span>
-            </div>
-
-            <!-- ── Passo 1: connessione ── -->
-            <div class="clone-inline-field">
-              <label>{{ 'SESSIONS.REMOTE.Type' | translate }}</label>
-              <select class="form-select" [ngModel]="remoteType()" (ngModelChange)="setRemoteType($event)" [disabled]="remoteLoading() || remoteProbing()">
-                <option value="command">{{ 'SESSIONS.REMOTE.Type command' | translate }}</option>
-                <option value="ssh">{{ 'SESSIONS.REMOTE.Type ssh' | translate }}</option>
-              </select>
-            </div>
-
-            @if (remoteType() === 'command') {
-              <div class="clone-inline-field">
-                <label>{{ 'SESSIONS.REMOTE.Connect command' | translate }}</label>
-                <div class="clone-dest-row">
-                  <input
-                    type="text"
-                    class="form-control"
-                    placeholder="ssh ubuntu@203.0.113.10"
-                    [ngModel]="remoteCommand()"
-                    (ngModelChange)="onRemoteCommandChange($event)"
-                    (keydown.enter)="$event.preventDefault(); $event.stopPropagation(); remoteConnect()"
-                    [disabled]="remoteProbing()"
-                    style="font-family: monospace; font-size: 12px;"
-                  />
-                  <button
-                    class="btn btn-primary d-inline-flex align-items-center gap-1 text-nowrap"
-                    (click)="remoteConnect()"
-                    [disabled]="remoteProbing() || !remoteCommand().trim()"
-                  >
-                    @if (remoteProbing()) {
-                      <span class="spinner-border spinner-border-sm"></span>
-                    } @else {
-                      <iconify-icon icon="solar:plug-circle-bold" width="16"></iconify-icon>
-                    }
-                    {{ (remoteProbe()?.ok ? 'SESSIONS.REMOTE.Reconnect' : 'SESSIONS.REMOTE.Connect') | translate }}
-                  </button>
-                </div>
-                @if (!remoteConnected) {
-                  <div class="remote-example-chips">
-                    @for (ex of remoteCommandExamples; track ex.label) {
-                      <button type="button" class="remote-example-chip" (click)="fillRemoteExample(ex.cmd)" [appTooltip]="ex.cmd">
-                        <iconify-icon icon="solar:magic-stick-3-bold" width="12"></iconify-icon>
-                        {{ ex.labelKey ? (ex.labelKey | translate) : ex.label }}
-                      </button>
-                    }
-                  </div>
-                  <small class="text-muted">{{ 'SESSIONS.REMOTE.Command hint' | translate }}</small>
-                }
+            @if (hostPickerVisible) {
+              <div class="host-summary">
+                <iconify-icon icon="solar:server-bold-duotone" width="16"></iconify-icon>
+                <span class="host-summary-name">{{ selectedRemoteHost?.name }}</span>
+                <code class="host-summary-detail">{{ selectedRemoteHost?.detail }}</code>
+                <button type="button" class="btn btn-link btn-sm p-0 ms-auto text-nowrap" (click)="goToStepId('host')">
+                  {{ 'SESSIONS.HOST.Change' | translate }}
+                </button>
               </div>
             } @else {
-            <div class="clone-inline-field">
-              <label>{{ 'SESSIONS.REMOTE.Connection' | translate }}</label>
-              <div class="clone-dest-row">
-                <select
-                  class="form-select"
-                  [ngModel]="remoteConnId()"
-                  (ngModelChange)="pickRemoteConnection($event)"
-                  [disabled]="remoteLoading() || remoteProbing()"
-                >
-                  <option [ngValue]="null">{{ 'SESSIONS.REMOTE.Pick connection' | translate }}</option>
-                  @for (c of remoteConnections(); track c.id) {
-                    <option [ngValue]="c.id">{{ c.name }} — {{ c.username }}&#64;{{ c.host }}</option>
-                  }
-                </select>
-                @if (remoteConnId()) {
-                  <button class="btn btn-outline-secondary" (click)="remoteConnect()" [disabled]="remoteProbing()" [appTooltip]="'SESSIONS.REMOTE.Reconnect' | translate" [attr.aria-label]="'SESSIONS.REMOTE.Reconnect' | translate">
-                    @if (remoteProbing()) {
-                      <span class="spinner-border spinner-border-sm"></span>
-                    } @else {
-                      <iconify-icon icon="solar:refresh-bold" width="16"></iconify-icon>
-                    }
-                  </button>
-                }
-                <button
-                  class="btn btn-outline-secondary"
-                  (click)="toggleRemoteNewConn()"
-                  [appTooltip]="'SESSIONS.REMOTE.New connection' | translate"
-                  [attr.aria-label]="'SESSIONS.REMOTE.New connection' | translate"
-                  [attr.aria-expanded]="remoteNewConn()"
-                >
-                  <iconify-icon [icon]="remoteNewConn() ? 'solar:minus-circle-bold' : 'solar:add-circle-bold'" width="16"></iconify-icon>
-                </button>
+              <div class="remote-steps">
+                <span class="remote-step" [class.is-done]="remoteConnected" [class.is-active]="!remoteConnected">
+                  <span class="remote-step-num">@if (remoteConnected) {<iconify-icon icon="solar:check-read-linear" width="12"></iconify-icon>} @else {1}</span>
+                  {{ 'SESSIONS.REMOTE.Step connect' | translate }}
+                </span>
+                <span class="remote-step-sep"></span>
+                <span class="remote-step" [class.is-active]="remoteConnected" [class.is-done]="!!workspace?.path && isRemoteWorkspace">
+                  <span class="remote-step-num">2</span>
+                  {{ 'SESSIONS.REMOTE.Step folder' | translate }}
+                </span>
               </div>
-            </div>
 
-            @if (remoteNewConn()) {
-              <div class="remote-conn-form">
-                <div class="remote-conn-grid">
-                  <input type="text" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Conn name' | translate" [(ngModel)]="remoteConnForm.name" />
-                  <input type="text" class="form-control form-control-sm" placeholder="host.example.com" [(ngModel)]="remoteConnForm.host" />
-                  <input type="number" class="form-control form-control-sm" placeholder="22" [(ngModel)]="remoteConnForm.port" />
-                  <input type="text" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Username' | translate" [(ngModel)]="remoteConnForm.username" />
-                  <select class="form-select form-select-sm" [(ngModel)]="remoteConnForm.authType">
-                    <option value="password">{{ 'SESSIONS.REMOTE.Auth password' | translate }}</option>
-                    <option value="key">{{ 'SESSIONS.REMOTE.Auth key' | translate }}</option>
-                  </select>
-                  @if (remoteConnForm.authType === 'password') {
-                    <input type="password" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Password' | translate" [(ngModel)]="remoteConnForm.secret" />
-                  } @else {
-                    <textarea class="form-control form-control-sm remote-key-input" rows="3" [placeholder]="'SESSIONS.REMOTE.Private key' | translate" [(ngModel)]="remoteConnForm.secret"></textarea>
-                    <input type="password" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Passphrase' | translate" [(ngModel)]="remoteConnForm.passphrase" />
-                  }
-                </div>
-                <button
-                  class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1"
-                  (click)="saveRemoteConnection()"
-                  [disabled]="!canSaveRemoteConnection"
-                >
-                  @if (remoteSavingConn()) {
-                    <span class="spinner-border spinner-border-sm"></span>
-                  } @else {
-                    <iconify-icon icon="solar:diskette-bold" width="14"></iconify-icon>
-                  }
-                  {{ 'SESSIONS.REMOTE.Save and connect' | translate }}
-                </button>
-              </div>
-            }
+              <ng-container *ngTemplateOutlet="remoteConnFields"></ng-container>
             }
 
-            @if (remoteProbing()) {
-              <div class="remote-probe-card is-pending">
-                <span class="spinner-border spinner-border-sm"></span>
-                <span>{{ 'SESSIONS.REMOTE.Probing' | translate }}</span>
-              </div>
-            } @else if (remoteProbe()?.ok) {
-              <div class="remote-probe-card is-ok">
-                <iconify-icon icon="solar:check-circle-bold" width="18" class="remote-probe-icon"></iconify-icon>
-                <div class="remote-probe-body">
-                  <div class="remote-probe-title">
-                    {{ 'SESSIONS.REMOTE.Connected' | translate }} — <code>{{ remoteProbe()!.user }}&#64;{{ remoteProbe()!.host }}</code>
-                  </div>
-                  <div class="remote-probe-meta">
-                    <span class="remote-probe-chip"><iconify-icon icon="solar:cpu-bolt-bold" width="12"></iconify-icon>{{ remotePlatformLabel }}</span>
-                    @if (remoteProbe()!.shell) {
-                      <span class="remote-probe-chip"><iconify-icon icon="solar:command-bold" width="12"></iconify-icon>{{ remoteProbe()!.shell }}</span>
-                    }
-                    @for (c of remoteProbe()!.clis; track c) {
-                      <span class="remote-probe-chip is-cli"><iconify-icon icon="solar:check-read-linear" width="12"></iconify-icon>{{ c }}</span>
-                    }
-                  </div>
-                  @if (remoteProviderMissing; as cli) {
-                    <div class="remote-probe-warn">
-                      <iconify-icon icon="solar:danger-triangle-bold" width="13"></iconify-icon>
-                      {{ 'SESSIONS.REMOTE.Provider missing' | translate: { cli: cli } }}
-                    </div>
-                  }
-                </div>
-              </div>
-            } @else if (remoteSkipProbe()) {
-              <div class="remote-probe-card is-pending">
-                <iconify-icon icon="solar:info-circle-bold" width="16"></iconify-icon>
-                <span>{{ 'SESSIONS.REMOTE.Probe skipped' | translate }}</span>
-              </div>
-            }
-
-            @if (remoteError()) {
-              <div class="clone-error-msg" role="alert">
-                <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
-                {{ remoteError() }}
-              </div>
-              @if (!remoteConnected && remoteType() === 'command' && remoteCommand().trim()) {
-                <button type="button" class="btn btn-link btn-sm p-0 align-self-start" (click)="remoteContinueWithoutProbe()">
-                  {{ 'SESSIONS.REMOTE.Continue manual' | translate }}
-                </button>
-              }
-            }
+            <ng-container *ngTemplateOutlet="remoteStatus"></ng-container>
 
             <!-- ── Step 2: folder ── -->
             @if (remoteReady) {
@@ -850,13 +788,20 @@
 </div>
 
 <div class="modal-footer">
-  @if (useWizard && currentStep() === 1) {
-    <button class="btn btn-outline-secondary" (click)="modal.dismiss()">{{ 'SESSIONS.Cancel' | translate }}</button>
-    <button class="btn btn-primary" (click)="goNextStep()" [disabled]="!canGoNextFromStep1">
+  @if (useWizard && stepId !== 'config') {
+    @if (currentStep() === 1) {
+      <button class="btn btn-outline-secondary" (click)="modal.dismiss()">{{ 'SESSIONS.Cancel' | translate }}</button>
+    } @else {
+      <button class="btn btn-outline-secondary" (click)="goPrevStep()">
+        <iconify-icon icon="solar:alt-arrow-left-bold" width="14" class="me-1"></iconify-icon>
+        {{ 'SESSIONS.Back' | translate }}
+      </button>
+    }
+    <button class="btn btn-primary" (click)="goNextStep()" [disabled]="!canGoNext">
       {{ 'SESSIONS.Next' | translate }}
       <iconify-icon icon="solar:alt-arrow-right-bold" width="14" class="ms-1"></iconify-icon>
     </button>
-  } @else if (useWizard && currentStep() === 2) {
+  } @else if (useWizard) {
     <button class="btn btn-outline-secondary" (click)="goPrevStep()">
       <iconify-icon icon="solar:alt-arrow-left-bold" width="14" class="me-1"></iconify-icon>
       {{ 'SESSIONS.Back' | translate }}
@@ -877,3 +822,180 @@
     </button>
   }
 </div>
+
+<!-- Remote connection (type + command / SSH connection): step 1 of the wizard when adding a host, or inline when editing -->
+<ng-template #remoteConnFields>
+  <!-- ── Step 1: connection ── -->
+  <div class="clone-inline-field">
+    <label>{{ 'SESSIONS.REMOTE.Type' | translate }}</label>
+    <select class="form-select" [ngModel]="remoteType()" (ngModelChange)="setRemoteType($event)" [disabled]="remoteLoading() || remoteProbing()">
+      <option value="command">{{ 'SESSIONS.REMOTE.Type command' | translate }}</option>
+      <option value="ssh">{{ 'SESSIONS.REMOTE.Type ssh' | translate }}</option>
+    </select>
+  </div>
+
+  @if (remoteType() === 'command') {
+    <div class="clone-inline-field">
+      <label>{{ 'SESSIONS.REMOTE.Connect command' | translate }}</label>
+      <div class="clone-dest-row">
+        <input
+          type="text"
+          class="form-control"
+          placeholder="ssh ubuntu@203.0.113.10"
+          [ngModel]="remoteCommand()"
+          (ngModelChange)="onRemoteCommandChange($event)"
+          (keydown.enter)="$event.preventDefault(); $event.stopPropagation(); remoteConnect()"
+          [disabled]="remoteProbing()"
+          style="font-family: monospace; font-size: 12px;"
+        />
+        <button
+          class="btn btn-primary d-inline-flex align-items-center gap-1 text-nowrap"
+          (click)="remoteConnect()"
+          [disabled]="remoteProbing() || !remoteCommand().trim()"
+        >
+          @if (remoteProbing()) {
+            <span class="spinner-border spinner-border-sm"></span>
+          } @else {
+            <iconify-icon icon="solar:plug-circle-bold" width="16"></iconify-icon>
+          }
+          {{ (remoteProbe()?.ok ? 'SESSIONS.REMOTE.Reconnect' : 'SESSIONS.REMOTE.Connect') | translate }}
+        </button>
+      </div>
+      @if (!remoteConnected) {
+        <div class="remote-example-chips">
+          @for (ex of remoteCommandExamples; track ex.label) {
+            <button type="button" class="remote-example-chip" (click)="fillRemoteExample(ex.cmd)" [appTooltip]="ex.cmd">
+              <iconify-icon icon="solar:magic-stick-3-bold" width="12"></iconify-icon>
+              {{ ex.labelKey ? (ex.labelKey | translate) : ex.label }}
+            </button>
+          }
+        </div>
+        <small class="text-muted">{{ 'SESSIONS.REMOTE.Command hint' | translate }}</small>
+      }
+    </div>
+  } @else {
+  <div class="clone-inline-field">
+    <label>{{ 'SESSIONS.REMOTE.Connection' | translate }}</label>
+    <div class="clone-dest-row">
+      <select
+        class="form-select"
+        [ngModel]="remoteConnId()"
+        (ngModelChange)="pickRemoteConnection($event)"
+        [disabled]="remoteLoading() || remoteProbing()"
+      >
+        <option [ngValue]="null">{{ 'SESSIONS.REMOTE.Pick connection' | translate }}</option>
+        @for (c of remoteConnections(); track c.id) {
+          <option [ngValue]="c.id">{{ c.name }} — {{ c.username }}&#64;{{ c.host }}</option>
+        }
+      </select>
+      @if (remoteConnId()) {
+        <button class="btn btn-outline-secondary" (click)="remoteConnect()" [disabled]="remoteProbing()" [appTooltip]="'SESSIONS.REMOTE.Reconnect' | translate" [attr.aria-label]="'SESSIONS.REMOTE.Reconnect' | translate">
+          @if (remoteProbing()) {
+            <span class="spinner-border spinner-border-sm"></span>
+          } @else {
+            <iconify-icon icon="solar:refresh-bold" width="16"></iconify-icon>
+          }
+        </button>
+      }
+      <button
+        class="btn btn-outline-secondary"
+        (click)="toggleRemoteNewConn()"
+        [appTooltip]="'SESSIONS.REMOTE.New connection' | translate"
+        [attr.aria-label]="'SESSIONS.REMOTE.New connection' | translate"
+        [attr.aria-expanded]="remoteNewConn()"
+      >
+        <iconify-icon [icon]="remoteNewConn() ? 'solar:minus-circle-bold' : 'solar:add-circle-bold'" width="16"></iconify-icon>
+      </button>
+    </div>
+  </div>
+
+  @if (remoteNewConn()) {
+    <div class="remote-conn-form">
+      <div class="remote-conn-grid">
+        <input type="text" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Conn name' | translate" [(ngModel)]="remoteConnForm.name" />
+        <input type="text" class="form-control form-control-sm" placeholder="host.example.com" [(ngModel)]="remoteConnForm.host" />
+        <input type="number" class="form-control form-control-sm" placeholder="22" [(ngModel)]="remoteConnForm.port" />
+        <input type="text" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Username' | translate" [(ngModel)]="remoteConnForm.username" />
+        <select class="form-select form-select-sm" [(ngModel)]="remoteConnForm.authType">
+          <option value="password">{{ 'SESSIONS.REMOTE.Auth password' | translate }}</option>
+          <option value="key">{{ 'SESSIONS.REMOTE.Auth key' | translate }}</option>
+        </select>
+        @if (remoteConnForm.authType === 'password') {
+          <input type="password" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Password' | translate" [(ngModel)]="remoteConnForm.secret" />
+        } @else {
+          <textarea class="form-control form-control-sm remote-key-input" rows="3" [placeholder]="'SESSIONS.REMOTE.Private key' | translate" [(ngModel)]="remoteConnForm.secret"></textarea>
+          <input type="password" class="form-control form-control-sm" [placeholder]="'SESSIONS.REMOTE.Passphrase' | translate" [(ngModel)]="remoteConnForm.passphrase" />
+        }
+      </div>
+      <button
+        class="btn btn-primary btn-sm d-inline-flex align-items-center gap-1"
+        (click)="saveRemoteConnection()"
+        [disabled]="!canSaveRemoteConnection"
+      >
+        @if (remoteSavingConn()) {
+          <span class="spinner-border spinner-border-sm"></span>
+        } @else {
+          <iconify-icon icon="solar:diskette-bold" width="14"></iconify-icon>
+        }
+        {{ 'SESSIONS.REMOTE.Save and connect' | translate }}
+      </button>
+    </div>
+  }
+  }
+</ng-template>
+
+<!-- Outcome of the remote connection (check, detected host, error) -->
+<ng-template #remoteStatus>
+  @if (remoteProbing()) {
+    <div class="remote-probe-card is-pending">
+      <span class="spinner-border spinner-border-sm"></span>
+      <span>{{ 'SESSIONS.REMOTE.Probing' | translate }}</span>
+    </div>
+  } @else if (remoteProbe()?.ok) {
+    <div class="remote-probe-card is-ok">
+      <iconify-icon icon="solar:check-circle-bold" width="18" class="remote-probe-icon"></iconify-icon>
+      <div class="remote-probe-body">
+        <div class="remote-probe-title">
+          {{ 'SESSIONS.REMOTE.Connected' | translate }} — <code>{{ remoteProbe()!.user }}&#64;{{ remoteProbe()!.host }}</code>
+        </div>
+        <div class="remote-probe-meta">
+          <span class="remote-probe-chip"><iconify-icon icon="solar:cpu-bolt-bold" width="12"></iconify-icon>{{ remotePlatformLabel }}</span>
+          @if (remoteProbe()!.shell) {
+            <span class="remote-probe-chip"><iconify-icon icon="solar:command-bold" width="12"></iconify-icon>{{ remoteProbe()!.shell }}</span>
+          }
+          @for (c of remoteProbe()!.clis; track c) {
+            <span class="remote-probe-chip is-cli"><iconify-icon icon="solar:check-read-linear" width="12"></iconify-icon>{{ c }}</span>
+          }
+        </div>
+        @if (stepId !== 'host' && remoteProviderMissing; as cli) {
+          <div class="remote-probe-warn">
+            <iconify-icon icon="solar:danger-triangle-bold" width="13"></iconify-icon>
+            {{ 'SESSIONS.REMOTE.Provider missing' | translate: { cli: cli } }}
+          </div>
+        }
+      </div>
+    </div>
+  } @else if (remoteSkipProbe()) {
+    <div class="remote-probe-card is-pending">
+      <iconify-icon icon="solar:info-circle-bold" width="16"></iconify-icon>
+      <span>{{ 'SESSIONS.REMOTE.Probe skipped' | translate }}</span>
+    </div>
+  }
+
+  @if (remoteError()) {
+    <div class="clone-error-msg" role="alert">
+      <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
+      {{ remoteError() }}
+    </div>
+    @if (!remoteConnected && remoteType() === 'command' && remoteCommand().trim()) {
+      <button type="button" class="btn btn-link btn-sm p-0 align-self-start" (click)="remoteContinueWithoutProbe()">
+        {{ 'SESSIONS.REMOTE.Continue manual' | translate }}
+      </button>
+    }
+  }
+  @if (remoteError() && hostPickerVisible && !addingHost() && !remoteProbing()) {
+    <button type="button" class="btn btn-link btn-sm p-0 align-self-start" (click)="remoteConnect()">
+      {{ 'SESSIONS.REMOTE.Reconnect' | translate }}
+    </button>
+  }
+</ng-template>

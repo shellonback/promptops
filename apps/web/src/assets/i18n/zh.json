@@ -1687,6 +1687,32 @@
       "Hint action": "作为文件夹导入",
       "Partial failure": "无法创建 {{count}} 个工作区：{{names}}",
       "Empty workspace tooltip": "暂无会话 — 点击启动一个"
+    },
+    "HOST": {
+      "Step title": "选择运行位置",
+      "Step short": "机器",
+      "Title": "运行位置",
+      "Hint": "在这台电脑或远程机器上运行会话。",
+      "Group local": "本地",
+      "Group remote": "远程机器",
+      "Local name": "这台电脑",
+      "Local detail": "此设备上的文件夹",
+      "Kind ssh": "SSH",
+      "Kind command": "命令",
+      "Add": "添加远程机器",
+      "Add hint": "SSH 连接或连接命令（ssh、AWS SSM……）",
+      "Forget": "从列表中移除",
+      "Change": "更换机器"
+    },
+    "MACHINES": {
+      "Unknown remote": "远程机器",
+      "New folder here": "在此机器上新建文件夹",
+      "Empty hint": "这台机器上还没有内容"
+    },
+    "SEARCH": {
+      "Placeholder": "搜索项目",
+      "Clear": "清除搜索",
+      "No results": "未找到项目"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "无法将代理移动到新会话。",
     "Move failed resume": "要继续其对话，请在“恢复子代理”中恢复（对话 ID：{{id}}）。",
-    "Move locked": "该代理已锁定，因此未被移动。请解锁后再试。"
+    "Move locked": "该代理已锁定，因此未被移动。请解锁后再试。",
+    "Last closure": "上次关闭",
+    "Last closure hint": "上次关闭应用时打开的会话和代理。不会自动重新启动。",
+    "Closed unexpectedly": "意外关闭",
+    "Reopen": "重新打开",
+    "Reopen all": "全部重新打开",
+    "Already open": "已打开",
+    "Session no longer exists": "会话已不存在"
   },
   "INJECT": {
     "Title": "插件与技能",
@@ -3506,7 +3539,10 @@
     "Copy": "复制",
     "Copied": "已复制",
     "Copy link": "复制链接",
-    "Run command": "运行：{{command}}"
+    "Run command": "运行：{{command}}",
+    "Open link": "打开链接",
+    "Copy command": "复制命令",
+    "Open file": "打开 {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "已用",

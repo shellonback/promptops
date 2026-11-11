@@ -14,6 +14,7 @@ import { signal } from '@angular/core';
 /** Switchable launch models per provider — mirrors SPEED_TEST_MODELS (speed-test-runner.ts). */
 export const SPAWN_MODELS: Record<string, ReadonlyArray<{ id: string; label: string }>> = {
   'claude-code-cli': [
+    { id: 'claude-fable-5-2', label: 'Fable 5.2' },
     { id: 'claude-fable-5-1', label: 'Fable 5.1' },
     { id: 'claude-fable-5', label: 'Fable 5' },
     { id: 'claude-opus-5-5', label: 'Opus 5.5' },

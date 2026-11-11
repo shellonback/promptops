@@ -51,6 +51,7 @@ pub(crate) fn model_baseline(model_id: &str) -> Option<ModelBaseline> {
         "claude-haiku-4-5" => baseline("fast", 60.0, 110.0),
         "claude-sonnet-5" => baseline("balanced", 40.0, 80.0),
         // Max raised 60 → 70 after real end-to-end runs (~65 tok/s, 2026-07-16).
+        "claude-fable-5-2" => baseline("reasoning", 25.0, 70.0),
         "claude-fable-5-1" => baseline("reasoning", 25.0, 70.0),
         "claude-fable-5" => baseline("reasoning", 25.0, 70.0),
         "claude-opus-5-5" => baseline("reasoning", 25.0, 60.0),
@@ -131,6 +132,7 @@ pub fn speed_test_models() -> Vec<SpeedTestModelInfo> {
         },
     };
     vec![
+        claude("claude-fable-5-2", "Claude Fable 5.2"),
         claude("claude-fable-5-1", "Claude Fable 5.1"),
         claude("claude-fable-5", "Claude Fable 5"),
         claude("claude-opus-5-5", "Claude Opus 5.5"),

@@ -163,6 +163,87 @@ export function archivedEntryKey(e: ArchivedSubAgentEntry): string {
     ?? `${e.role}|${e.title}|${e.workspacePath ?? e.parentSessionName ?? ''}`;
 }
 
+/** A session that was open when the app last closed, with its open agents. */
+export interface LastClosureSession {
+  name: string;
+  sessionId: string;
+  dbId?: string;
+  provider: string;
+  workspacePath?: string;
+  workspaceName?: string;
+  standby: boolean;
+  agents: ArchivedSubAgentEntry[];
+}
+
+/** What was open in the previous app run (desktop `open-state.json`). */
+export interface LastClosure {
+  savedAt: string;
+  /** false = crash or force-quit: the app never reached its normal exit. */
+  cleanExit: boolean;
+  sessions: LastClosureSession[];
+}
+
+/**
+ * Normalize the desktop payload. Agents come in the slim stash shape and are
+ * mapped onto ArchivedSubAgentEntry so the resume path stays one. They carry
+ * an empty parentSessionId on purpose: they are not rows of the archive, so
+ * clearing them after a resume must never hit a real archive index.
+ */
+export function normalizeLastClosure(raw: any): LastClosure | null {
+  if (!raw || !Array.isArray(raw.sessions)) return null;
+  const savedAt = typeof raw.savedAt === 'string' ? raw.savedAt : '';
+  const sessions: LastClosureSession[] = raw.sessions
+    .filter((s: any) => s && typeof s.name === 'string' && s.name)
+    .map((s: any) => ({
+      name: s.name,
+      sessionId: s.sessionId ?? '',
+      dbId: s.dbId ?? undefined,
+      provider: s.provider ?? 'claude-code-cli',
+      workspacePath: s.workspacePath ?? undefined,
+      workspaceName: s.workspaceName ?? undefined,
+      standby: !!s.standby,
+      agents: (Array.isArray(s.agents) ? s.agents : [])
+        .filter((a: any) => a && typeof a === 'object')
+        .map((a: any, index: number): ArchivedSubAgentEntry => ({
+          index,
+          role: a.role ?? 'custom',
+          title: a.title ?? 'Untitled',
+          userPrompt: a.userPrompt ?? a.prompt ?? '',
+          icon: a.icon ?? 'solar:cpu-bolt-bold-duotone',
+          mode: a.mode,
+          config: a.config,
+          softSkill: a.softSkill,
+          provider: (a.provider ?? 'claude-code-cli') as SubAgentProvider,
+          claudeSessionId: a.claudeSessionId ?? undefined,
+          archivedAt: savedAt,
+          parentSessionId: '',
+          parentSessionName: s.name,
+          workspacePath: a.workspacePath ?? s.workspacePath ?? undefined,
+          canResume: !!a.claudeSessionId,
+        })),
+    }));
+  // Every restored session sits in the registry, parked: only the ones that
+  // were awake or had agents count as "open" (a long sidebar must not turn
+  // "Reopen all" into waking dozens of sessions).
+  const open = sessions.filter((s) => !s.standby || s.agents.length > 0);
+  return open.length ? { savedAt, cleanExit: !!raw.cleanExit, sessions: open } : null;
+}
+
+/**
+ * Is this agent of the last closure already running? Matched by conversation
+ * id when both sides have one, otherwise by role + title.
+ */
+export function isAgentLive(
+  agent: ArchivedSubAgentEntry,
+  live: Array<{ claudeSessionId?: string; role?: string; title?: string }>,
+): boolean {
+  return live.some((l) =>
+    agent.claudeSessionId && l.claudeSessionId
+      ? agent.claudeSessionId === l.claudeSessionId
+      : agent.role === l.role && agent.title === l.title,
+  );
+}
+
 /**
  * Merge local store (historic, survives restarts) and desktop IPC (fresh, current
  * run) archive entries. On key collision the IPC entry wins: its
@@ -537,7 +618,7 @@ export class SubAgentService {
 
   /** ID of the last spawned sub-agent (used for auto-focus) */
   lastSpawnedId = signal<string | null>(null);
-  /** Agente appena lanciato dal composer: spawn esplicito dell'utente, a differenza di quelli via MCP. */
+  /** Agent just launched from the composer: an explicit spawn by the user, unlike the ones coming through MCP. */
   userSpawnedId = signal<string | null>(null);
 
   /** Context of the last spawn: auto-focus ignores other sessions and restored agents. */
@@ -1614,6 +1695,68 @@ export class SubAgentService {
     }
   }
 
+  /** Sessions and agents open in the previous app run (Tauri only). */
+  async getLastClosure(): Promise<LastClosure | null> {
+    if (!this.api?.getLastClosure) return null;
+    try {
+      return normalizeLastClosure(await this.api.getLastClosure());
+    } catch {
+      return null;
+    }
+  }
+
+  /** Live sub-agents of every session, grouped by parent session id. */
+  async liveAgentsByParent(): Promise<Map<string, SubAgent[]>> {
+    const byParent = new Map<string, SubAgent[]>();
+    if (!this.api?.listAllSubAgents) return byParent;
+    try {
+      const result = await this.api.listAllSubAgents();
+      for (const sa of result?.ok ? (result.subAgents ?? []) : []) {
+        const list = byParent.get(sa.parentSessionId) ?? [];
+        list.push(sa);
+        byParent.set(sa.parentSessionId, list);
+      }
+    } catch { /* ignore */ }
+    return byParent;
+  }
+
+  /**
+   * Reopen an agent of the last closure inside its own session. Unlike
+   * resumeArchived it never retargets the tracked parent: the session may not
+   * be the one on screen.
+   */
+  async reopenInSession(parentSessionId: string, agent: ArchivedSubAgentEntry): Promise<boolean> {
+    if (!this.isDesktop) return false;
+    if (!this.orgPolicy.isProviderAllowed(agent.provider)) return false;
+    try {
+      const result = await this.api.spawnSubAgent(this.archivedSpawnRequest(parentSessionId, agent));
+      return !!(result?.ok && result.subAgent);
+    } catch {
+      return false;
+    }
+  }
+
+  private archivedSpawnRequest(parentSessionId: string, archived: ArchivedSubAgentEntry) {
+    return {
+      parentSessionId,
+      role: archived.role,
+      title: archived.title,
+      // Older desktops can hand back entries without prompt text (privacy
+      // strip in the local store) — never forward undefined to the TUI.
+      prompt: archived.userPrompt ?? '',
+      provider: archived.provider,
+      icon: archived.icon,
+      ...(archived.mode ? { mode: archived.mode } : {}),
+      ...(archived.config ? { customConfig: archived.config } : {}),
+      ...(archived.softSkill?.instructions ? { softSkill: archived.softSkill } : {}),
+      ...(archived.claudeSessionId ? { claudeSessionId: archived.claudeSessionId } : {}),
+      // --resume is bound to the provider's project dir — resume in the
+      // sub-agent's original workspace even if the current one differs.
+      ...(archived.workspacePath ? { workspaceOverride: archived.workspacePath } : {}),
+      deferPrompt: true,
+    };
+  }
+
   /**
    * Resume an archived sub-agent by spawning a new sub-agent with its
    * claudeSessionId (enables --resume) or its original prompt (re-spawn).
@@ -1637,24 +1780,7 @@ export class SubAgentService {
       // Same as spawnCustom: a sub-agent resumed into a parked session would
       // be lost on the next restart.
       await this.ensureParentAwake(parentSessionId);
-      const result = await this.api.spawnSubAgent({
-        parentSessionId,
-        role: archived.role,
-        title: archived.title,
-        // Older desktops can hand back entries without prompt text (privacy
-        // strip in the local store) — never forward undefined to the TUI.
-        prompt: archived.userPrompt ?? '',
-        provider: archived.provider,
-        icon: archived.icon,
-        ...(archived.mode ? { mode: archived.mode } : {}),
-        ...(archived.config ? { customConfig: archived.config } : {}),
-        ...(archived.softSkill?.instructions ? { softSkill: archived.softSkill } : {}),
-        ...(archived.claudeSessionId ? { claudeSessionId: archived.claudeSessionId } : {}),
-        // --resume is bound to the provider's project dir — resume in the
-        // sub-agent's original workspace even if the current one differs.
-        ...(archived.workspacePath ? { workspaceOverride: archived.workspacePath } : {}),
-        deferPrompt: true,
-      });
+      const result = await this.api.spawnSubAgent(this.archivedSpawnRequest(parentSessionId, archived));
 
       if (result.ok && result.subAgent) {
         // Clear the archived entry since it's been resumed
@@ -1672,7 +1798,8 @@ export class SubAgentService {
    * the desktop in-memory Map (fresh entries) and the stored record (persisted).
    */
   async clearArchived(entry: ArchivedSubAgentEntry): Promise<void> {
-    if (this.isDesktop) {
+    // Entries of the last closure have no parent: they are not archive rows.
+    if (this.isDesktop && entry.parentSessionId) {
       try {
         await this.api.clearArchivedSubAgent(entry.parentSessionId, entry.index, entry.archiveId);
       } catch (err) {

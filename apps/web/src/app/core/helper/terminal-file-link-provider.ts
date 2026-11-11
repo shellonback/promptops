@@ -12,7 +12,7 @@ import type { Terminal, ILinkProvider, ILink } from '@xterm/xterm';
  * An optional `:line[:col]` suffix (common in CLI output) is captured so it can
  * be stripped before the path is resolved.
  */
-const FILE_PATH_RE =
+export const FILE_PATH_RE =
   /(?<![\w/.~-])(?:\.{1,2}\/|\/)?(?:[\w.@~-]+\/)+[\w.@~-]+\.[A-Za-z][\w]*(?::\d+(?::\d+)?)?/g;
 
 /** Strip a trailing `:line` or `:line:col` suffix; returns the bare path. */

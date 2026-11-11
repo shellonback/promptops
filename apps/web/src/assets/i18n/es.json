@@ -1687,6 +1687,32 @@
       "Hint action": "Importar como carpeta",
       "Partial failure": "No se pudieron crear {{count}} workspaces: {{names}}",
       "Empty workspace tooltip": "Sin sesiones — haz clic para iniciar una"
+    },
+    "HOST": {
+      "Step title": "Elige dónde se ejecuta",
+      "Step short": "Máquina",
+      "Title": "Dónde se ejecuta",
+      "Hint": "Inicia la sesión en este ordenador o en una máquina remota.",
+      "Group local": "Local",
+      "Group remote": "Máquinas remotas",
+      "Local name": "Este ordenador",
+      "Local detail": "Carpetas en este dispositivo",
+      "Kind ssh": "SSH",
+      "Kind command": "Comando",
+      "Add": "Añadir una máquina remota",
+      "Add hint": "Conexión SSH o comando de conexión (ssh, AWS SSM, …)",
+      "Forget": "Quitar de la lista",
+      "Change": "Cambiar de máquina"
+    },
+    "MACHINES": {
+      "Unknown remote": "Máquina remota",
+      "New folder here": "Nueva carpeta en esta máquina",
+      "Empty hint": "Todavía no hay nada en esta máquina"
+    },
+    "SEARCH": {
+      "Placeholder": "Buscar proyectos",
+      "Clear": "Borrar búsqueda",
+      "No results": "No se encontraron proyectos"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "No se pudo mover el agente a una nueva sesión.",
     "Move failed resume": "Para continuar su conversación, reanúdala desde Reanudar subagente (id de conversación: {{id}}).",
-    "Move locked": "Este agente está bloqueado, así que no se movió. Desbloquéalo y vuelve a pedirlo."
+    "Move locked": "Este agente está bloqueado, así que no se movió. Desbloquéalo y vuelve a pedirlo.",
+    "Last closure": "Último cierre",
+    "Last closure hint": "Sesiones y agentes abiertos la última vez que se cerró la aplicación. Nada se reinicia por sí solo.",
+    "Closed unexpectedly": "cierre inesperado",
+    "Reopen": "Reabrir",
+    "Reopen all": "Reabrir todo",
+    "Already open": "Ya abierto",
+    "Session no longer exists": "La sesión ya no existe"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Copiar",
     "Copied": "Copiado",
     "Copy link": "Copiar enlace",
-    "Run command": "Ejecutar: {{command}}"
+    "Run command": "Ejecutar: {{command}}",
+    "Open link": "Abrir enlace",
+    "Copy command": "Copiar comando",
+    "Open file": "Abrir {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "USADOS",

@@ -1004,7 +1004,12 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
         copy: this.translate.instant('TERMINAL_HELPERS.Copy'),
         copied: this.translate.instant('TERMINAL_HELPERS.Copied'),
         copyLink: this.translate.instant('TERMINAL_HELPERS.Copy link'),
+        openLink: this.translate.instant('TERMINAL_HELPERS.Open link'),
+        copyCommand: this.translate.instant('TERMINAL_HELPERS.Copy command'),
+        openFile: (path) => this.translate.instant('TERMINAL_HELPERS.Open file', { path }),
       },
+      openUrl: (url) => openTerminalLink(new MouseEvent('click'), url),
+      openFile: (filePath) => this.zone.run(() => this.openFileRequest.emit(filePath)),
     });
 
     // Clipboard shortcuts. On Windows/Linux xterm forwards Ctrl+C/V to the PTY

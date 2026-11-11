@@ -1687,6 +1687,32 @@
       "Hint action": "Importuj jako folder",
       "Partial failure": "Nie udało się utworzyć workspace'ów: {{count}} ({{names}})",
       "Empty workspace tooltip": "Brak sesji — kliknij, aby ją uruchomić"
+    },
+    "HOST": {
+      "Step title": "Wybierz, gdzie ma działać",
+      "Step short": "Maszyna",
+      "Title": "Gdzie działa",
+      "Hint": "Uruchom sesję na tym komputerze lub na zdalnej maszynie.",
+      "Group local": "Lokalnie",
+      "Group remote": "Zdalne maszyny",
+      "Local name": "Ten komputer",
+      "Local detail": "Foldery na tym urządzeniu",
+      "Kind ssh": "SSH",
+      "Kind command": "Polecenie",
+      "Add": "Dodaj zdalną maszynę",
+      "Add hint": "Połączenie SSH lub polecenie połączenia (ssh, AWS SSM, …)",
+      "Forget": "Usuń z listy",
+      "Change": "Zmień maszynę"
+    },
+    "MACHINES": {
+      "Unknown remote": "Zdalna maszyna",
+      "New folder here": "Nowy folder na tej maszynie",
+      "Empty hint": "Na tej maszynie nic jeszcze nie ma"
+    },
+    "SEARCH": {
+      "Placeholder": "Szukaj projektów",
+      "Clear": "Wyczyść wyszukiwanie",
+      "No results": "Nie znaleziono projektów"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Nie udało się przenieść agenta do nowej sesji.",
     "Move failed resume": "Aby kontynuować rozmowę, wznów ją w „Wznów subagenta” (id rozmowy: {{id}}).",
-    "Move locked": "Ten agent jest zablokowany, więc nie został przeniesiony. Odblokuj go i poproś ponownie."
+    "Move locked": "Ten agent jest zablokowany, więc nie został przeniesiony. Odblokuj go i poproś ponownie.",
+    "Last closure": "Ostatnie zamknięcie",
+    "Last closure hint": "Sesje i agenci otwarci przy ostatnim zamknięciu aplikacji. Nic nie uruchamia się samo.",
+    "Closed unexpectedly": "nieoczekiwane zamknięcie",
+    "Reopen": "Otwórz ponownie",
+    "Reopen all": "Otwórz wszystko ponownie",
+    "Already open": "Już otwarte",
+    "Session no longer exists": "Sesja już nie istnieje"
   },
   "INJECT": {
     "Title": "Pluginy i umiejętności",
@@ -3506,7 +3539,10 @@
     "Copy": "Kopiuj",
     "Copied": "Skopiowano",
     "Copy link": "Kopiuj link",
-    "Run command": "Uruchom: {{command}}"
+    "Run command": "Uruchom: {{command}}",
+    "Open link": "Otwórz link",
+    "Copy command": "Kopiuj polecenie",
+    "Open file": "Otwórz {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "UŻYTE",

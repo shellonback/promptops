@@ -1403,6 +1403,31 @@ impl SessionManager {
         self.state.lock().db_ids.get(session_id).cloned()
     }
 
+    /// Main sessions open right now, for the local `open-state.json` record
+    /// (the "Last closure" tab of the resume modal). Read only.
+    pub(crate) fn open_state_rows(&self) -> Vec<crate::commands::open_state::SessionRow> {
+        let guard = self.state.lock();
+        guard
+            .sessions
+            .iter()
+            .filter(|(_, s)| s.parent_session_id.is_none() && !s.name.starts_with("[sub]"))
+            .map(|(id, s)| crate::commands::open_state::SessionRow {
+                session_id: id.clone(),
+                db_id: guard.db_ids.get(id).cloned(),
+                name: s.name.clone(),
+                provider: s.provider.clone(),
+                workspace_path: s
+                    .config
+                    .cwd
+                    .clone()
+                    .or_else(|| s.workspace.as_ref().map(|w| w.path.clone())),
+                workspace_name: s.workspace.as_ref().map(|w| w.name.clone()),
+                standby: s.standby_at.is_some(),
+                created_at: s.created_at.clone(),
+            })
+            .collect()
+    }
+
     /// Other main sessions of the same resume family on the same cwd?
     /// Without a captured id, `--continue` would resume the most recent
     /// conversation in the folder: with "neighbors" it is almost certainly another
@@ -3472,6 +3497,8 @@ pub fn start_auto_standby_scheduler(
             // Autosave of live sessions' screens (crash/force-quit safety),
             // whether auto-standby is on or off.
             sessions.autosave_live_buffers();
+            // Record of what is open: same tick, written only when it changes.
+            crate::commands::open_state::tick(sessions.open_state_rows());
             if slept {
                 let guard = sessions.state.lock();
                 for s in guard.sessions.values() {

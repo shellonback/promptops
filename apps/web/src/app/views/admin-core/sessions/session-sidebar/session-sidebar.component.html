@@ -210,6 +210,29 @@
       <!-- Inside a session opened from the floor plan: the floor plan takes the tree's place, the X brings it back -->
       <app-floor-plan-view class="sidebar-floor-plan" [compact]="true" [activeSession]="activeSessionId()" (openSession)="selectSession.emit($event)" />
     } @else {
+    @if (showProjectSearch()) {
+      <div class="project-search">
+        <iconify-icon class="project-search-icon" icon="solar:magnifer-linear" width="13"></iconify-icon>
+        <input
+          class="project-search-input"
+          type="text"
+          autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          [placeholder]="'SESSIONS.SEARCH.Placeholder' | translate"
+          [attr.aria-label]="'SESSIONS.SEARCH.Placeholder' | translate"
+          [value]="searchQuery()"
+          (input)="searchQuery.set($any($event.target).value)"
+          (keydown.escape)="onProjectSearchEscape($event)"
+        />
+        @if (searchQuery()) {
+          <button type="button" class="project-search-clear" [attr.aria-label]="'SESSIONS.SEARCH.Clear' | translate" [appTooltip]="'SESSIONS.SEARCH.Clear' | translate" (click)="searchQuery.set('')">
+            <iconify-icon icon="solar:close-circle-bold" width="14"></iconify-icon>
+          </button>
+        }
+      </div>
+    }
     <div class="session-list" appScrollHitTestFix>
       <!-- Reusable chunks: one per workspace group, one per standalone session.
            Rendered both inside folder sections (minimal only) and in the flat
@@ -570,9 +593,12 @@
         </div>
       }
 
+      <!-- The tree itself (folders → workspaces → sessions). Rendered once for
+           the whole sidebar, or once per machine when a remote machine is in use. -->
+      <ng-template #treeTpl let-folders="folders" let-groups="groups" let-standalone="standalone" let-machine="machine">
       <!-- Folder sections (minimal UI only). Folders always render, even when
            empty, so a fresh one is immediately usable as a drop target. -->
-      @for (fs of folderSections(); track fs.folder.id) {
+      @for (fs of folders; track fs.folder.id) {
         <div
           class="folder-section"
           [class.drop-target]="dropTargetFolderId() === fs.folder.id"
@@ -641,7 +667,7 @@
 
       <!-- "Remove from folder" drop zone — appears only while dragging an item
            that currently sits inside a folder -->
-      @if (draggedItemInFolder()) {
+      @if (draggedItemInFolder() && (machine === null || machine === draggedMachine())) {
         <div
           class="folder-unfile-zone"
           [class.drop-target]="dropTargetFolderId() === UNFILE_ZONE"
@@ -655,26 +681,96 @@
       }
 
       <!-- Workspace groups (outside folders; the full list in classic) -->
-      @if (ungroupedWorkspaceGroups().length > 0) {
+      @if (groups.length > 0) {
         <div class="section-label">{{ 'SESSIONS.Workspace label' | translate }}</div>
       }
-      @for (group of ungroupedWorkspaceGroups(); track group.workspace.id) {
+      @for (group of groups; track group.workspace.id) {
         <ng-container *ngTemplateOutlet="wsGroupTpl; context: { group: group }"></ng-container>
       }
 
       <!-- Standalone sessions (no workspace) -->
-      @if (ungroupedStandalone().length > 0) {
+      @if (standalone.length > 0) {
         <div class="section-label">{{ 'SESSIONS.Standalone label' | translate }}</div>
       }
-      @for (session of ungroupedStandalone(); track session.id) {
+      @for (session of standalone; track session.id) {
         <ng-container *ngTemplateOutlet="standaloneTpl; context: { session: session }"></ng-container>
       }
+      </ng-template>
+
+      @if (machineLevel()) {
+        <!-- Machine level (minimal + Tauri, only when something runs on a remote
+             machine): each machine owns its folders and its nesting. -->
+        @for (m of machineSections(); track m.key) {
+          <div class="machine-section">
+            <div
+              class="machine-header"
+              role="button"
+              tabindex="0"
+              [class.needs-attention]="!!machineAttention(m)"
+              [attr.aria-expanded]="isMachineExpanded(m.key)"
+              (click)="toggleMachine(m.key)"
+              (keydown.enter)="toggleMachine(m.key)"
+              (keydown.space)="$event.preventDefault(); toggleMachine(m.key)"
+            >
+              <iconify-icon
+                class="folder-chevron"
+                [icon]="isMachineExpanded(m.key) ? 'solar:alt-arrow-down-bold' : 'solar:alt-arrow-right-bold'"
+                width="12"
+              ></iconify-icon>
+              <iconify-icon class="machine-icon" [icon]="m.kind === 'local' ? 'solar:monitor-bold-duotone' : 'solar:server-bold-duotone'" width="15"></iconify-icon>
+              <span class="machine-name" [appTooltip]="m.detail">
+                @if (m.kind === 'local') {
+                  {{ 'SESSIONS.HOST.Local name' | translate }}
+                } @else if (m.name) {
+                  {{ m.name }}
+                } @else {
+                  {{ 'SESSIONS.MACHINES.Unknown remote' | translate }}
+                }
+              </span>
+              @if (machineAttention(m); as ma) {
+                <span class="attention-badge" [appTooltip]="attentionTooltip(ma)">
+                  <span class="attention-dot"></span>{{ attentionLabel(ma) }}
+                </span>
+              }
+              <button
+                type="button"
+                class="machine-add-folder"
+                [appTooltip]="'SESSIONS.MACHINES.New folder here' | translate"
+                [attr.aria-label]="'SESSIONS.MACHINES.New folder here' | translate"
+                (click)="$event.stopPropagation(); createFolderInline(m.key)"
+                (keydown.enter)="$event.stopPropagation()"
+                (keydown.space)="$event.stopPropagation()"
+              >
+                <iconify-icon icon="solar:add-folder-linear" width="14"></iconify-icon>
+              </button>
+              <span class="folder-badge">{{ m.count }}</span>
+            </div>
+            @if (isMachineExpanded(m.key)) {
+              <div class="machine-content">
+                <ng-container *ngTemplateOutlet="treeTpl; context: { folders: m.folders, groups: m.groups, standalone: m.standalone, machine: m.key }"></ng-container>
+                @if (m.folders.length === 0 && m.groups.length === 0 && m.standalone.length === 0) {
+                  <div class="folder-empty-hint">{{ 'SESSIONS.MACHINES.Empty hint' | translate }}</div>
+                }
+              </div>
+            }
+          </div>
+        }
+      } @else {
+        <ng-container *ngTemplateOutlet="treeTpl; context: { folders: folderSections(), groups: ungroupedWorkspaceGroups(), standalone: ungroupedStandalone(), machine: null }"></ng-container>
+      }
       @if (ungroupedStandalone().length === 0 && ungroupedWorkspaceGroups().length === 0 && folderSections().length === 0) {
-        <div class="empty-state">
-          <iconify-icon icon="solar:chat-square-2-bold-duotone" width="28"></iconify-icon>
-          <span class="empty-title">{{ 'SESSIONS.No sessions' | translate }}</span>
-          <span class="empty-hint">{{ 'SESSIONS.Create first session hint' | translate }}</span>
-        </div>
+        @if (searching()) {
+          <div class="empty-state">
+            <iconify-icon icon="solar:magnifer-linear" width="28"></iconify-icon>
+            <span class="empty-title">{{ 'SESSIONS.SEARCH.No results' | translate }}</span>
+          </div>
+        } @else {
+          <div class="empty-state">
+            <iconify-icon icon="solar:chat-square-2-bold-duotone" width="28"></iconify-icon>
+            <span class="empty-title">{{ 'SESSIONS.No sessions' | translate }}</span>
+            <span class="empty-hint">{{ 'SESSIONS.Create first session hint' | translate }}</span>
+          </div>
+        }
       }
     </div>
     }
@@ -723,7 +819,7 @@
         {{ 'SESSIONS.FOLDERS.Move to folder' | translate }}
       </button>
       <div class="ctx-divider"></div>
-      @for (f of foldersService.folders(); track f.id) {
+      @for (f of ctxMoveFolders(); track f.id) {
         <button class="ctx-item" (click)="ctxMoveTo(f.id)">
           <span class="ctx-folder-dot" [style.background]="f.color ?? 'var(--po-accent)'"></span>
           <span class="ctx-folder-name">{{ f.name }}</span>

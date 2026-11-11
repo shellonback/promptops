@@ -1,4 +1,5 @@
-import type { Terminal, IDisposable, IMarker, IDecoration } from '@xterm/xterm';
+import type { Terminal, IDisposable } from '@xterm/xterm';
+import { createRowButtonLayer, isTerminalVisible, makeActionButton, type RowButton } from './terminal-row-buttons';
 
 /**
  * Play button on Claude Code's "run this yourself" lines.
@@ -12,6 +13,10 @@ import type { Terminal, IDisposable, IMarker, IDecoration } from '@xterm/xterm';
  *
  * Lines inside/below Claude's input box (between the `────` rules at the
  * bottom) are ignored, so the user's own `! …` draft never gets a button.
+ *
+ * Works on the alternate screen too (Claude Code `"tui": "fullscreen"`):
+ * see terminal-row-buttons.ts. The copy icon at the end of the same rows is
+ * drawn by terminal-link-copier.ts.
  */
 
 // The command can also be the FIRST line of Claude's reply: then the row is
@@ -21,12 +26,6 @@ const INPUT_RULE_RE = /^[\s╭╰]*[─━]{10,}/;
 const SCAN_BACK_LINES = 300;
 const BOTTOM_LOOKUP_LINES = 30;
 const MAX_BUTTONS = 60;
-
-interface BangEntry {
-  marker: IMarker;
-  decoration: IDecoration;
-  command: string;
-}
 
 export interface BangCommandRunnerOptions {
   /** Re-evaluated on every scan (provider can change in place). */
@@ -66,13 +65,18 @@ const NEW_ITEM_RE = /^\s*(?:\d+[.)]|[-*•●⏺]|!)\s/;
  * long commands with hard newlines (not xterm soft wraps), so a following row
  * is a continuation when its first word could not have fit on the row above.
  */
-function bangAt(terminal: Terminal, index: number, limit: number): { indent: number; command: string } | null {
+export function bangAt(
+  terminal: Terminal,
+  index: number,
+  limit: number,
+): { indent: number; command: string; endRow: number; endCol: number } | null {
   const m = BANG_LINE_RE.exec(lineText(terminal, index));
   if (!m) return null;
   const buffer = terminal.buffer.active;
   const cols = terminal.cols;
   let command = m[2];
   let prev = lineText(terminal, index).replace(/\s+$/, '');
+  let endRow = index;
   for (let i = index + 1; i < limit; i++) {
     const row = buffer.getLine(i);
     if (!row) break;
@@ -80,6 +84,7 @@ function bangAt(terminal: Terminal, index: number, limit: number): { indent: num
     if (row.isWrapped) {
       command += text.replace(/\s+$/, '');
       prev = text;
+      endRow = i;
       continue;
     }
     const body = text.trim();
@@ -89,119 +94,75 @@ function bangAt(terminal: Terminal, index: number, limit: number): { indent: num
     if (prev.length + 1 + firstWord.length <= cols) break;
     command += ' ' + body;
     prev = text.replace(/\s+$/, '');
+    endRow = i;
   }
-  return { indent: m[1].length, command };
+  return { indent: m[1].length, command, endRow, endCol: prev.replace(/\s+$/, '').length };
+}
+
+/**
+ * Rows `[from, limit)` where a `! command` can be Claude's: everything above
+ * the input box (the user's own draft never gets a button).
+ */
+export function bangScanRange(terminal: Terminal): { from: number; limit: number } {
+  const buffer = terminal.buffer.active;
+  if (buffer.type !== 'normal') {
+    // Fullscreen TUI: the cursor can sit anywhere. The input box is the last
+    // pair of rules near the bottom, its top rule is the limit.
+    let limit = buffer.length;
+    let rules = 0;
+    for (let i = buffer.length - 1; i >= Math.max(0, buffer.length - BOTTOM_LOOKUP_LINES) && rules < 2; i--) {
+      if (INPUT_RULE_RE.test(lineText(terminal, i))) { limit = i; rules++; }
+    }
+    return { from: 0, limit };
+  }
+  const cursorAbs = buffer.baseY + buffer.cursorY;
+  let limit = cursorAbs + 1;
+  for (let i = cursorAbs; i >= Math.max(0, cursorAbs - BOTTOM_LOOKUP_LINES); i--) {
+    if (INPUT_RULE_RE.test(lineText(terminal, i))) limit = i;
+  }
+  return { from: Math.max(0, limit - SCAN_BACK_LINES), limit };
 }
 
 export function attachBangCommandRunner(terminal: Terminal, opts: BangCommandRunnerOptions): IDisposable {
-  let entries: BangEntry[] = [];
+  const layer = createRowButtonLayer(terminal, MAX_BUTTONS);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
-
-  const drop = (entry: BangEntry) => {
-    entry.decoration.dispose();
-    entry.marker.dispose();
-  };
-  const clear = () => {
-    for (const e of entries) drop(e);
-    entries = [];
-  };
-
-  const renderButton = (el: HTMLElement, entry: BangEntry) => {
-    if (el.dataset['poBang']) return;
-    el.dataset['poBang'] = '1';
-    el.style.pointerEvents = 'auto';
-    el.style.zIndex = '7';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = '▶';
-    const label = opts.runLabel ? opts.runLabel(entry.command) : `Run: ${entry.command}`;
-    btn.title = label;
-    btn.setAttribute('aria-label', label);
-    Object.assign(btn.style, {
-      width: '100%',
-      height: '100%',
-      padding: '0',
-      margin: '0',
-      border: 'none',
-      borderRadius: '3px',
-      background: '#4F41FA',
-      color: '#fff',
-      fontSize: '0.7em',
-      lineHeight: '1',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    } satisfies Partial<CSSStyleDeclaration>);
-    // Keep xterm from starting a selection / stealing the click.
-    btn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      // Stale rows are dropped by scan(); don't re-validate here, a redraw in
-      // progress made the click silently do nothing.
-      if (btn.disabled) return;
-      btn.disabled = true;
-      btn.textContent = '✓';
-      btn.style.background = '#16a34a';
-      void typeBangCommand(opts.write, entry.command).finally(() => {
-        setTimeout(() => {
-          btn.disabled = false;
-          btn.textContent = '▶';
-          btn.style.background = '#4F41FA';
-        }, 1500);
-        terminal.focus();
-      });
-    });
-    el.appendChild(btn);
-  };
 
   const scan = () => {
     timer = null;
     if (disposed) return;
-    const buffer = terminal.buffer.active;
-    if (!opts.isEnabled() || buffer.type !== 'normal') {
-      clear();
+    // Hidden tab / pane: no work now, look again later (cheap check).
+    if (!isTerminalVisible(terminal)) {
+      timer = setTimeout(scan, 1500);
       return;
     }
-
-    const cursorAbs = buffer.baseY + buffer.cursorY;
-    let limit = cursorAbs + 1;
-    for (let i = cursorAbs; i >= Math.max(0, cursorAbs - BOTTOM_LOOKUP_LINES); i--) {
-      if (INPUT_RULE_RE.test(buffer.getLine(i)?.translateToString(true) ?? '')) limit = i;
+    if (!opts.isEnabled()) {
+      layer.clear();
+      return;
     }
-
-    // Drop buttons whose row was trimmed or redrawn with something else.
-    entries = entries.filter((e) => {
-      const b = e.marker.isDisposed ? null : bangAt(terminal, e.marker.line, limit);
-      if (b && b.command === e.command) return true;
-      drop(e);
-      return false;
-    });
-
-    const taken = new Set(entries.map((e) => e.marker.line));
-    for (let i = Math.max(0, limit - SCAN_BACK_LINES); i < limit; i++) {
+    const buffer = terminal.buffer.active;
+    const { from, limit } = bangScanRange(terminal);
+    const items: RowButton[] = [];
+    for (let i = from; i < limit; i++) {
       const row = buffer.getLine(i);
-      if (!row || row.isWrapped || taken.has(i)) continue;
+      if (!row || row.isWrapped) continue;
       const b = bangAt(terminal, i, limit);
       if (!b) continue;
-      const indent = b.indent;
-      const marker = terminal.registerMarker(i - cursorAbs);
-      if (!marker) continue;
-      const decoration = terminal.registerDecoration({
-        marker,
-        x: Math.max(0, indent - 2),
-        width: Math.min(2, indent),
-        layer: 'top',
+      const command = b.command;
+      items.push({
+        row: i,
+        x: Math.max(0, b.indent - 2),
+        width: Math.min(2, b.indent),
+        key: command,
+        create: () =>
+          makeActionButton(terminal, {
+            label: '▶',
+            title: opts.runLabel ? opts.runLabel(command) : `Run: ${command}`,
+            run: () => typeBangCommand(opts.write, command),
+          }),
       });
-      if (!decoration) { marker.dispose(); continue; }
-      const entry: BangEntry = { marker, decoration, command: b.command };
-      decoration.onRender((el) => renderButton(el, entry));
-      entries.push(entry);
     }
-
-    while (entries.length > MAX_BUTTONS) drop(entries.shift()!);
+    layer.sync(items, from);
   };
 
   const schedule = () => {
@@ -210,6 +171,7 @@ export function attachBangCommandRunner(terminal: Terminal, opts: BangCommandRun
   const subs = [
     terminal.onWriteParsed(schedule),
     terminal.buffer.onBufferChange(schedule),
+    terminal.onResize(schedule),
   ];
   schedule();
 
@@ -218,7 +180,7 @@ export function attachBangCommandRunner(terminal: Terminal, opts: BangCommandRun
       disposed = true;
       if (timer !== null) clearTimeout(timer);
       for (const s of subs) s.dispose();
-      clear();
+      layer.dispose();
     },
   };
 }

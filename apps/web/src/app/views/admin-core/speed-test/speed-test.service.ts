@@ -196,6 +196,7 @@ interface SpeedTestEvent {
 // Fallback entries carry no availability/baseline/history: that data only
 // exists on desktop, and its absence here is visible rather than wrong.
 const FALLBACK_MODELS: SpeedTestModelInfo[] = [
+  { id: 'claude-fable-5-2', label: 'Claude Fable 5.2', provider: 'claude-code-cli', providerLabel: 'Claude Code' },
   { id: 'claude-fable-5-1', label: 'Claude Fable 5.1', provider: 'claude-code-cli', providerLabel: 'Claude Code' },
   { id: 'claude-fable-5', label: 'Claude Fable 5', provider: 'claude-code-cli', providerLabel: 'Claude Code' },
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'claude-code-cli', providerLabel: 'Claude Code' },

@@ -94,6 +94,47 @@ describe('AgentRosterService rosterFor', () => {
     expect(roster.rosterFor(session, [sub]).map((p) => p.id)).toEqual([AgentRosterService.LEAD_PANE_ID, 'sa-1']);
   });
 
+  it('keeps the chosen lead by id within a run', async () => {
+    await loadMeta({ leadId: 'sa-1', leadKey: 'custom|Worker' });
+    const panes = roster.rosterFor(session, [sub]);
+    expect(roster.effectiveLeadId('s1', panes)).toBe('sa-1');
+  });
+
+  it('finds the chosen lead again after a respawn changed its id', async () => {
+    await loadMeta({ leadId: 'sa-old', leadKey: 'custom|Worker' });
+    const other = { id: 'sa-2', role: 'custom', title: 'Other', parentSessionId: 's1' } as SubAgent;
+    const panes = roster.rosterFor(session, [other, sub]);
+    expect(roster.preferredLeadId('s1', panes)).toBe('sa-1');
+    expect(roster.effectiveLeadId('s1', panes)).toBe('sa-1');
+  });
+
+  it('falls back to the first pane when the chosen lead is gone', async () => {
+    await loadMeta({ leadId: 'sa-old', leadKey: 'custom|Gone' });
+    const panes = roster.rosterFor(session, [sub]);
+    expect(roster.preferredLeadId('s1', panes)).toBeNull();
+    expect(roster.effectiveLeadId('s1', panes)).toBe(AgentRosterService.LEAD_PANE_ID);
+    // Old metas without a key behave exactly as before.
+    await loadMeta({ leadId: 'sa-old' });
+    expect(roster.effectiveLeadId('s1', panes)).toBe(AgentRosterService.LEAD_PANE_ID);
+  });
+
+  it('saves the stable identity next to the id, and none for the session pane', async () => {
+    const calls: unknown[][] = [];
+    (window as any).promptops = {
+      agentsMetaGet: () => Promise.resolve({}),
+      agentsSetLead: (...args: unknown[]) => { calls.push(args); return Promise.resolve(null); },
+    };
+    await roster.load('s1');
+    await roster.setLead('s1', 'sa-1', sub);
+    await roster.setLead('s1', AgentRosterService.LEAD_PANE_ID, { id: AgentRosterService.LEAD_PANE_ID, role: 'lead', title: 'Solo' });
+    await roster.setLead('s1', null);
+    expect(calls).toEqual([
+      ['s1', 'sa-1', 'custom|Worker'],
+      ['s1', AgentRosterService.LEAD_PANE_ID, null],
+      ['s1', null, null],
+    ]);
+  });
+
   it('carries waiting_input over to the lead', async () => {
     await loadMeta({});
     const panes = roster.rosterFor({ ...session, status: 'waiting_input' }, [], true);

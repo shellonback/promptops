@@ -34,6 +34,11 @@ use crate::commands::session::{SessionManager, SessionSummary};
 pub struct AgentsMeta {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lead_id: Option<String>,
+    /// Stable identity (`role|title`) of the chosen lead. A sub-agent's id
+    /// changes on every respawn (restart, wake from standby): without this the
+    /// lead preference was lost and fell back to the first pane.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lead_key: Option<String>,
     #[serde(default)]
     pub order: Vec<String>,
     #[serde(default)]
@@ -177,8 +182,13 @@ pub fn agents_set_lead(
     manager: tauri::State<'_, Arc<SessionManager>>,
     session_id: String,
     lead_id: Option<String>,
+    lead_key: Option<String>,
 ) -> AgentsMeta {
-    let meta = update(&manager, &session_id, |m| m.lead_id = lead_id);
+    let meta = update(&manager, &session_id, |m| {
+        // With no chosen lead, no identity is left dangling.
+        m.lead_key = lead_id.as_ref().and(lead_key);
+        m.lead_id = lead_id;
+    });
     emit_changed(&app, &session_id, &meta);
     meta
 }

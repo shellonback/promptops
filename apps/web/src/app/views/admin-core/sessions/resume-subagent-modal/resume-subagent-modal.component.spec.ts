@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { Store } from '@ngrx/store';
+import { of } from 'rxjs';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { SubAgentService } from '../services/sub-agent.service';
@@ -17,6 +19,7 @@ describe('ResumeSubAgentModalComponent (logic)', () => {
       providers: [
         { provide: NgbActiveModal, useValue: modal },
         { provide: SubAgentService, useValue: { listArchived } },
+        { provide: Store, useValue: { select: () => of([]), dispatch: () => undefined } },
       ],
     });
     const translate = TestBed.inject(TranslateService);

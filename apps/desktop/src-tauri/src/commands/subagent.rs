@@ -403,6 +403,7 @@ pub(crate) fn push_stash_snapshot(
         .take(MAX_STASH_ENTRIES)
         .map(|(_, e)| e)
         .collect();
+    crate::commands::open_state::note_roster(parent_session_id, &sub_agents);
     let _ = app.emit(
         "subagent:stash-updated",
         StashUpdatedEvent {
@@ -462,6 +463,7 @@ pub(crate) fn push_stash_frozen(
         .take(MAX_STASH_ENTRIES)
         .map(|(_, e)| e)
         .collect();
+    crate::commands::open_state::note_roster(parent_session_id, &sub_agents);
     let _ = app.emit(
         "subagent:stash-updated",
         StashUpdatedEvent {

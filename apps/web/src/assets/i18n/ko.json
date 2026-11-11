@@ -1687,6 +1687,32 @@
       "Hint action": "폴더로 가져오기",
       "Partial failure": "워크스페이스 {{count}}개를 만들 수 없습니다: {{names}}",
       "Empty workspace tooltip": "아직 세션이 없습니다 — 클릭하여 시작"
+    },
+    "HOST": {
+      "Step title": "실행 위치 선택",
+      "Step short": "머신",
+      "Title": "실행 위치",
+      "Hint": "이 컴퓨터 또는 원격 머신에서 세션을 실행합니다.",
+      "Group local": "로컬",
+      "Group remote": "원격 머신",
+      "Local name": "이 컴퓨터",
+      "Local detail": "이 기기의 폴더",
+      "Kind ssh": "SSH",
+      "Kind command": "명령",
+      "Add": "원격 머신 추가",
+      "Add hint": "SSH 연결 또는 연결 명령(ssh, AWS SSM 등)",
+      "Forget": "목록에서 제거",
+      "Change": "머신 변경"
+    },
+    "MACHINES": {
+      "Unknown remote": "원격 머신",
+      "New folder here": "이 머신에 새 폴더",
+      "Empty hint": "이 머신에는 아직 아무것도 없습니다"
+    },
+    "SEARCH": {
+      "Placeholder": "프로젝트 검색",
+      "Clear": "검색 지우기",
+      "No results": "프로젝트를 찾을 수 없습니다"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "에이전트를 새 세션으로 옮기지 못했습니다.",
     "Move failed resume": "대화를 이어 가려면 \"하위 에이전트 재개\"에서 재개하세요 (대화 ID: {{id}}).",
-    "Move locked": "이 에이전트는 잠겨 있어 옮기지 않았습니다. 잠금을 해제하고 다시 요청하세요."
+    "Move locked": "이 에이전트는 잠겨 있어 옮기지 않았습니다. 잠금을 해제하고 다시 요청하세요.",
+    "Last closure": "마지막 종료 시점",
+    "Last closure hint": "앱을 마지막으로 닫을 때 열려 있던 세션과 에이전트입니다. 자동으로 다시 시작되지 않습니다.",
+    "Closed unexpectedly": "예기치 않은 종료",
+    "Reopen": "다시 열기",
+    "Reopen all": "모두 다시 열기",
+    "Already open": "이미 열려 있음",
+    "Session no longer exists": "세션이 더 이상 없습니다"
   },
   "INJECT": {
     "Title": "플러그인 및 스킬",
@@ -3506,7 +3539,10 @@
     "Copy": "복사",
     "Copied": "복사됨",
     "Copy link": "링크 복사",
-    "Run command": "실행: {{command}}"
+    "Run command": "실행: {{command}}",
+    "Open link": "링크 열기",
+    "Copy command": "명령 복사",
+    "Open file": "{{path}} 열기"
   },
   "BOTTOM_BAR": {
     "Used": "사용",

@@ -4862,7 +4862,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   /** Pane of the lead (agents model) or of the main, if visible. */
   private leadPaneId(ids: string[]): string | null {
     const sid = this.activeSessionId();
-    const leadId = this.agentsEnabled && sid ? this.agentRoster.meta(sid).leadId : null;
+    const leadId = this.agentsEnabled && sid ? this.agentRoster.preferredLeadId(sid, this.paneRoster()) : null;
     if (leadId && ids.includes('sa:' + leadId)) return 'sa:' + leadId;
     const main = 'sa:' + SessionViewComponent.MAIN_PANE_ID;
     if (ids.includes(main)) return main;
@@ -7575,7 +7575,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     // stay hanging on a dead id and the ⭐ badge moves right away to the next pane.
     if (this.agentsEnabled) {
       const sid = this.activeSessionId();
-      if (sid && this.agentRoster.meta(sid).leadId === subAgentId) {
+      if (sid && this.agentRoster.preferredLeadId(sid, this.paneRoster()) === subAgentId) {
         void this.agentRoster.setLead(sid, null);
       }
     }
@@ -7647,7 +7647,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     event?.stopPropagation();
     const id = this.activeSessionId();
     if (!id) return;
-    void this.agentRoster.setLead(id, paneId);
+    void this.agentRoster.setLead(id, paneId, this.paneRoster().find((p) => p.id === paneId));
   }
 
   toggleExpandSubAgent(subAgentId: string): void {

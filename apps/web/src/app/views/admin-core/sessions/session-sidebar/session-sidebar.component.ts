@@ -32,6 +32,10 @@ import { SessionWindowsService } from '../services/session-windows.service';
 import { canDetach } from '@/app/detached/detached-window';
 import { PROVIDER_LOGO } from '../provider-logos';
 import { FloorPlanViewComponent } from '../floor-plan/floor-plan-view.component';
+import { SessionHostsService, commandHost } from '../services/session-host';
+import { LOCAL_MACHINE, MachineBucket, UNKNOWN_REMOTE_MACHINE, bucketItemCount, buildMachineTree, isRemoteMachine, machineKeyForPath } from './machine-tree';
+import { SidebarMachineStateService } from './sidebar-machine-state.service';
+import { filterWorkspaceGroup, matchesProjectQuery, normalizeProjectQuery, pathBasename, shouldShowProjectSearch } from './project-search';
 
 export interface WorkspaceGroup {
   workspace: WorkspaceSummary;
@@ -54,6 +58,15 @@ interface FolderSection {
 
 /** Item being dragged inside the sidebar (folders DnD — minimal UI only).
  *  For sessions, `id` is the stored dbId (the join key of folder assignments). */
+/** One machine of the sidebar tree with its own folders and nesting (minimal + Tauri). */
+export interface MachineSection extends MachineBucket<FolderSection, WorkspaceGroup, SessionSummary> {
+  kind: 'local' | 'ssh' | 'command' | 'unknown';
+  /** null = translated label (this computer / unknown remote machine). */
+  name: string | null;
+  detail: string;
+  count: number;
+}
+
 export interface DraggedSidebarItem {
   kind: 'workspace' | 'session' | 'folder';
   id: string;
@@ -76,6 +89,18 @@ const NO_SUB_AGENTS: SubAgent[] = [];
   schemas: [CUSTOM_ELEMENTS_SCHEMA],
   changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
+    /* ── Project search: outside the scrolling area, above Floor plan ── */
+    .project-search { position: relative; flex: none; margin: 6px 8px 2px; }
+    .project-search-icon { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); color: var(--po-text-tertiary); pointer-events: none; }
+    .project-search-input { width: 100%; height: 28px; padding: 0 26px 0 27px; border-radius: 8px; font-size: 12.5px; outline: none;
+      border: 1px solid var(--promptops-border-color, rgba(127,127,127,.25)); background: transparent; color: inherit; transition: border-color .12s; }
+    .project-search-input::placeholder { color: var(--po-text-tertiary); }
+    .project-search-input:focus { border-color: var(--po-accent, #6366F1); }
+    .project-search-clear { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; padding: 0; border: none; border-radius: 5px; background: transparent; color: var(--po-text-secondary); cursor: pointer; }
+    .project-search-clear:hover { color: var(--po-text-primary); }
+    .project-search-clear:focus-visible { outline: 2px solid var(--po-accent, #6366F1); outline-offset: 1px; }
+
     /* ── Plugin entries ("sidebar" zone): detached from the list, with a thin border and puzzle icon ── */
     .plugin-entries { display: flex; flex-direction: column; gap: 4px; padding: 2px 8px 8px; margin-bottom: 4px;
       border-bottom: 1px dashed var(--promptops-border-color, rgba(127,127,127,.25)); }
@@ -476,6 +501,60 @@ const NO_SUB_AGENTS: SubAgent[] = [];
       padding-left: 0.15rem;
       border-left: 1px solid rgba(255, 255, 255, 0.07);
     }
+
+    /* ── Machine level (this computer / remote machines) ── */
+    .machine-section + .machine-section {
+      margin-top: 0.3rem;
+      padding-top: 0.2rem;
+      border-top: 1px solid var(--promptops-border-color, rgba(128, 128, 128, 0.2));
+    }
+    .machine-header {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.42rem 0.75rem;
+      margin: 0 0.35rem;
+      border-radius: 6px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.12s;
+    }
+    .machine-header:hover { background: var(--promptops-tertiary-bg, rgba(128, 128, 128, 0.1)); }
+    .machine-header:focus-visible { outline: 2px solid var(--po-accent, #6366F1); outline-offset: -2px; }
+    .machine-icon { flex-shrink: 0; color: var(--po-text-secondary); font-size: 0; }
+    .machine-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 0.74rem;
+      font-weight: 700;
+      color: var(--po-text-primary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .machine-header.needs-attention .machine-name { color: var(--po-warning); }
+    .machine-add-folder {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--po-text-secondary);
+      font-size: 0;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.12s, color 0.12s;
+    }
+    .machine-header:hover .machine-add-folder,
+    .machine-add-folder:focus-visible { opacity: 1; }
+    .machine-add-folder:hover { color: var(--po-text-primary); }
+    .machine-add-folder:focus-visible { outline: 2px solid var(--po-accent, #6366F1); }
+    .machine-content { padding-bottom: 0.2rem; }
 
     .folder-empty-hint {
       padding: 0.35rem 0.75rem 0.45rem;
@@ -1287,6 +1366,8 @@ export class SessionSidebarComponent {
   }
   /** Sidebar folders (stored) — minimal UI only. */
   protected foldersService = inject(SidebarFoldersService);
+  private machineState = inject(SidebarMachineStateService);
+  private hosts = inject(SessionHostsService);
   private uiStyle = inject(UiStyleService);
   private store = inject(Store);
   private translateService = inject(TranslateService);
@@ -1452,6 +1533,7 @@ export class SessionSidebarComponent {
   private readonly attentionNow = signal(Date.now());
 
   constructor() {
+    this.initMachineLevel();
     // Attention timer: records WHEN each session/sub-agent entered
     // waiting_input (first observation) and forgets the id as soon as it leaves. Sessions
     // in standby do not count: they are parked, not waiting.
@@ -1551,6 +1633,7 @@ export class SessionSidebarComponent {
   }
 
   toggleWorkspace(wsId: string): void {
+    if (this.searching()) return; // while searching everything is open: leave the saved state alone
     const next = applyManualToggle({ expanded: this.expandedMap(), auto: this.autoCollapsed }, wsId);
     this.autoCollapsed = next.auto;
     this.expandedMap.set(next.expanded);
@@ -1559,7 +1642,7 @@ export class SessionSidebarComponent {
   }
 
   isWorkspaceExpanded(wsId: string): boolean {
-    return isExpanded(this.expandedMap(), wsId);
+    return this.searching() || isExpanded(this.expandedMap(), wsId);
   }
 
   private loadAutoCollapsedFromStorage(): Set<string> {
@@ -1613,6 +1696,42 @@ export class SessionSidebarComponent {
     this.loadBooleanMapFromStorage(SessionSidebarComponent.FOLDER_EXPAND_STORAGE_KEY),
   );
 
+  // ── Project search (minimal only) ──
+  readonly searchQuery = signal('');
+
+  /** Thresholds computed on the whole tree: the field must not disappear while filtering. */
+  readonly showProjectSearch = computed(
+    () =>
+      this.minimal() &&
+      shouldShowProjectSearch(this.foldersService.folders().length, this.workspaceGroups().length + this.standaloneSessions().length),
+  );
+
+  /** Empty when the bar is not shown: the collapsed rail and the below-threshold case always show everything. */
+  private readonly activeQuery = computed(() =>
+    this.showProjectSearch() && !this.collapsed() ? normalizeProjectQuery(this.searchQuery()) : '',
+  );
+  readonly searching = computed(() => !!this.activeQuery());
+
+  private filterGroups(groups: WorkspaceGroup[], query: string): WorkspaceGroup[] {
+    if (!query) return groups;
+    return groups.flatMap((g) => filterWorkspaceGroup<SessionSummary, WorkspaceGroup>(g, query) ?? []);
+  }
+
+  private filterStandalone(sessions: SessionSummary[], query: string): SessionSummary[] {
+    if (!query) return sessions;
+    return sessions.filter((s) => matchesProjectQuery(query, s.name, pathBasename(s.workspace?.path)));
+  }
+
+  /** Esc: clears, or leaves the field if it is already empty (and only then lets the key through). */
+  onProjectSearchEscape(event: Event): void {
+    if (this.searchQuery()) {
+      event.stopPropagation();
+      this.searchQuery.set('');
+    } else {
+      (event.target as HTMLElement).blur();
+    }
+  }
+
   /**
    * The folder sections rendered above the flat list. Folders always render,
    * even when empty, so a freshly created one is a usable drop target.
@@ -1623,7 +1742,8 @@ export class SessionSidebarComponent {
     if (folders.length === 0) return [];
     const groups = this.workspaceGroups();
     const standalone = this.standaloneSessions();
-    return folders.map((folder) => {
+    const query = this.activeQuery();
+    const sections = folders.map((folder) => {
       const wsSet = new Set(folder.workspaceIds);
       const sessionSet = new Set(folder.sessionIds);
       return {
@@ -1631,6 +1751,13 @@ export class SessionSidebarComponent {
         groups: groups.filter((g) => wsSet.has(g.workspace.id)),
         standalone: standalone.filter((s) => !!s.dbId && sessionSet.has(s.dbId)),
       };
+    });
+    if (!query) return sections;
+    // Matching folder → whole; otherwise only the matching projects.
+    return sections.flatMap((fs) => {
+      if (matchesProjectQuery(query, fs.folder.name)) return [fs];
+      const filtered = { ...fs, groups: this.filterGroups(fs.groups, query), standalone: this.filterStandalone(fs.standalone, query) };
+      return filtered.groups.length + filtered.standalone.length > 0 ? [filtered] : [];
     });
   });
 
@@ -1642,8 +1769,7 @@ export class SessionSidebarComponent {
     const all = this.workspaceGroups();
     if (!this.minimal()) return all;
     const map = this.foldersService.workspaceFolderMap();
-    if (map.size === 0) return all;
-    return all.filter((g) => !map.has(g.workspace.id));
+    return this.filterGroups(map.size === 0 ? all : all.filter((g) => !map.has(g.workspace.id)), this.activeQuery());
   });
 
   /** Standalone sessions not assigned to any folder (see ungroupedWorkspaceGroups). */
@@ -1651,9 +1777,156 @@ export class SessionSidebarComponent {
     const all = this.standaloneSessions();
     if (!this.minimal()) return all;
     const map = this.foldersService.sessionFolderMap();
-    if (map.size === 0) return all;
-    return all.filter((s) => !s.dbId || !map.has(s.dbId));
+    return this.filterStandalone(map.size === 0 ? all : all.filter((s) => !s.dbId || !map.has(s.dbId)), this.activeQuery());
   });
+
+  // ── Machine level: machine → folders → workspaces → sessions (minimal + Tauri) ──
+
+  private sessionKey(s: SessionSummary): string {
+    return s.dbId || s.id;
+  }
+
+  /** Machine a session runs on, from its cwd scheme (+ the remembered connect command). */
+  machineOfSession(s: SessionSummary): string {
+    return machineKeyForPath(s.workspace?.path, this.machineState.commandOf(this.sessionKey(s)));
+  }
+
+  private machineTree = computed(() =>
+    buildMachineTree<SessionSummary, WorkspaceGroup, FolderSection>({
+      folderSections: this.folderSections(),
+      groups: this.ungroupedWorkspaceGroups(),
+      standalone: this.ungroupedStandalone(),
+      machineOf: (s) => this.machineOfSession(s),
+      folderHomes: this.machineState.folderHomes(),
+      machineOrder: this.hosts.remoteHosts().map((h) => h.key),
+    }),
+  );
+
+  /**
+   * The extra level appears only when something actually lives on a remote
+   * machine (a session, or a folder created there). Computed on the whole
+   * tree, not on the search results, so it does not flicker while filtering.
+   */
+  readonly machineLevel = computed<boolean>(() => {
+    if (!this.minimal() || !this.sessionService.isTauri) return false;
+    if (this.sessions().some((s) => isRemoteMachine(this.machineOfSession(s)))) return true;
+    const homes = this.machineState.folderHomes();
+    return this.foldersService.folders().some((f) => isRemoteMachine(homes.get(f.id) ?? LOCAL_MACHINE));
+  });
+
+  readonly machineSections = computed<MachineSection[]>(() => {
+    const searching = this.searching();
+    const hosts = new Map(this.hosts.remoteHosts().map((h) => [h.key, h]));
+    return this.machineTree()
+      .machines.filter((b) => {
+        const hasAny = b.folders.length + b.groups.length + b.standalone.length > 0;
+        // This computer always shows; while searching only machines with a match do.
+        return searching ? hasAny : hasAny || b.key === LOCAL_MACHINE;
+      })
+      .map((b) => ({ ...b, ...this.describeMachine(b.key, hosts.get(b.key)), count: bucketItemCount(b) }));
+  });
+
+  private describeMachine(
+    key: string,
+    host: { kind: 'ssh' | 'command'; name: string; detail: string } | undefined,
+  ): Pick<MachineSection, 'kind' | 'name' | 'detail'> {
+    if (key === LOCAL_MACHINE) return { kind: 'local', name: null, detail: '' };
+    if (host) return { kind: host.kind, name: host.name, detail: host.detail };
+    if (key === UNKNOWN_REMOTE_MACHINE) return { kind: 'unknown', name: null, detail: '' };
+    if (key.startsWith('cmd:')) {
+      const h = commandHost(key.slice('cmd:'.length));
+      return { kind: 'command', name: h.name, detail: h.detail };
+    }
+    // SSH connection no longer saved on this device: only its id is left.
+    return { kind: 'ssh', name: null, detail: key.slice('ssh:'.length) };
+  }
+
+  isMachineExpanded(key: string): boolean {
+    return this.searching() || this.machineState.isExpanded(key);
+  }
+
+  toggleMachine(key: string): void {
+    if (this.searching()) return; // vedi toggleWorkspace
+    this.machineState.toggle(key);
+  }
+
+  machineAttention(m: MachineSection): AttentionInfo | null {
+    return this.folderAttention({
+      folder: null as unknown as SidebarFolder,
+      groups: [...m.groups, ...m.folders.flatMap((f) => f.groups)],
+      standalone: [...m.standalone, ...m.folders.flatMap((f) => f.standalone)],
+    });
+  }
+
+  /** Machine a folder is shown under (this computer when the level is off). */
+  private folderMachineOf(folderId: string): string {
+    return this.machineTree().folderMachine.get(folderId) ?? LOCAL_MACHINE;
+  }
+
+  private workspaceMachineOf(workspaceId: string): string {
+    for (const b of this.machineTree().machines) {
+      const inFolders = b.folders.some((f) => f.groups.some((g) => g.workspace.id === workspaceId));
+      if (inFolders || b.groups.some((g) => g.workspace.id === workspaceId)) return b.key;
+    }
+    return LOCAL_MACHINE;
+  }
+
+  private sessionMachineByDbId(dbId: string): string {
+    const s = this.sessions().find((x) => x.dbId === dbId);
+    return s ? this.machineOfSession(s) : LOCAL_MACHINE;
+  }
+
+  /** Machine of the item being dragged (null = nothing dragged). */
+  draggedMachine(): string | null {
+    const d = this.draggedItem();
+    if (!d) return null;
+    if (d.kind === 'folder') return this.folderMachineOf(d.id);
+    return d.kind === 'workspace' ? this.workspaceMachineOf(d.id) : this.sessionMachineByDbId(d.id);
+  }
+
+  /** A folder only takes items (and reorders with folders) of its own machine. */
+  private canDropOnFolder(folderId: string): boolean {
+    return !this.machineLevel() || this.draggedMachine() === this.folderMachineOf(folderId);
+  }
+
+  private ctxTargetMachine(): string {
+    const t = this.ctxTarget();
+    if (t?.type === 'workspace') return this.workspaceMachineOf(t.workspace.id);
+    if (t?.type === 'session') return this.machineOfSession(t.session);
+    return LOCAL_MACHINE;
+  }
+
+  /** Folders offered by "Move to folder": only those of the target's machine. */
+  ctxMoveFolders(): SidebarFolder[] {
+    const folders = this.foldersService.folders();
+    if (!this.machineLevel()) return folders;
+    const machine = this.ctxTargetMachine();
+    return folders.filter((f) => this.folderMachineOf(f.id) === machine);
+  }
+
+  private initMachineLevel(): void {
+    if (this.hosts.supported) void this.hosts.refresh();
+
+    // `cmd://` sessions do not carry their connect command in the summary:
+    // look it up once, so each one lands under its own machine.
+    effect(() => {
+      if (!this.minimal() || !this.sessionService.isTauri) return;
+      const pending = this.sessions()
+        .filter((s) => s.workspace?.path?.startsWith('cmd://'))
+        .map((s) => ({ id: s.id, key: this.sessionKey(s) }));
+      if (pending.length > 0) untracked(() => void this.machineState.resolveCommands(pending));
+    });
+
+    // A folder whose content all runs on one machine belongs to that machine:
+    // remember it, so the folder stays there even once emptied.
+    effect(() => {
+      if (!this.machineLevel() || this.searching()) return;
+      const inferred = new Map(
+        [...this.machineTree().inferredHomes].filter(([, machine]) => machine !== UNKNOWN_REMOTE_MACHINE),
+      );
+      if (inferred.size > 0) untracked(() => this.machineState.setFolderHomes(inferred));
+    });
+  }
 
   /** Projects (workspaces + standalone sessions) shown on the folder badge. */
   folderItemCount(fs: FolderSection): number {
@@ -1661,6 +1934,7 @@ export class SessionSidebarComponent {
   }
 
   toggleFolder(folderId: string): void {
+    if (this.searching()) return; // vedi toggleWorkspace
     const current = this.folderExpandedMap();
     const next = new Map(current);
     next.set(folderId, !(current.get(folderId) ?? true));
@@ -1669,7 +1943,7 @@ export class SessionSidebarComponent {
   }
 
   isFolderExpanded(folderId: string): boolean {
-    return this.folderExpandedMap().get(folderId) ?? true;
+    return this.searching() || (this.folderExpandedMap().get(folderId) ?? true);
   }
 
   private loadBooleanMapFromStorage(key: string): Map<string, boolean> {
@@ -1765,6 +2039,7 @@ export class SessionSidebarComponent {
     const d = this.draggedItem();
     if (!d) return; // OS file drags keep their own sidebar-level handling
     if (d.kind === 'folder' && d.id === folderId) return;
+    if (!this.canDropOnFolder(folderId)) return; // another machine: not a drop target
     e.preventDefault();
     e.stopPropagation();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
@@ -1783,6 +2058,7 @@ export class SessionSidebarComponent {
   onFolderTargetDrop(e: DragEvent, folderId: string): void {
     const d = this.draggedItem();
     if (!d) return;
+    if (!this.canDropOnFolder(folderId)) return;
     e.preventDefault();
     e.stopPropagation();
     this.draggedItem.set(null);
@@ -2243,10 +2519,12 @@ export class SessionSidebarComponent {
   /** Create a folder, move the target into it, then open the inline rename. */
   async ctxMoveToNewFolder(): Promise<void> {
     const t = this.ctxTarget();
+    const machine = this.machineLevel() ? this.ctxTargetMachine() : null;
     this.closeCtxMenu();
     const name = this.translateService.instant('SESSIONS.FOLDERS.Default name');
     const folder = await this.foldersService.createFolder(name);
     if (!folder) return;
+    if (machine) this.machineState.setFolderHome(folder.id, machine);
     if (t?.type === 'workspace') {
       await this.foldersService.assignWorkspace(t.workspace.id, folder.id);
     } else if (t?.type === 'session' && t.session.dbId) {
@@ -2262,10 +2540,16 @@ export class SessionSidebarComponent {
   }
 
   /** Create an empty folder and open its inline rename (header button + ctx menu). */
-  async createFolderInline(): Promise<void> {
+  async createFolderInline(machine?: string): Promise<void> {
     const name = this.translateService.instant('SESSIONS.FOLDERS.Default name');
     const folder = await this.foldersService.createFolder(name);
-    if (folder) this.startFolderRename(folder.id);
+    if (!folder) return;
+    // Created from a machine header: the folder belongs to that machine.
+    if (machine) {
+      this.machineState.setFolderHome(folder.id, machine);
+      if (!this.machineState.isExpanded(machine)) this.machineState.toggle(machine);
+    }
+    this.startFolderRename(folder.id);
   }
 
   ctxCreateFolder(): void {

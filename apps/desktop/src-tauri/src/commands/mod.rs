@@ -23,6 +23,7 @@ pub mod metrics;
 pub mod notify;
 #[cfg(target_os = "macos")]
 pub mod notify_macos;
+pub mod open_state;
 pub mod output_watchers;
 pub mod ports;
 pub mod profile;

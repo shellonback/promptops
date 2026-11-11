@@ -1687,6 +1687,32 @@
       "Hint action": "Import as folder",
       "Partial failure": "{{count}} workspaces could not be created: {{names}}",
       "Empty workspace tooltip": "No sessions yet — click to start one"
+    },
+    "HOST": {
+      "Step title": "Choose where it runs",
+      "Step short": "Machine",
+      "Title": "Where it runs",
+      "Hint": "Run the session on this computer or on a remote machine.",
+      "Group local": "Local",
+      "Group remote": "Remote machines",
+      "Local name": "This computer",
+      "Local detail": "Folders on this device",
+      "Kind ssh": "SSH",
+      "Kind command": "Command",
+      "Add": "Add a remote machine",
+      "Add hint": "SSH connection or connect command (ssh, AWS SSM, …)",
+      "Forget": "Remove from the list",
+      "Change": "Change machine"
+    },
+    "MACHINES": {
+      "Unknown remote": "Remote machine",
+      "New folder here": "New folder on this machine",
+      "Empty hint": "Nothing on this machine yet"
+    },
+    "SEARCH": {
+      "Placeholder": "Search projects",
+      "Clear": "Clear search",
+      "No results": "No projects found"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Could not move the agent to a new session.",
     "Move failed resume": "To continue its conversation, resume it from Resume sub-agent (conversation id: {{id}}).",
-    "Move locked": "This agent is locked, so it was not moved. Unlock it and ask again."
+    "Move locked": "This agent is locked, so it was not moved. Unlock it and ask again.",
+    "Last closure": "Last closure",
+    "Last closure hint": "Sessions and agents that were open the last time the app closed. Nothing restarts on its own.",
+    "Closed unexpectedly": "closed unexpectedly",
+    "Reopen": "Reopen",
+    "Reopen all": "Reopen all",
+    "Already open": "Already open",
+    "Session no longer exists": "Session no longer exists"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Copy",
     "Copied": "Copied",
     "Copy link": "Copy link",
-    "Run command": "Run: {{command}}"
+    "Run command": "Run: {{command}}",
+    "Open link": "Open link",
+    "Copy command": "Copy command",
+    "Open file": "Open {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "USED",

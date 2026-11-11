@@ -216,6 +216,7 @@ commands.allow = [
   "notify_set_labels",
   "open_detached_window",
   "open_session_window",
+  "open_state_last_closure",
   "optimization_get_file_cache",
   "optimization_get_status",
   "optimization_refresh_context",

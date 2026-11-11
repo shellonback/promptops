@@ -615,6 +615,7 @@ pub fn run() {
             commands::subagent::subagent_buffer,
             commands::subagent::subagent_resize,
             commands::subagent::subagent_list_archived,
+            commands::open_state::open_state_last_closure,
             commands::subagent::subagent_clear_archived,
             commands::subagent::subagent_worker_transcript,
             commands::subagent::subagent_worker_send,
@@ -1239,6 +1240,9 @@ pub fn run() {
                 // restored sessions restart with the last screen (no black
                 // terminal during the provider's resume).
                 sessions.persist_live_buffers_to_disk();
+                // Local record: mark the clean exit BEFORE the shutdown
+                // kills, which would otherwise empty the rosters.
+                commands::open_state::mark_clean_exit(sessions.open_state_rows());
                 let subs = subagents.archived_snapshot_json();
                 let _ = sessions.save_all_to_store(&subs);
                 // Normal quit: agents in termd stop like the in-process ones

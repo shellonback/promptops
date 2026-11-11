@@ -56,9 +56,9 @@ describe('CreateSessionModalComponent', () => {
       expect(component.currentStep()).toBe(2);
     });
 
-    it('submits on step 2 from a plain input', () => {
+    it('submits on the last step from a plain input', () => {
       const submit = spyOn(component, 'submit').and.resolveTo();
-      component.currentStep.set(2);
+      component.currentStep.set(component.totalSteps);
       const ev = enterFrom(document.createElement('input'));
       expect(submit).toHaveBeenCalled();
       expect(ev.defaultPrevented).toBe(true);
@@ -66,14 +66,14 @@ describe('CreateSessionModalComponent', () => {
 
     it('ignores Enter on buttons, selects and textareas', () => {
       const submit = spyOn(component, 'submit').and.resolveTo();
-      component.currentStep.set(2);
+      component.currentStep.set(component.totalSteps);
       for (const tag of ['button', 'select', 'textarea', 'a']) enterFrom(document.createElement(tag));
       expect(submit).not.toHaveBeenCalled();
     });
 
     it('ignores Enter inside the inline clone / new-folder / remote forms', () => {
       const submit = spyOn(component, 'submit').and.resolveTo();
-      component.currentStep.set(2);
+      component.currentStep.set(component.totalSteps);
       const form = document.createElement('div');
       form.className = 'clone-inline-form';
       const input = document.createElement('input');
@@ -84,7 +84,7 @@ describe('CreateSessionModalComponent', () => {
 
     it('does nothing while the primary button is disabled', () => {
       const submit = spyOn(component, 'submit').and.resolveTo();
-      component.currentStep.set(2);
+      component.currentStep.set(component.totalSteps);
       component.saving.set(true);
       enterFrom(document.createElement('input'));
       expect(submit).not.toHaveBeenCalled();
@@ -92,7 +92,7 @@ describe('CreateSessionModalComponent', () => {
 
     it('does nothing while the context-file question is open', () => {
       const submit = spyOn(component, 'submit').and.resolveTo();
-      component.currentStep.set(2);
+      component.currentStep.set(component.totalSteps);
       component.contextFilePrompt.set(['CLAUDE.md']);
       enterFrom(document.createElement('input'));
       expect(submit).not.toHaveBeenCalled();

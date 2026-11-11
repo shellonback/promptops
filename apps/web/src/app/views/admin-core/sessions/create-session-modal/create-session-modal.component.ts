@@ -19,6 +19,7 @@ import { ProviderPickerComponent } from '../../../../common/provider-picker/prov
 import { environment } from '@environment/environment';
 
 import { SpawnSelectionService } from '../services/spawn-selection.service';
+import { LOCAL_HOST_KEY, RemoteHost, SessionHostsService, commandHostLabel, sshHostKey } from '../services/session-host';
 interface TeamOption {
   id: number;
   name: string;
@@ -702,6 +703,112 @@ import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
     :host ::ng-deep .provider-picker .provider-microcopy[data-tier] i {
       color: var(--bs-secondary-color, #6c757d) !important;
     }
+
+    /* ── Host picker (step 1): this computer / remote machines ── */
+    .host-section { margin-bottom: 4px; }
+    .host-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .host-group-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      color: var(--po-text-secondary, #6c757d);
+      margin-top: 6px;
+    }
+    .host-group-label:first-child { margin-top: 0; }
+    .host-row-wrap { display: flex; align-items: center; gap: 4px; }
+    .host-row {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      text-align: left;
+      background: transparent;
+      border: 1px solid var(--promptops-border-color, rgba(128, 128, 128, 0.25));
+      border-radius: 8px;
+      color: inherit;
+      cursor: pointer;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .host-row:hover:not(:disabled):not(.is-active) {
+      background: var(--promptops-tertiary-bg, rgba(128, 128, 128, 0.08));
+    }
+    .host-row:focus-visible {
+      outline: 2px solid var(--po-accent, #6366F1);
+      outline-offset: 1px;
+    }
+    .host-row.is-active {
+      border-color: var(--po-accent, #6366F1);
+      background: rgba(99, 102, 241, 0.08);
+    }
+    .host-row:disabled { cursor: progress; opacity: .7; }
+    .host-row.host-add { border-style: dashed; }
+    .host-add-wrap { margin-top: 4px; }
+    .host-row-icon { flex-shrink: 0; color: var(--po-text-secondary, #6c757d); }
+    .host-row.is-active .host-row-icon,
+    .host-row-check { color: var(--po-accent, #6366F1); }
+    .host-row-check { flex-shrink: 0; margin-left: auto; }
+    .host-row-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+    .host-row-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .host-row-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .host-row-detail {
+      font-size: 12px;
+      color: var(--po-text-secondary, #6c757d);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .host-row-detail.is-mono { font-family: var(--promptops-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 11.5px; }
+    .host-kind {
+      flex-shrink: 0;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 0 6px;
+      border-radius: 999px;
+      border: 1px solid var(--promptops-border-color, rgba(128, 128, 128, 0.3));
+      color: var(--po-text-secondary, #6c757d);
+    }
+    .host-forget {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+      color: var(--po-text-secondary, #6c757d);
+      cursor: pointer;
+    }
+    .host-forget:hover:not(:disabled) { color: var(--po-error, #f85149); background: var(--promptops-tertiary-bg, rgba(128, 128, 128, 0.08)); }
+    .host-forget:focus-visible { outline: 2px solid var(--po-accent, #6366F1); }
+    .host-detail { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .host-summary {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 12.5px;
+      color: var(--po-text-secondary, #6c757d);
+    }
+    .host-summary-name { font-weight: 600; color: var(--promptops-body-color, inherit); white-space: nowrap; }
+    .host-summary-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
   `],
 })
 export class CreateSessionModalComponent implements OnInit {
@@ -718,6 +825,7 @@ export class CreateSessionModalComponent implements OnInit {
   private folderImport = inject(ProjectFolderImportService);
   private store = inject(Store);
   private uiStyle = inject(UiStyleService);
+  private hosts = inject(SessionHostsService);
 
   /** Set via componentInstance for edit mode */
   editSession: {
@@ -790,23 +898,65 @@ export class CreateSessionModalComponent implements OnInit {
    *   1 = Provider picker
    *   2 = Path / type / name / team / project
    */
-  readonly currentStep = signal<1 | 2>(1);
-  readonly totalSteps = 2;
+  readonly currentStep = signal<number>(1);
 
-  goToStep(step: 1 | 2): void {
+  /**
+   * Steps of the create wizard, one decision each. The "host" step exists
+   * only where a remote machine can be picked (see hostPickerVisible).
+   */
+  get wizardSteps(): Array<'host' | 'provider' | 'config'> {
+    return this.hostPickerVisible ? ['host', 'provider', 'config'] : ['provider', 'config'];
+  }
+
+  get totalSteps(): number {
+    return this.wizardSteps.length;
+  }
+
+  /** The step currently shown ('config' is also the whole edit page). */
+  get stepId(): 'host' | 'provider' | 'config' {
+    return this.wizardSteps[this.currentStep() - 1] ?? 'config';
+  }
+
+  stepTitleKey(step: 'host' | 'provider' | 'config'): string {
+    if (step === 'host') return 'SESSIONS.HOST.Step title';
+    return step === 'provider' ? 'SESSIONS.Step provider title' : 'SESSIONS.Step config title';
+  }
+
+  stepShortKey(step: 'host' | 'provider' | 'config'): string {
+    if (step === 'host') return 'SESSIONS.HOST.Step short';
+    return step === 'provider' ? 'SESSIONS.Step provider short' : 'SESSIONS.Step config short';
+  }
+
+  /** A step can be left only when its own choice is made. */
+  private canLeaveStep(step: 'host' | 'provider' | 'config'): boolean {
+    // A remote host being added is not a host yet: it must connect (or be
+    // explicitly continued without verification) before moving on.
+    if (step === 'host') return !this.addingHost();
+    if (step === 'provider') return !!this.provider;
+    return true;
+  }
+
+  /** Step `n` (1-based) is reachable when every step before it is complete. */
+  canReachStep(n: number): boolean {
+    return this.wizardSteps.slice(0, n - 1).every((s) => this.canLeaveStep(s));
+  }
+
+  goToStep(step: number): void {
+    if (step < 1 || step > this.totalSteps || !this.canReachStep(step)) return;
     this.currentStep.set(step);
   }
 
+  goToStepId(step: 'host' | 'provider' | 'config'): void {
+    const index = this.wizardSteps.indexOf(step);
+    if (index >= 0) this.goToStep(index + 1);
+  }
+
   goNextStep(): void {
-    if (this.currentStep() < this.totalSteps) {
-      this.currentStep.update((s) => (s + 1) as 1 | 2);
-    }
+    if (this.canGoNext) this.goToStep(this.currentStep() + 1);
   }
 
   goPrevStep(): void {
-    if (this.currentStep() > 1) {
-      this.currentStep.update((s) => (s - 1) as 1 | 2);
-    }
+    this.goToStep(this.currentStep() - 1);
   }
 
   /** Whether to render the wizard chrome (header stepper + Next/Back). */
@@ -815,8 +965,138 @@ export class CreateSessionModalComponent implements OnInit {
   }
 
   /** True when the current step's data is valid enough to proceed. */
-  get canGoNextFromStep1(): boolean {
-    return !!this.provider;
+  get canGoNext(): boolean {
+    return this.canLeaveStep(this.stepId);
+  }
+
+  // ── Host (where the session runs) — Tauri only, create wizard only ────
+
+  readonly localHostKey = LOCAL_HOST_KEY;
+  /** Selected host: `local`, or the key of a configured remote machine. */
+  readonly hostKey = signal<string>(LOCAL_HOST_KEY);
+  /** True while the "add remote host" form is open in step 1. */
+  readonly addingHost = signal(false);
+  readonly remoteHosts = this.hosts.remoteHosts;
+
+  /**
+   * The host picker replaces the "Remote folder" path mode in the create
+   * wizard. Not shown in edit mode (single page, legacy path modes) nor when
+   * a workspace is preset: there the workspace already decides the machine.
+   */
+  get hostPickerVisible(): boolean {
+    return this.remoteAvailable && this.useWizard && !this.presetWorkspace;
+  }
+
+  /** True when the wizard is driving a remote machine (selected or being added). */
+  get isRemoteHost(): boolean {
+    return this.hostPickerVisible && (this.addingHost() || this.hostKey() !== LOCAL_HOST_KEY);
+  }
+
+  get selectedRemoteHost(): RemoteHost | null {
+    return this.remoteHosts().find((h) => h.key === this.hostKey()) ?? null;
+  }
+
+  /** Changing machine drops the folder picked on the previous one. */
+  private clearWorkspaceForHostChange(): void {
+    if (this.workspace && this.name === this.workspace.name) this.name = '';
+    this.workspace = null;
+    this.contextDecisionDone = false;
+    this.contextFilePrompt.set(null);
+    this.projectContainer.set(null);
+    this.remoteError.set(null);
+  }
+
+  selectLocalHost(): void {
+    if (this.hostKey() === LOCAL_HOST_KEY && !this.addingHost()) return;
+    this.clearWorkspaceForHostChange();
+    this.addingHost.set(false);
+    this.hostKey.set(LOCAL_HOST_KEY);
+    this.pathMode.set('browse');
+    this.resetRemoteProbe();
+  }
+
+  /** Picks a configured remote machine and verifies the connection right away. */
+  async selectRemoteHost(host: RemoteHost): Promise<void> {
+    if (this.hostKey() === host.key && !this.addingHost()) return;
+    this.clearWorkspaceForHostChange();
+    this.addingHost.set(false);
+    this.hostKey.set(host.key);
+    this.pathMode.set('remote');
+    this.remoteBrowserPath.set('');
+    if (host.kind === 'command') {
+      this.remoteType.set('command');
+      this.remoteConnId.set(null);
+      this.remoteCommand.set(host.command ?? '');
+      await this.remoteConnect();
+      return;
+    }
+    this.remoteType.set('ssh');
+    this.remoteCommand.set('');
+    // The connection record is needed later for the workspace label.
+    if (!this.remoteConnections().some((c) => c.id === host.connId)) {
+      try {
+        this.remoteConnections.set(await this.sessionService.listSshConnections());
+      } catch { /* label falls back to the folder name */ }
+    }
+    await this.pickRemoteConnection(host.connId ?? null);
+  }
+
+  /** Opens the "add remote host" form: nothing is selected until it connects. */
+  startAddHost(): void {
+    if (this.addingHost()) return;
+    this.clearWorkspaceForHostChange();
+    this.addingHost.set(true);
+    this.hostKey.set('');
+    this.pathMode.set('remote');
+    this.remoteType.set('command');
+    this.remoteCommand.set('');
+    this.remoteConnId.set(null);
+    this.remoteBrowserPath.set('');
+    this.remoteNewConn.set(false);
+    this.resetRemoteProbe();
+  }
+
+  cancelAddHost(): void {
+    if (!this.addingHost()) return;
+    this.addingHost.set(false);
+    this.selectLocalHostAfterCancel();
+  }
+
+  private selectLocalHostAfterCancel(): void {
+    this.hostKey.set(LOCAL_HOST_KEY);
+    this.pathMode.set('browse');
+    this.remoteCommand.set('');
+    this.remoteConnId.set(null);
+    this.remoteError.set(null);
+    this.resetRemoteProbe();
+  }
+
+  /** The host being added is now usable: it joins the configured machines. */
+  private async commitAddedHost(): Promise<void> {
+    if (!this.addingHost()) return;
+    if (this.remoteType() === 'command') {
+      const host = this.hosts.rememberCommand(this.remoteCommand());
+      if (!host) return;
+      this.hostKey.set(host.key);
+    } else {
+      const id = this.remoteConnId();
+      if (!id) return;
+      await this.hosts.refresh();
+      this.hostKey.set(sshHostKey(id));
+    }
+    this.addingHost.set(false);
+  }
+
+  /** Forgets a remembered connect command (SSH connections are managed in the SSH panel). */
+  forgetRemoteHost(host: RemoteHost, event?: Event): void {
+    event?.stopPropagation();
+    if (host.kind !== 'command' || !host.command) return;
+    const wasSelected = this.hostKey() === host.key;
+    this.hosts.forgetCommand(host.command);
+    if (wasSelected) {
+      this.clearWorkspaceForHostChange();
+      this.selectLocalHostAfterCancel();
+    }
   }
 
   /**
@@ -959,7 +1239,7 @@ export class CreateSessionModalComponent implements OnInit {
   }
 
   /**
-   * Enter = primary action (Next on step 1, Create/Save otherwise), only when
+   * Enter = primary action (Next before the last step, Create/Save otherwise), only when
    * it is safe: not from a textarea/button/select/link, not from the inline
    * sub-forms that have their own action (clone, new folder, remote), not
    * while the context-file question is open and never when the primary
@@ -974,8 +1254,8 @@ export class CreateSessionModalComponent implements OnInit {
     if (tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'A') return;
     if (target?.closest?.('.clone-inline-form, .remote-conn-form, .context-file-prompt')) return;
     if (this.contextFilePrompt()) return;
-    if (this.useWizard && this.currentStep() === 1) {
-      if (!this.canGoNextFromStep1) return;
+    if (this.useWizard && this.stepId !== 'config') {
+      if (!this.canGoNext) return;
       ev.preventDefault();
       this.goNextStep();
       return;
@@ -989,6 +1269,8 @@ export class CreateSessionModalComponent implements OnInit {
     // Fresh detection at every open: the cached one could say "Not installed"
     // for a CLI installed since (or detected before PATH was resolved).
     if ((window as unknown as { __TAURI__?: unknown }).__TAURI__) void this.providers.refreshDetection();
+    // Configured remote machines for the host picker (step 1). Best effort.
+    if (this.hostPickerVisible) void this.hosts.refresh();
     // Resolve the bivio mode (only meaningful when workspaceFirstUI is on).
     // Priority: forceMode (programmatic) > preset workspace > localStorage > default.
     if (this.workspaceFirstUI) {
@@ -1306,6 +1588,7 @@ export class CreateSessionModalComponent implements OnInit {
         return;
       }
       this.remoteProbe.set(res);
+      await this.commitAddedHost();
       await this.remoteBrowse(this.remoteBrowserPath().trim() || res.home);
     } catch (e: any) {
       this.remoteError.set(String(e?.message ?? e));
@@ -1319,6 +1602,7 @@ export class CreateSessionModalComponent implements OnInit {
     this.remoteError.set(null);
     this.remoteSkipProbe.set(true);
     this.remoteFolderMode.set('manual');
+    void this.commitAddedHost();
   }
 
   setRemoteFolderMode(mode: 'browse' | 'manual' | 'terminal'): void {
@@ -1386,12 +1670,7 @@ export class CreateSessionModalComponent implements OnInit {
 
   /** "Human" host extracted from the command (for labels): user@HOST or --target ID. */
   private remoteHostLabel(): string {
-    const cmd = this.remoteCommand();
-    const at = /@([\w.\-]+)/.exec(cmd);
-    if (at) return at[1];
-    const target = /--target\s+(\S+)/.exec(cmd);
-    if (target) return target[1];
-    return 'remote';
+    return commandHostLabel(this.remoteCommand());
   }
 
   /** Sub-directories of the current remote listing (the picker is dir-only). */
@@ -1413,7 +1692,7 @@ export class CreateSessionModalComponent implements OnInit {
       const conns = await this.sessionService.listSshConnections();
       this.remoteConnections.set(conns);
       // Single saved connection → pre-select and browse its home directly.
-      if (conns.length === 1 && !this.remoteConnId()) {
+      if (conns.length === 1 && !this.remoteConnId() && !this.addingHost()) {
         await this.pickRemoteConnection(conns[0].id);
       }
     } catch (e: any) {
@@ -1430,6 +1709,8 @@ export class CreateSessionModalComponent implements OnInit {
     if (!id) return;
     // Connection chosen = automatic step 1 (check + architecture).
     await this.remoteConnect();
+    // A saved connection is already a configured machine, even if it is not answering right now.
+    await this.commitAddedHost();
   }
 
   /**
@@ -1530,6 +1811,8 @@ export class CreateSessionModalComponent implements OnInit {
       this.contextDecisionDone = false;
       this.contextFilePrompt.set(null);
       if (!this.name) this.name = label;
+      // A command that reached the folder step is a configured machine.
+      if (this.hosts.supported) this.hosts.rememberCommand(cmd);
       return;
     }
     const id = this.remoteConnId();

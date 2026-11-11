@@ -11,7 +11,30 @@ import {
 import { FormsModule } from '@angular/forms';
 import { TranslateModule, TranslateService } from '@ngx-translate/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { SubAgentService, ArchivedSubAgentEntry, MODE_PRESETS } from '../services/sub-agent.service';
+import { Store } from '@ngrx/store';
+import { firstValueFrom } from 'rxjs';
+import { take } from 'rxjs/operators';
+import {
+  SubAgentService,
+  ArchivedSubAgentEntry,
+  LastClosure,
+  LastClosureSession,
+  MODE_PRESETS,
+  isAgentLive,
+} from '../services/sub-agent.service';
+import { getSessions } from '../../../../../store/sessions/session.selectors';
+import { wakeSession } from '../../../../../store/sessions/session.actions';
+
+/** Where a session of the last closure stands in the current run. */
+type ClosureSessionState = 'gone' | 'standby' | 'partial' | 'open';
+
+interface ClosureGroup {
+  session: LastClosureSession;
+  /** Id of the matching session in this run, if it still exists. */
+  currentId: string | null;
+  state: ClosureSessionState;
+  agents: Array<{ entry: ArchivedSubAgentEntry; live: boolean }>;
+}
 
 /**
  * Modal that displays previously closed/completed sub-agent sessions,
@@ -50,7 +73,91 @@ import { SubAgentService, ArchivedSubAgentEntry, MODE_PRESETS } from '../service
             <span class="scope-count">{{ allEntries().length }}</span>
           }
         </button>
+        @if (closureGroups().length > 0) {
+          <button class="scope-tab" [class.active]="scope() === 'closure'" (click)="setScope('closure')">
+            <iconify-icon icon="solar:clock-circle-bold" width="13"></iconify-icon>
+            {{ 'SUBAGENTS.Last closure' | translate }}
+            <span class="scope-count">{{ closureGroups().length }}</span>
+          </button>
+        }
       </div>
+
+      @if (scope() === 'closure') {
+        <div class="closure-head">
+          <span class="closure-hint">
+            {{ 'SUBAGENTS.Last closure hint' | translate }}
+            @if (lastClosure()?.savedAt) {
+              · {{ timeAgo(lastClosure()!.savedAt) }}
+            }
+            @if (lastClosure() && !lastClosure()!.cleanExit) {
+              <span class="closure-crash">
+                <iconify-icon icon="solar:danger-triangle-bold" width="11"></iconify-icon>
+                {{ 'SUBAGENTS.Closed unexpectedly' | translate }}
+              </span>
+            }
+          </span>
+          <button
+            class="btn btn-outline-primary btn-sm closure-all"
+            [disabled]="reopening() || !canReopenAny()"
+            (click)="reopenAll()"
+          >
+            {{ 'SUBAGENTS.Reopen all' | translate }}
+          </button>
+        </div>
+        <div class="archived-list">
+          @for (group of closureGroups(); track group.session.name) {
+            <div class="closure-group">
+              <div class="closure-session">
+                <div class="card-info">
+                  <span class="card-title">{{ group.session.name }}</span>
+                  <span class="card-meta">
+                    @if (group.session.workspacePath) {
+                      {{ shortenPath(group.session.workspacePath) }} ·
+                    }
+                    {{ group.agents.length }}
+                    <iconify-icon icon="solar:cpu-bolt-bold-duotone" width="11"></iconify-icon>
+                  </span>
+                </div>
+                @if (group.state === 'gone') {
+                  <span class="closure-state">{{ 'SUBAGENTS.Session no longer exists' | translate }}</span>
+                } @else if (group.state === 'open') {
+                  <span class="closure-state">{{ 'SUBAGENTS.Already open' | translate }}</span>
+                } @else {
+                  <button
+                    class="btn btn-outline-primary btn-sm"
+                    [disabled]="reopening()"
+                    (click)="reopenGroup(group)"
+                  >
+                    {{ 'SUBAGENTS.Reopen' | translate }}
+                  </button>
+                }
+              </div>
+              @for (agent of group.agents; track $index) {
+                <div
+                  class="archived-card closure-agent"
+                  [class.selected]="selectedEntry() === agent.entry"
+                  [class.is-live]="agent.live || group.state === 'standby'"
+                  (click)="!agent.live && group.state !== 'standby' && selectEntry(agent.entry)"
+                >
+                  <div class="card-left">
+                    <iconify-icon [icon]="agent.entry.icon" width="16"></iconify-icon>
+                    <span class="card-title">{{ agent.entry.title }}</span>
+                  </div>
+                  <div class="card-badges">
+                    @if (agent.live) {
+                      <span class="closure-state">{{ 'SUBAGENTS.Already open' | translate }}</span>
+                    } @else {
+                      <span class="resume-badge" [class.can-resume]="agent.entry.canResume" [class.re-spawn]="!agent.entry.canResume">
+                        {{ agent.entry.canResume ? 'Resume' : 'Re-spawn' }}
+                      </span>
+                    }
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      } @else {
 
       <!-- Search -->
       <div class="search-box">
@@ -127,6 +234,7 @@ import { SubAgentService, ArchivedSubAgentEntry, MODE_PRESETS } from '../service
           }
         </div>
       }
+      }
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline-secondary btn-sm" (click)="modal.dismiss()">
@@ -182,6 +290,56 @@ import { SubAgentService, ArchivedSubAgentEntry, MODE_PRESETS } from '../service
       padding: 0 5px;
       border-radius: 999px;
     }
+
+    .closure-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+    .closure-hint {
+      font-size: 0.72rem;
+      line-height: 1.4;
+      color: var(--po-text-secondary, #64748b);
+    }
+    .closure-crash {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      margin-left: 0.3rem;
+      color: var(--po-warning, #d29922);
+      font-weight: 600;
+    }
+    .closure-all { flex-shrink: 0; white-space: nowrap; }
+    .closure-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      padding-bottom: 0.5rem;
+    }
+    .closure-session {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      min-height: 31px;
+    }
+    .closure-state {
+      font-size: 0.66rem;
+      color: var(--po-text-secondary, #64748b);
+      white-space: nowrap;
+    }
+    .closure-agent {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.4rem 0.6rem;
+      margin-left: 0.75rem;
+    }
+    .closure-agent.is-live { cursor: default; opacity: 0.6; }
+    .closure-agent.is-live:hover { background: transparent; border-color: var(--bs-border-color, rgba(100, 116, 139, 0.12)); }
 
     .search-box {
       display: flex;
@@ -359,6 +517,7 @@ export class ResumeSubAgentModalComponent implements OnInit {
   modal = inject(NgbActiveModal);
   private subAgentService = inject(SubAgentService);
   private translate = inject(TranslateService);
+  private store = inject(Store);
 
   /** Set via componentInstance before opening */
   currentSessionName = '';
@@ -369,8 +528,16 @@ export class ResumeSubAgentModalComponent implements OnInit {
   sessionEntries = signal<ArchivedSubAgentEntry[]>([]);
   filteredEntries = signal<ArchivedSubAgentEntry[]>([]);
   selectedEntry = signal<ArchivedSubAgentEntry | null>(null);
-  scope = signal<'session' | 'all'>('session');
+  scope = signal<'session' | 'all' | 'closure'>('session');
   searchQuery = '';
+
+  /** Sessions and agents open when the app last closed (desktop only). */
+  lastClosure = signal<LastClosure | null>(null);
+  closureGroups = signal<ClosureGroup[]>([]);
+  reopening = signal(false);
+  canReopenAny = computed(() =>
+    this.closureGroups().some((g) => g.state === 'standby' || g.state === 'partial'),
+  );
 
   async ngOnInit(): Promise<void> {
     try {
@@ -400,12 +567,82 @@ export class ResumeSubAgentModalComponent implements OnInit {
     } finally {
       this.loading.set(false);
     }
+    // Never let the last-closure tab break the archive list.
+    try {
+      await this.loadLastClosure();
+    } catch { /* tab stays hidden */ }
   }
 
-  setScope(newScope: 'session' | 'all'): void {
+  private async loadLastClosure(): Promise<void> {
+    const closure = await this.subAgentService.getLastClosure();
+    if (!closure) return;
+    const [sessions, liveByParent] = await Promise.all([
+      firstValueFrom(this.store.select(getSessions).pipe(take(1))),
+      this.subAgentService.liveAgentsByParent(),
+    ]);
+    const groups = closure.sessions.map((session): ClosureGroup => {
+      const current = (sessions ?? []).find(
+        (s) => (!!session.dbId && s.dbId === session.dbId) || s.name === session.name,
+      );
+      const live = current ? (liveByParent.get(current.id) ?? []) : [];
+      const agents = session.agents.map((entry) => ({
+        entry,
+        // A parked session has no live agents: its own wake brings them back.
+        live: !!current && !current.standbyAt && isAgentLive(entry, live),
+      }));
+      const state: ClosureSessionState = !current
+        ? 'gone'
+        : current.standbyAt
+          ? 'standby'
+          : agents.some((a) => !a.live)
+            ? 'partial'
+            : 'open';
+      return { session, currentId: current?.id ?? null, state, agents };
+    });
+    this.lastClosure.set(closure);
+    this.closureGroups.set(groups);
+  }
+
+  /**
+   * Reopen a session of the last closure. Parked → its normal wake (which
+   * restores its agents); already awake → spawn only the agents that are
+   * missing. Nothing is reopened for sessions that no longer exist.
+   */
+  async reopenGroup(group: ClosureGroup): Promise<void> {
+    await this.reopenGroups([group]);
+  }
+
+  async reopenAll(): Promise<void> {
+    await this.reopenGroups(this.closureGroups());
+  }
+
+  private async reopenGroups(groups: ClosureGroup[]): Promise<void> {
+    if (this.reopening()) return;
+    this.reopening.set(true);
+    try {
+      for (const group of groups) {
+        if (!group.currentId) continue;
+        if (group.state === 'standby') {
+          this.store.dispatch(wakeSession({ sessionId: group.currentId }));
+        } else if (group.state === 'partial') {
+          for (const agent of group.agents) {
+            if (!agent.live) {
+              await this.subAgentService.reopenInSession(group.currentId, agent.entry);
+            }
+          }
+        }
+      }
+    } finally {
+      this.reopening.set(false);
+    }
+    this.modal.close(null);
+  }
+
+  setScope(newScope: 'session' | 'all' | 'closure'): void {
     this.scope.set(newScope);
     this.searchQuery = '';
     this.selectedEntry.set(null);
+    if (newScope === 'closure') return;
     this.filteredEntries.set(
       newScope === 'session' ? this.sessionEntries() : this.allEntries(),
     );

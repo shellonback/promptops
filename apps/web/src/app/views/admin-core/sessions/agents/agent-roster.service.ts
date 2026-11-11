@@ -7,12 +7,14 @@ import { AGENTS_MODEL } from './agents-model.token';
 export interface AgentsMeta {
   /** Lead preference; null/missing = session PTY. */
   leadId?: string | null;
+  /** Stable identity (`role|title`) of the chosen lead: the id changes on every respawn. */
+  leadKey?: string | null;
   order: string[];
   /** The session PTY was closed by the user: it does not come back until they reopen it. */
   leadClosed: boolean;
 }
 
-const EMPTY_META: AgentsMeta = { leadId: null, order: [], leadClosed: false };
+const EMPTY_META: AgentsMeta = { leadId: null, leadKey: null, order: [], leadClosed: false };
 
 /** The minimum needed from a store session to draw the lead. */
 export interface AgentSessionLike {
@@ -145,17 +147,44 @@ export class AgentRosterService {
    * reconcile when a lead is closed: the pointer resolves itself.
    */
   effectiveLeadId(sessionId: string, roster: SubAgent[]): string | null {
-    const pref = this.meta(sessionId).leadId;
-    if (pref && roster.some((p) => p.id === pref)) return pref;
-    return roster[0]?.id ?? null;
+    return this.preferredLeadId(sessionId, roster) ?? roster[0]?.id ?? null;
   }
 
-  async setLead(sessionId: string, leadId: string | null): Promise<void> {
+  /**
+   * The lead the user chose, if it is in the roster: by id (same run), or
+   * by `role|title` identity when the id has changed (restart, wake from
+   * standby: every respawn gives a new id). null = no valid preference.
+   */
+  preferredLeadId(sessionId: string, roster: SubAgent[]): string | null {
+    const { leadId, leadKey } = this.meta(sessionId);
+    if (!leadId) return null;
+    if (roster.some((p) => p.id === leadId)) return leadId;
+    if (!leadKey) return null;
+    const match = roster.find(
+      (p) => p.id !== AgentRosterService.LEAD_PANE_ID && AgentRosterService.leadKeyOf(p) === leadKey,
+    );
+    return match?.id ?? null;
+  }
+
+  static leadKeyOf(pane: Pick<SubAgent, 'role' | 'title'>): string {
+    return `${pane.role}|${pane.title}`;
+  }
+
+  /** `pane` = the chosen pane: needed to save its stable identity next to the id. */
+  async setLead(
+    sessionId: string,
+    leadId: string | null,
+    pane?: Pick<SubAgent, 'id' | 'role' | 'title'> | null,
+  ): Promise<void> {
     if (!this.enabled) return;
-    this.put(sessionId, { leadId });
+    const leadKey =
+      leadId && pane && pane.id !== AgentRosterService.LEAD_PANE_ID
+        ? AgentRosterService.leadKeyOf(pane)
+        : null;
+    this.put(sessionId, { leadId, leadKey });
     try {
-      const meta = await this.api?.agentsSetLead?.(sessionId, leadId);
-      if (meta) this.put(sessionId, meta);
+      const meta = await this.api?.agentsSetLead?.(sessionId, leadId, leadKey);
+      if (meta) this.put(sessionId, { leadKey: null, ...meta });
     } catch {
       /* the preference stays local until the next load */
     }

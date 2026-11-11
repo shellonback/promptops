@@ -2741,8 +2741,9 @@ fn resolve_pricing(provider: &str, model_hint: Option<&str>) -> ModelPricing {
                 // Claude 5 family before legacy: matching is by substring, in order.
                 // opus-5 first = default_model.
                 ("opus-5", "Claude Opus 5", 5.0, 25.0, 0.5, 6.25),
-                ("opus-5-5", "Claude Opus 5.5", 5.0, 25.0, 0.5, 6.25),
-                // fable-5-1 before fable-5: matching is by substring, in order.
+                ("opus-5-5", "Claude Opus 5.5", 4.0, 20.0, 0.2, 5.0),
+                // The match picks the longest key contained in the id (fable-5-2 beats fable-5).
+                ("fable-5-2", "Claude Fable 5.2", 8.0, 40.0, 0.2, 10.0),
                 ("fable-5-1", "Claude Fable 5.1", 10.0, 50.0, 1.0, 12.5),
                 ("fable-5", "Claude Fable 5", 10.0, 50.0, 1.0, 12.5),
                 ("mythos-5", "Claude Mythos 5", 10.0, 50.0, 1.0, 12.5),

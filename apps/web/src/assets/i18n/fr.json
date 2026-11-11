@@ -1687,6 +1687,32 @@
       "Hint action": "Importer comme dossier",
       "Partial failure": "Impossible de créer {{count}} workspaces : {{names}}",
       "Empty workspace tooltip": "Aucune session — cliquez pour en démarrer une"
+    },
+    "HOST": {
+      "Step title": "Choisissez où elle s'exécute",
+      "Step short": "Machine",
+      "Title": "Où elle s'exécute",
+      "Hint": "Lancez la session sur cet ordinateur ou sur une machine distante.",
+      "Group local": "Local",
+      "Group remote": "Machines distantes",
+      "Local name": "Cet ordinateur",
+      "Local detail": "Dossiers sur cet appareil",
+      "Kind ssh": "SSH",
+      "Kind command": "Commande",
+      "Add": "Ajouter une machine distante",
+      "Add hint": "Connexion SSH ou commande de connexion (ssh, AWS SSM, …)",
+      "Forget": "Retirer de la liste",
+      "Change": "Changer de machine"
+    },
+    "MACHINES": {
+      "Unknown remote": "Machine distante",
+      "New folder here": "Nouveau dossier sur cette machine",
+      "Empty hint": "Rien sur cette machine pour l'instant"
+    },
+    "SEARCH": {
+      "Placeholder": "Rechercher des projets",
+      "Clear": "Effacer la recherche",
+      "No results": "Aucun projet trouvé"
     }
   },
   "SUBAGENTS": {
@@ -1840,7 +1866,14 @@
     },
     "Move failed": "Impossible de déplacer l'agent vers une nouvelle session.",
     "Move failed resume": "Pour continuer sa conversation, reprenez-la depuis Reprendre le sous-agent (id de conversation : {{id}}).",
-    "Move locked": "Cet agent est verrouillé, il n'a donc pas été déplacé. Déverrouillez-le et redemandez."
+    "Move locked": "Cet agent est verrouillé, il n'a donc pas été déplacé. Déverrouillez-le et redemandez.",
+    "Last closure": "Dernière fermeture",
+    "Last closure hint": "Sessions et agents ouverts lors de la dernière fermeture de l'application. Rien ne redémarre tout seul.",
+    "Closed unexpectedly": "fermeture inattendue",
+    "Reopen": "Rouvrir",
+    "Reopen all": "Tout rouvrir",
+    "Already open": "Déjà ouvert",
+    "Session no longer exists": "La session n'existe plus"
   },
   "INJECT": {
     "Title": "Plugins & Skills",
@@ -3506,7 +3539,10 @@
     "Copy": "Copier",
     "Copied": "Copié",
     "Copy link": "Copier le lien",
-    "Run command": "Exécuter : {{command}}"
+    "Run command": "Exécuter : {{command}}",
+    "Open link": "Ouvrir le lien",
+    "Copy command": "Copier la commande",
+    "Open file": "Ouvrir {{path}}"
   },
   "BOTTOM_BAR": {
     "Used": "UTILISÉS",

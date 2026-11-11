@@ -1,4 +1,7 @@
-import type { Terminal, IDisposable, IMarker, IDecoration } from '@xterm/xterm';
+import type { Terminal, IDisposable } from '@xterm/xterm';
+import { bangAt, bangScanRange } from './terminal-bang-command-runner';
+import { FILE_PATH_RE, stripLineSuffix } from './terminal-file-link-provider';
+import { createRowButtonLayer, isTerminalVisible, makeActionButton, type RowButton } from './terminal-row-buttons';
 
 /**
  * Copy button on long links printed by the CLI (e.g. Claude Code `/login`
@@ -6,9 +9,15 @@ import type { Terminal, IDisposable, IMarker, IDecoration } from '@xterm/xterm';
  *
  * The TUI hard-wraps long URLs into several rows (real newlines, not xterm
  * soft-wraps), so a mouse selection copies a broken link. This helper
- * rebuilds the full URL from the consecutive rows and anchors an xterm
- * decoration (marker-based, scrolls with the line) that copies it in one
- * click. Same scan/anchor mechanics as terminal-bang-command-runner.ts.
+ * rebuilds the full URL from the consecutive rows and anchors a "⧉ Copy"
+ * button that copies it in one click.
+ *
+ * Everything else worth copying gets a small `⧉` icon right after it: any
+ * other URL in the text, and Claude's `! <command>` rows (next to the play
+ * button of terminal-bang-command-runner.ts). With `openUrl` / `openFile`
+ * a `↗` icon opens the link, or the file / image path Claude mentions (same
+ * paths as terminal-file-link-provider.ts). Normal and alternate screen, see
+ * terminal-row-buttons.ts.
  */
 
 // Optional box border (fullscreen TUI dialogs) around the URL text.
@@ -19,18 +28,30 @@ const LOGIN_HINT_RE = /oauth|authorize|login|signin|sign-in|auth\?/i;
 const MIN_PLAIN_URL_LEN = 100;
 const MAX_CONT_ROWS = 20;
 const SCAN_BACK_LINES = 300;
-const MAX_BUTTONS = 20;
+const MAX_BUTTONS = 80;
 const BTN_WIDTH = 6;
 
-interface LinkEntry {
-  marker: IMarker;
-  decoration: IDecoration;
-  url: string;
-  /** Rows between the anchor (button) row and the URL's first row. */
-  urlOffset: number;
+const INLINE_URL_RE = /https?:\/\/[^\s│┃<>"`]+/g;
+const URL_TAIL_RE = /^[^\s│┃<>"`]+/;
+const TRAILING_PUNCT_RE = /[.,;:!?)\]}'»]+$/;
+
+export interface LinkCopierLabels {
+  copy: string;
+  copied: string;
+  copyLink: string;
+  openLink: string;
+  copyCommand: string;
+  openFile: (path: string) => string;
 }
 
-const urlRowOf = (e: LinkEntry) => e.marker.line + e.urlOffset;
+const DEFAULT_LABELS: LinkCopierLabels = {
+  copy: 'Copy',
+  copied: 'Copied',
+  copyLink: 'Copy link',
+  openLink: 'Open link',
+  copyCommand: 'Copy command',
+  openFile: (path) => `Open ${path}`,
+};
 
 export interface LinkCopierOptions {
   /** Re-evaluated on every scan (provider can change in place). */
@@ -38,7 +59,11 @@ export interface LinkCopierOptions {
   /** Clipboard write (navigator.clipboard / native bridge). */
   copy: (text: string) => Promise<void>;
   /** Button texts, translated by the caller (English when omitted). */
-  labels?: { copy: string; copied: string; copyLink: string };
+  labels?: Partial<LinkCopierLabels>;
+  /** Open a URL: adds a `↗` icon next to the copy one. */
+  openUrl?: (url: string) => void;
+  /** Open a file path printed by the CLI (code editor / image preview): `↗` icon after it. */
+  openFile?: (path: string) => void;
 }
 
 function rowText(terminal: Terminal, index: number): string {
@@ -88,104 +113,92 @@ export function readUrlAt(terminal: Terminal, index: number): { url: string; ind
 }
 
 export function attachLinkCopier(terminal: Terminal, opts: LinkCopierOptions): IDisposable {
-  let entries: LinkEntry[] = [];
+  const layer = createRowButtonLayer(terminal, MAX_BUTTONS);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let disposed = false;
 
-  const drop = (entry: LinkEntry) => {
-    entry.decoration.dispose();
-    entry.marker.dispose();
-  };
-  const clear = () => {
-    for (const e of entries) drop(e);
-    entries = [];
+  // Row text, read once per scan.
+  let rowCache = new Map<number, string>();
+  const physical = (i: number) => {
+    let t = rowCache.get(i);
+    if (t === undefined) {
+      t = terminal.buffer.active.getLine(i)?.translateToString(true) ?? '';
+      rowCache.set(i, t);
+    }
+    return t;
   };
 
-  const renderButton = (el: HTMLElement, entry: LinkEntry) => {
-    if (el.dataset['poLinkCopy']) return;
-    el.dataset['poLinkCopy'] = '1';
-    el.style.pointerEvents = 'auto';
-    el.style.zIndex = '7';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    const labels = opts.labels ?? { copy: 'Copy', copied: 'Copied', copyLink: 'Copy link' };
-    btn.textContent = `⧉ ${labels.copy}`;
-    btn.title = labels.copyLink;
-    btn.setAttribute('aria-label', labels.copyLink);
-    Object.assign(btn.style, {
-      width: '100%',
-      height: '100%',
-      padding: '0 2px',
-      margin: '0',
-      border: 'none',
-      borderRadius: '3px',
-      background: '#4F41FA',
-      color: '#fff',
-      fontSize: '0.75em',
-      lineHeight: '1',
-      whiteSpace: 'nowrap',
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    } satisfies Partial<CSSStyleDeclaration>);
-    btn.addEventListener('mousedown', (ev) => { ev.preventDefault(); ev.stopPropagation(); });
-    btn.addEventListener('click', (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (btn.disabled) return;
-      // Re-read: the TUI may have redrawn the rows since the scan.
-      const url = readUrlAt(terminal, urlRowOf(entry))?.url ?? entry.url;
-      btn.disabled = true;
-      void opts.copy(url)
-        .then(() => {
-          btn.textContent = `✓ ${labels.copied}`;
-          btn.style.background = '#16a34a';
-        })
-        .catch(() => {
-          btn.textContent = '✗';
-          btn.style.background = '#dc2626';
-        })
-        .finally(() => {
-          setTimeout(() => {
-            btn.disabled = false;
-            btn.textContent = `⧉ ${labels.copy}`;
-            btn.style.background = '#4F41FA';
-          }, 1500);
-          terminal.focus();
-        });
-    });
-    el.appendChild(btn);
+  const labels: LinkCopierLabels = { ...DEFAULT_LABELS, ...opts.labels };
+
+  const copyIcon = (text: string, title: string) => () =>
+    makeActionButton(terminal, { label: '⧉', title, run: () => opts.copy(text) });
+
+  const openIcon = (title: string, open: () => void) => () =>
+    makeActionButton(terminal, { label: '↗', title, run: async () => open() });
+
+  /**
+   * Cells for up to `count` icons right after `endCol` on `row` (as many as
+   * the blank run allows, at least one), else the blank before `startCol`.
+   */
+  const iconSlots = (
+    row: number,
+    endCol: number,
+    startRow: number,
+    startCol: number,
+    count: number,
+  ): { row: number; x: number; width: number }[] => {
+    const rest = physical(row).slice(endCol);
+    const free = Math.min(
+      terminal.cols - endCol,
+      rest.trim() === '' ? Infinity : rest.length - rest.trimStart().length,
+    );
+    for (let n = count; n >= 1; n--) {
+      if (free >= 2 * n + 1) return Array.from({ length: n }, (_, k) => ({ row, x: endCol + 1 + 2 * k, width: 2 }));
+      if (free >= 2 * n) return Array.from({ length: n }, (_, k) => ({ row, x: endCol + 2 * k, width: 2 }));
+    }
+    if (free >= 1) return [{ row, x: endCol, width: 1 }];
+    if (startCol >= 1 && physical(startRow).slice(startCol - 1, startCol).trim() === '') {
+      return [{ row: startRow, x: startCol - 1, width: 1 }];
+    }
+    return [];
   };
 
   const scan = () => {
     timer = null;
     if (disposed) return;
+    // Hidden tab / pane: no work now, look again later (cheap check).
+    if (!isTerminalVisible(terminal)) {
+      timer = setTimeout(scan, 1500);
+      return;
+    }
     const buffer = terminal.buffer.active;
     // Normal AND alternate buffer: Claude Code with `"tui": "fullscreen"`
-    // draws `/login` on the alternate screen.
+    // draws on the alternate screen.
     if (!opts.isEnabled()) {
-      clear();
+      layer.clear();
       return;
     }
 
-    entries = entries.filter((e) => {
-      const r = e.marker.isDisposed ? null : readUrlAt(terminal, urlRowOf(e));
-      if (r && r.url === e.url) return true;
-      drop(e);
-      return false;
-    });
-
+    rowCache = new Map();
     const cursorAbs = buffer.baseY + buffer.cursorY;
     // Alternate screen: no scrollback, the cursor can sit anywhere → whole screen.
     const lastRow = buffer.type === 'alternate' ? buffer.length - 1 : cursorAbs;
-    const taken = new Set(entries.map(urlRowOf));
+    const from = Math.max(0, lastRow - SCAN_BACK_LINES);
     const cols = terminal.cols;
-    for (let i = Math.max(0, lastRow - SCAN_BACK_LINES); i <= lastRow; i++) {
+    const items: RowButton[] = [];
+    const bigRows = new Set<number>();
+    const openUrl = opts.openUrl;
+    const openFile = opts.openFile;
+
+    // 1) Long / login URLs alone on their rows: "⧉ Copy" button.
+    for (let i = from; i <= lastRow; i++) {
       const row = buffer.getLine(i);
-      if (!row || row.isWrapped || taken.has(i)) continue;
+      if (!row || row.isWrapped || bigRows.has(i) || !physical(i).includes('http')) continue;
       const found = readUrlAt(terminal, i);
       if (!found) continue;
+      let end = i;
+      for (let r = 0; r < found.rows; r++) end = nextLogicalRow(terminal, end);
+      for (let r = i; r < end; r++) bigRows.add(r);
       // Anchor: room on the row above (e.g. "…sign in:", not a border) →
       // button after its text; else the indent gutter; else the right edge.
       const aboveRaw = i > 0 ? rowText(terminal, i - 1).replace(/\s+$/, '') : null;
@@ -200,21 +213,94 @@ export function attachLinkCopier(terminal: Terminal, opts: LinkCopierOptions): I
       } else {
         x = cols - BTN_WIDTH;
       }
-      const marker = terminal.registerMarker(anchorRow - cursorAbs);
-      if (!marker) continue;
-      const decoration = terminal.registerDecoration({ marker, x, width: BTN_WIDTH, layer: 'top' });
-      if (!decoration) { marker.dispose(); continue; }
-      const entry: LinkEntry = { marker, decoration, url: found.url, urlOffset: i - anchorRow };
-      decoration.onRender((el) => renderButton(el, entry));
-      entries.push(entry);
-      taken.add(i);
+      const url = found.url;
+      // Open icon just left of the Copy button, when that cell pair is blank.
+      if (openUrl && x >= 3 && physical(anchorRow).slice(x - 3, x).trim() === '') {
+        items.push({ row: anchorRow, x: x - 2, width: 2, key: `O:${url}`, create: openIcon(labels.openLink, () => openUrl(url)) });
+      }
+      items.push({
+        row: anchorRow,
+        x,
+        width: BTN_WIDTH,
+        key: `U:${url}`,
+        create: () =>
+          makeActionButton(terminal, {
+            label: `⧉ ${labels.copy}`,
+            title: labels.copyLink,
+            doneLabel: `✓ ${labels.copied}`,
+            fontSize: '0.75em',
+            run: () => opts.copy(url),
+          }),
+      });
     }
 
-    while (entries.length > MAX_BUTTONS) drop(entries.shift()!);
+    // 2) Any other URL in the text: `⧉` icon right after it.
+    for (let i = from; i <= lastRow; i++) {
+      if (bigRows.has(i)) continue;
+      const text = physical(i);
+      const hasUrl = text.includes('http');
+      if (!hasUrl && !(openFile && text.includes('/') && text.includes('.'))) continue;
+      const urlSpans: [number, number][] = [];
+      INLINE_URL_RE.lastIndex = 0;
+      let m: RegExpExecArray | null;
+      while (hasUrl && (m = INLINE_URL_RE.exec(text))) {
+        urlSpans.push([m.index, m.index + m[0].length]);
+        let url = m[0];
+        let endRow = i;
+        let endCol = m.index + url.length;
+        // Soft-wrapped onto the next rows.
+        while (endCol >= cols && buffer.getLine(endRow + 1)?.isWrapped) {
+          const tail = URL_TAIL_RE.exec(physical(endRow + 1));
+          if (!tail) break;
+          url += tail[0];
+          endRow++;
+          endCol = tail[0].length;
+        }
+        const punct = TRAILING_PUNCT_RE.exec(url);
+        if (punct && punct[0].length < endCol) {
+          url = url.slice(0, -punct[0].length);
+        }
+        if (url.length < 12) continue;
+        const target = url;
+        const actions = [{ key: `u:${target}`, create: copyIcon(target, labels.copyLink) }];
+        if (openUrl) actions.push({ key: `o:${target}`, create: openIcon(labels.openLink, () => openUrl(target)) });
+        iconSlots(endRow, endCol, i, m.index, actions.length).forEach((slot, k) => items.push({ ...slot, ...actions[k] }));
+      }
+
+      // 2b) File / image paths Claude mentions: `↗` opens them.
+      if (!openFile || !text.includes('/') || !text.includes('.')) continue;
+      FILE_PATH_RE.lastIndex = 0;
+      while ((m = FILE_PATH_RE.exec(text))) {
+        const start = m.index;
+        const end = start + m[0].length;
+        if (urlSpans.some(([a, b]) => start < b && end > a)) continue;
+        const path = stripLineSuffix(m[0]);
+        const [slot] = iconSlots(i, end, i, start, 1);
+        if (slot) items.push({ ...slot, key: `f:${path}`, create: openIcon(labels.openFile(path), () => openFile(path)) });
+      }
+    }
+
+    // 3) Claude's `! <command>` rows: `⧉` icon after the command.
+    const bang = bangScanRange(terminal);
+    for (let i = Math.max(from, bang.from); i < bang.limit; i++) {
+      const row = buffer.getLine(i);
+      if (!row || row.isWrapped || !physical(i).includes('! ')) continue;
+      const b = bangAt(terminal, i, bang.limit);
+      if (!b || b.endCol + 3 > cols) continue;
+      items.push({
+        row: b.endRow,
+        x: b.endCol + 1,
+        width: 2,
+        key: `c:${b.command}`,
+        create: copyIcon(b.command, labels.copyCommand),
+      });
+    }
+
+    layer.sync(items, from);
   };
 
   const schedule = () => {
-    if (timer === null && !disposed) timer = setTimeout(scan, 250);
+    if (timer === null && !disposed) timer = setTimeout(scan, 300);
   };
   const subs = [terminal.onWriteParsed(schedule), terminal.buffer.onBufferChange(schedule), terminal.onResize(schedule)];
   schedule();
@@ -224,7 +310,7 @@ export function attachLinkCopier(terminal: Terminal, opts: LinkCopierOptions): I
       disposed = true;
       if (timer !== null) clearTimeout(timer);
       for (const s of subs) s.dispose();
-      clear();
+      layer.dispose();
     },
   };
 }

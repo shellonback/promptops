@@ -555,6 +555,24 @@
     "Note saved message": "Note saved successfully."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Session state",
+      "Keep state": "Keep a session state file",
+      "Keep state hint": "The agent keeps state.md and logbook.md in .promptops/sessions/ of this workspace. PromptOps reads them only to hand the work over.",
+      "Send instructions": "Send the state instructions",
+      "Send instructions hint": "Sends the instructions to the agent as one message. Available while the agent is idle.",
+      "Send when idle": "Wait until the agent is idle, then try again.",
+      "Clean restart": "Clean restart",
+      "Clean restart hint": "Starts a fresh conversation with the same provider, handed over from the session state.",
+      "Clean restart title": "Clean restart",
+      "Clean restart message": "The new conversation starts from this handoff. You can edit it before sending.",
+      "Clean restart confirm": "Restart",
+      "Exclude title": "Keep the session state out of git?",
+      "Exclude message": "The folder .promptops/sessions/ is not excluded from git in this repository yet.",
+      "Exclude locally": "Exclude locally (.git/info/exclude)",
+      "Exclude gitignore": "Add to .gitignore",
+      "Could not change": "Could not change the session state setting."
+    },
     "Pending Actions": "Pending Actions",
     "Action Center": "Action Center",
     "Input Request": "Input Request",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} new lines"
   },
   "SETTINGS": {
+    "Context Management": "Context management",
+    "Context Management Hint": "The agent keeps a state file for handoffs and clean restarts. Turn it on per workspace from the notebook icon at the top of the session.",
+    "New badge": "New",
     "Notifications Title": "Notifications",
     "Toast Duration": "Toast duration",
     "Toast Duration Hint": "How long session notification toasts stay on screen",

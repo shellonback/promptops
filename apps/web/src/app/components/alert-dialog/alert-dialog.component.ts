@@ -19,8 +19,8 @@ export interface AlertDialogOptions {
   cancelText?: string;
   /** Second choice next to confirm; resolves with `isDenied`. */
   denyText?: string;
-  /** Shows a text field; the dialog then resolves with its value. */
-  input?: { value: string };
+  /** Shows a text field; the dialog then resolves with its value. `multiline`: a tall text area for drafts. */
+  input?: { value: string; multiline?: boolean };
   /** Closes by itself after this many milliseconds, with a progress bar. */
   timerMs?: number;
   /** Seconds shown and counted down in the body (rate limit). */
@@ -105,7 +105,9 @@ const ICONS: Record<AlertVariant, string> = {
       @if (options.countdown) {
         <p class="alert-dialog-text"><strong>{{ remaining }}</strong> {{ options.countdown.label }}</p>
       }
-      @if (options.input) {
+      @if (options.input?.multiline) {
+        <textarea #field class="form-control alert-dialog-input alert-dialog-textarea" rows="14" spellcheck="false" [(ngModel)]="options.input.value"></textarea>
+      } @else if (options.input) {
         <input #field class="form-control alert-dialog-input" type="text" [(ngModel)]="options.input.value" (keydown.enter)="confirm()" />
       }
       @if (options.confirmText || options.cancelText) {
@@ -171,6 +173,12 @@ const ICONS: Record<AlertVariant, string> = {
     .alert-dialog-input {
       margin-top: 12px;
     }
+    .alert-dialog-textarea {
+      text-align: left;
+      font-family: var(--po-font-mono, monospace);
+      font-size: 0.8rem;
+      resize: vertical;
+    }
     .alert-dialog-actions {
       display: flex;
       justify-content: center;
@@ -195,7 +203,7 @@ const ICONS: Record<AlertVariant, string> = {
 })
 export class AlertDialogComponent implements AfterViewInit, OnDestroy {
   private activeModal = inject(NgbActiveModal);
-  @ViewChild("field") private field?: ElementRef<HTMLInputElement>;
+  @ViewChild("field") private field?: ElementRef<HTMLInputElement | HTMLTextAreaElement>;
 
   options: AlertDialogOptions = {};
   remaining = 0;
@@ -227,7 +235,8 @@ export class AlertDialogComponent implements AfterViewInit, OnDestroy {
       const input = this.field.nativeElement;
       setTimeout(() => {
         input.focus();
-        input.select();
+        // A draft is read before it is edited: no select-all on the text area.
+        if (!this.options.input?.multiline) input.select();
       });
     }
     if (this.options.timerMs) {

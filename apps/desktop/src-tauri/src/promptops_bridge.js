@@ -692,6 +692,15 @@
     // In-place provider switch of the main session (same PTY).
     switchSessionProvider: function (request) { return call('session_switch_provider', { request: request }); },
     getSessionHandoffContext: function (sessionId) { return call('session_handoff_context', { sessionId: sessionId }); },
+    // Session state (state.md + logbook.md), off by default per workspace.
+    getSessionStateInfo: function (workspacePath) { return call('session_state_get', { workspacePath: workspacePath }); },
+    setSessionState: function (workspacePath, enabled, exclusion) {
+      return call('session_state_set', { workspacePath: workspacePath, enabled: !!enabled, exclusion: exclusion || null });
+    },
+    getSessionStateStatus: function (sessionId) { return call('session_state_status', { sessionId: sessionId }); },
+    getSessionStateGlobal: function () { return call('session_state_global_get'); },
+    setSessionStateGlobal: function (enabled) { return call('session_state_global_set', { enabled: !!enabled }); },
+    getSessionStateInstructions: function (sessionId) { return call('session_state_instructions', { sessionId: sessionId }); },
     onSessionProviderSwitch: function (cb) { return on('session:provider-switch', cb); },
     getAutoStandbyConfig: function () { return call('auto_standby_get_config'); },
     getActiveSessionProfile: function () { return call('session_profile_get_active'); },
@@ -1312,6 +1321,9 @@
     onTokenUsageUpdated: function (cb) { return on('token:usage-updated', cb); },
     onTokenContextPressure: function (cb) { return on('token:context-pressure', cb); },
     requestTokenCompact: function (sessionId) { return call('token_request_compact', { sessionId: sessionId }); },
+    tokenContextPressureShown: function (sessionId, subAgentId) {
+      return call('token_context_pressure_shown', { sessionId: sessionId, subAgentId: subAgentId || null });
+    },
 
     // ── Optimization Controls ────────────────────────────────────────────
     getOptimizationStatus: function (sessionId) {

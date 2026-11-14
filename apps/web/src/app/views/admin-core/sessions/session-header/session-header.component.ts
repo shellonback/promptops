@@ -18,6 +18,10 @@ import { PluginSessionButtonsComponent } from '../../plugins/plugin-session-butt
 import { PluginRuntimeService } from '../../plugins/plugin-runtime.service';
 import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { canDetach } from '@/app/detached/detached-window';
+import { TranslateService } from '@ngx-translate/core';
+import { SwalService } from '@core/services/swal.service';
+import { ProviderLimitService } from '../services/provider-limit.service';
+import { SessionStateService, SessionStateInfo, SessionStateStatus } from '../services/session-state.service';
 /** Path → segments, separator-agnostic (POSIX, Windows, \\wsl.localhost). */
 function pathSegments(path: string): string[] {
   return path.split(/[\\/]+/).filter(Boolean);
@@ -916,6 +920,19 @@ function pathSegments(path: string): string[] {
       color: var(--po-text-primary);
     }
 
+    .ss-menu-wrap {
+      position: relative;
+      display: inline-flex;
+    }
+    .tools-menu.ss-menu {
+      left: auto;
+      right: 0;
+      min-width: 220px;
+      max-width: min(320px, calc(100vw - 32px));
+    }
+    .icon-btn.ss-on {
+      color: var(--po-accent);
+    }
     .tools-menu-backdrop {
       position: fixed;
       inset: 0;
@@ -1212,6 +1229,82 @@ export class SessionHeaderComponent implements OnDestroy {
     this.toolsMenuOpen.update(v => !v);
   }
 
+  // ── Session state (off by default per workspace) ───────────────────
+  protected sessionStateApi = inject(SessionStateService);
+  ssMenuOpen = signal(false);
+
+  toggleSsMenu(ev?: Event): void {
+    ev?.stopPropagation();
+    this.ssMenuOpen.update(v => !v);
+    if (this.ssMenuOpen()) void this.refreshSessionState();
+  }
+  private providerLimit = inject(ProviderLimitService);
+  private swal = inject(SwalService);
+  private translate = inject(TranslateService);
+  sessionState = signal<SessionStateInfo>({ global: false, available: false, enabled: false, git: 'not_git' });
+  sessionStateStatus = signal<SessionStateStatus>({ active: false, instructed: false });
+  sessionStateBusy = signal(false);
+  /** Phase 1 covers the main Claude session only. */
+  sessionStateApplies = computed(() => {
+    const s = this.session();
+    return !!s && s.provider === 'claude-code-cli' && !!s.workspace?.path;
+  });
+
+  /** Read when the menu opens: nothing polls. */
+  private async refreshSessionState(): Promise<void> {
+    const s = this.session();
+    if (!s || !this.sessionStateApplies()) return;
+    this.sessionState.set(await this.sessionStateApi.info(s.workspace?.path));
+    this.sessionStateStatus.set(this.sessionState().enabled
+      ? await this.sessionStateApi.status(s.id)
+      : { active: false, instructed: false });
+  }
+
+  async toggleSessionState(): Promise<void> {
+    const s = this.session();
+    const path = s?.workspace?.path;
+    if (!s || !path || this.sessionStateBusy()) return;
+    const next = !this.sessionState().enabled;
+    let exclusion: 'info_exclude' | 'gitignore' | undefined;
+    if (next && this.sessionState().git === 'not_ignored') {
+      this.ssMenuOpen.set(false);
+      const pick = await this.swal.choose({
+        title: this.translate.instant('SESSIONS.SESSION_STATE.Exclude title'),
+        message: this.translate.instant('SESSIONS.SESSION_STATE.Exclude message'),
+        confirmText: this.translate.instant('SESSIONS.SESSION_STATE.Exclude locally'),
+        denyText: this.translate.instant('SESSIONS.SESSION_STATE.Exclude gitignore'),
+      });
+      if (pick === 'cancel') return;
+      exclusion = pick === 'confirm' ? 'info_exclude' : 'gitignore';
+    }
+    this.sessionStateBusy.set(true);
+    try {
+      const res = await this.sessionStateApi.set(path, next, exclusion);
+      if (!res.ok) {
+        this.swal.error(res.error || this.translate.instant('SESSIONS.SESSION_STATE.Could not change'));
+        return;
+      }
+      await this.refreshSessionState();
+    } finally {
+      this.sessionStateBusy.set(false);
+    }
+  }
+
+  async sendSessionStateInstructions(): Promise<void> {
+    const s = this.session();
+    if (!s) return;
+    this.ssMenuOpen.set(false);
+    const sent = await this.sessionStateApi.sendInstructions(s.id, s.status);
+    if (!sent) this.swal.error(this.translate.instant('SESSIONS.SESSION_STATE.Send when idle'));
+  }
+
+  async cleanRestart(): Promise<void> {
+    const s = this.session();
+    if (!s) return;
+    this.ssMenuOpen.set(false);
+    await this.providerLimit.cleanRestart(s);
+  }
+
   closeToolsMenu(): void {
     this.toolsMenuOpen.set(false);
   }
@@ -1235,6 +1328,8 @@ export class SessionHeaderComponent implements OnDestroy {
   });
 
   constructor() {
+    // Context management (Settings): read once, no polling.
+    void this.sessionStateApi.loadGlobal();
     this.user.set(JSON.parse(localStorage.getItem('user')!));
 
     effect(() => {

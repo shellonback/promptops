@@ -35,6 +35,7 @@ pub mod remote;
 pub mod semantic;
 pub mod session;
 pub mod session_model;
+pub mod session_state;
 pub mod session_tailer;
 pub mod shell;
 pub mod smart_context;

@@ -555,6 +555,24 @@
     "Note saved message": "Nota salvata con successo."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Stato della sessione",
+      "Keep state": "Tieni un file di stato della sessione",
+      "Keep state hint": "L'agente tiene state.md e logbook.md in .promptops/sessions/ di questo workspace. PromptOps li legge solo per passare il lavoro.",
+      "Send instructions": "Invia le istruzioni",
+      "Send instructions hint": "Manda le istruzioni all'agente in un solo messaggio. Disponibile quando l'agente è inattivo.",
+      "Send when idle": "Aspetta che l'agente sia inattivo, poi riprova.",
+      "Clean restart": "Ripartenza pulita",
+      "Clean restart hint": "Apre una conversazione nuova con lo stesso provider, a partire dallo stato della sessione.",
+      "Clean restart title": "Ripartenza pulita",
+      "Clean restart message": "La nuova conversazione parte da questo passaggio di consegne. Puoi modificarlo prima di inviarlo.",
+      "Clean restart confirm": "Riparti",
+      "Exclude title": "Tenere lo stato della sessione fuori da git?",
+      "Exclude message": "In questo repository la cartella .promptops/sessions/ non è ancora esclusa da git.",
+      "Exclude locally": "Escludi in locale (.git/info/exclude)",
+      "Exclude gitignore": "Aggiungi al .gitignore",
+      "Could not change": "Impossibile cambiare l'impostazione dello stato della sessione."
+    },
     "Pending Actions": "Azioni in attesa",
     "Action Center": "Centro Azioni",
     "Input Request": "Richiesta Input",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} righe nuove"
   },
   "SETTINGS": {
+    "Context Management": "Gestione del contesto",
+    "Context Management Hint": "L'agente tiene un file di stato per handoff e ripartenze pulite. Si accende per workspace dall'icona del quaderno in alto nella sessione.",
+    "New badge": "Nuovo",
     "Notifications Title": "Notifiche",
     "Toast Duration": "Durata notifiche",
     "Toast Duration Hint": "Per quanto tempo i toast di notifica delle sessioni restano visibili",

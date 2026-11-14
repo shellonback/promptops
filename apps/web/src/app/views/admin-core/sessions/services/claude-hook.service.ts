@@ -234,6 +234,9 @@ export class ClaudeHookService implements OnDestroy {
       if (this.uiStyle.style() !== 'minimal' || !this.compactSuggestions()) return;
       // Only for the session on screen: the CTA acts on what the user sees.
       if (!this.isViewingSession(data.sessionId)) return;
+      // Shown: the main process starts the cooldown only now, so a session that
+      // was off screen gets the notice when the user comes back.
+      void this.sessionService.tokenContextPressureShown(data.sessionId, data.subAgentId);
       const kTokens = Math.round(data.inputTokens / 1000);
       void this.enqueueInteraction({
         type: 'context-pressure',

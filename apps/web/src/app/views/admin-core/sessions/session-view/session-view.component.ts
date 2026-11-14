@@ -7153,6 +7153,26 @@ export class SessionViewComponent implements OnInit, OnDestroy {
             } catch { /* session might not be live — safe to ignore */ }
           }
 
+          // Changed folder: the desktop session keeps its own copy of the
+          // working directory. Without this push the change lived only in the
+          // backend — wake/restart kept starting in the old folder and the
+          // save on quit wrote the old path back.
+          const newPath = result.workspace?.path;
+          if (newPath && newPath !== session.workspace?.path && this.sessionService.isDesktop) {
+            try {
+              await this.sessionService.updateSessionMeta(session.id, {
+                workspace: { path: newPath, name: result.workspace.name ?? '' },
+              });
+            } catch { /* session might not be live in the desktop app — safe to ignore */ }
+            // The per-device binding wins over the session path when sessions
+            // are reloaded: keep it aligned or the old folder shows up again.
+            if (session.deviceWorkspace?.id) {
+              try {
+                await this.sessionService.updateDeviceWorkspace(session.deviceWorkspace.id, newPath);
+              } catch { /* backend unreachable — the session path is saved anyway */ }
+            }
+          }
+
           const updated: any = {
             ...session,
             name: newName,

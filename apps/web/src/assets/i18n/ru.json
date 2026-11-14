@@ -555,6 +555,24 @@
     "Note saved message": "Заметка успешно сохранена."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Состояние сессии",
+      "Keep state": "Вести файл состояния сессии",
+      "Keep state hint": "Агент ведёт state.md и logbook.md в .promptops/sessions/ этого рабочего пространства. PromptOps читает их только для передачи работы.",
+      "Send instructions": "Отправить инструкции",
+      "Send instructions hint": "Отправляет инструкции агенту одним сообщением. Доступно, когда агент простаивает.",
+      "Send when idle": "Дождитесь, пока агент освободится, и повторите попытку.",
+      "Clean restart": "Чистый перезапуск",
+      "Clean restart hint": "Открывает новый разговор с тем же провайдером на основе состояния сессии.",
+      "Clean restart title": "Чистый перезапуск",
+      "Clean restart message": "Новый разговор начнётся с этой передачи. Её можно отредактировать перед отправкой.",
+      "Clean restart confirm": "Перезапустить",
+      "Exclude title": "Исключить состояние сессии из git?",
+      "Exclude message": "Папка .promptops/sessions/ в этом репозитории ещё не исключена из git.",
+      "Exclude locally": "Исключить локально (.git/info/exclude)",
+      "Exclude gitignore": "Добавить в .gitignore",
+      "Could not change": "Не удалось изменить настройку состояния сессии."
+    },
     "Pending Actions": "Ожидающие действия",
     "Action Center": "Центр действий",
     "Input Request": "Запрос ввода",
@@ -2187,6 +2205,9 @@
     "New output": "Новых строк: {{count}}"
   },
   "SETTINGS": {
+    "Context Management": "Управление контекстом",
+    "Context Management Hint": "Агент ведёт файл состояния для передачи работы и чистых перезапусков. Включается для рабочего пространства значком блокнота вверху сессии.",
+    "New badge": "Новое",
     "Notifications Title": "Уведомления",
     "Toast Duration": "Длительность уведомлений",
     "Toast Duration Hint": "Как долго уведомления сессий остаются на экране",

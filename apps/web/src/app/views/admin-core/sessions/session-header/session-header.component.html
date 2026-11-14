@@ -256,6 +256,40 @@
             }
           </div>
         }
+        @if (sessionStateApplies() && sessionStateApi.globalEnabled()) {
+          <div class="ss-menu-wrap">
+            <button type="button" class="icon-btn" [class.ss-on]="sessionState().enabled" (click)="toggleSsMenu($event)"
+              [appTooltip]="'SESSIONS.SESSION_STATE.Title' | translate"
+              [attr.aria-label]="'SESSIONS.SESSION_STATE.Title' | translate" aria-haspopup="menu" [attr.aria-expanded]="ssMenuOpen()">
+              <iconify-icon icon="solar:notebook-bookmark-linear" width="17"></iconify-icon>
+            </button>
+            @if (ssMenuOpen()) {
+              <div class="tools-menu-backdrop" (click)="ssMenuOpen.set(false)"></div>
+              <div class="tools-menu ss-menu" role="menu" appEscClose (escClose)="ssMenuOpen.set(false)">
+                <div class="tools-menu-title">{{ 'SESSIONS.SESSION_STATE.Title' | translate }}</div>
+                <button type="button" class="tools-menu-item" (click)="toggleSessionState()" [disabled]="sessionStateBusy()"
+                  [appTooltip]="'SESSIONS.SESSION_STATE.Keep state hint' | translate">
+                  <iconify-icon [icon]="sessionState().enabled ? 'solar:check-square-bold' : 'solar:stop-linear'" width="14"></iconify-icon>
+                  <span>{{ 'SESSIONS.SESSION_STATE.Keep state' | translate }}</span>
+                </button>
+                @if (sessionState().enabled && sessionStateStatus().active && !sessionStateStatus().instructed) {
+                  <button type="button" class="tools-menu-item" (click)="sendSessionStateInstructions()" [disabled]="session()?.status !== 'idle'"
+                    [appTooltip]="'SESSIONS.SESSION_STATE.Send instructions hint' | translate">
+                    <iconify-icon icon="solar:letter-linear" width="14"></iconify-icon>
+                    <span>{{ 'SESSIONS.SESSION_STATE.Send instructions' | translate }}</span>
+                  </button>
+                }
+                @if (sessionState().enabled) {
+                  <button type="button" class="tools-menu-item" (click)="cleanRestart()" [disabled]="session()?.status !== 'idle'"
+                    [appTooltip]="'SESSIONS.SESSION_STATE.Clean restart hint' | translate">
+                    <iconify-icon icon="solar:restart-linear" width="14"></iconify-icon>
+                    <span>{{ 'SESSIONS.SESSION_STATE.Clean restart' | translate }}</span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
         <button type="button" class="icon-btn" (click)="onAddNote.emit()" [appTooltip]="'DOCS.Quick note' | translate"
           [attr.aria-label]="'DOCS.Quick note' | translate">
           <iconify-icon icon="solar:document-add-bold" width="17"></iconify-icon>

@@ -14,6 +14,8 @@ import {
 })
 export class TooltipDirective implements OnDestroy, OnChanges {
   @Input('appTooltip') text = '';
+  /** 'right': beside the host instead of above it (lists the tooltip must not cover). */
+  @Input() appTooltipPlacement: 'top' | 'right' = 'top';
 
   private tooltipEl: HTMLElement | null = null;
   private showTimer: ReturnType<typeof setTimeout> | null = null;
@@ -63,9 +65,14 @@ export class TooltipDirective implements OnDestroy, OnChanges {
 
       let top = rect.top - tipRect.height - 8;
       let left = rect.left + rect.width / 2 - tipRect.width / 2;
+      const beside = this.appTooltipPlacement === 'right' && rect.right + 8 + tipRect.width <= window.innerWidth - 4;
+      if (beside) {
+        top = rect.top;
+        left = rect.right + 8;
+      }
 
       // Flip below if no space above
-      if (top < 4) {
+      if (!beside && top < 4) {
         top = rect.bottom + 8;
       }
 

@@ -555,6 +555,24 @@
     "Note saved message": "Nota salva com sucesso."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Estado da sessão",
+      "Keep state": "Manter um arquivo de estado da sessão",
+      "Keep state hint": "O agente mantém state.md e logbook.md em .promptops/sessions/ deste workspace. O PromptOps só os lê para passar o trabalho adiante.",
+      "Send instructions": "Enviar as instruções",
+      "Send instructions hint": "Envia as instruções ao agente em uma única mensagem. Disponível quando o agente está ocioso.",
+      "Send when idle": "Aguarde o agente ficar ocioso e tente de novo.",
+      "Clean restart": "Reinício limpo",
+      "Clean restart hint": "Abre uma conversa nova com o mesmo provedor, a partir do estado da sessão.",
+      "Clean restart title": "Reinício limpo",
+      "Clean restart message": "A nova conversa começa desta passagem. Você pode editá-la antes de enviar.",
+      "Clean restart confirm": "Reiniciar",
+      "Exclude title": "Manter o estado da sessão fora do git?",
+      "Exclude message": "A pasta .promptops/sessions/ ainda não está excluída do git neste repositório.",
+      "Exclude locally": "Excluir localmente (.git/info/exclude)",
+      "Exclude gitignore": "Adicionar ao .gitignore",
+      "Could not change": "Não foi possível alterar a configuração do estado da sessão."
+    },
     "Pending Actions": "Ações Pendentes",
     "Action Center": "Central de Ações",
     "Input Request": "Solicitação de Entrada",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} linhas novas"
   },
   "SETTINGS": {
+    "Context Management": "Gestão de contexto",
+    "Context Management Hint": "O agente mantém um arquivo de estado para passagens e reinícios limpos. Ative por workspace pelo ícone de caderno no topo da sessão.",
+    "New badge": "Novo",
     "Notifications Title": "Notificações",
     "Toast Duration": "Duração das notificações",
     "Toast Duration Hint": "Por quanto tempo os avisos de sessão permanecem na tela",

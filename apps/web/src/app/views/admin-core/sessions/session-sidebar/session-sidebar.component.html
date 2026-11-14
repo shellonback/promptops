@@ -245,6 +245,7 @@
             [class.needs-attention]="sa.status === 'waiting_input'"
             [class.aa-on]="isSubAgentAutoApproved(sa)"
             [appTooltip]="sa.userPrompt || sa.autoPrompt || (sa.title || sa.role)"
+            appTooltipPlacement="right"
             (click)="onSubAgentClick(sa)">
             <div class="sub-agent-connector"></div>
             <img [src]="getProviderLogo(sa.provider)" width="12" height="12" alt="" class="provider-logo" [appTooltip]="getProviderLabel(sa.provider)" />

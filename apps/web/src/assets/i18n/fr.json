@@ -555,6 +555,24 @@
     "Note saved message": "Note enregistrée avec succès."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "État de la session",
+      "Keep state": "Tenir un fichier d'état de la session",
+      "Keep state hint": "L'agent tient state.md et logbook.md dans .promptops/sessions/ de cet espace de travail. PromptOps les lit seulement pour transmettre le travail.",
+      "Send instructions": "Envoyer les instructions",
+      "Send instructions hint": "Envoie les instructions à l'agent en un seul message. Disponible quand l'agent est inactif.",
+      "Send when idle": "Attendez que l'agent soit inactif, puis réessayez.",
+      "Clean restart": "Redémarrage propre",
+      "Clean restart hint": "Ouvre une nouvelle conversation avec le même fournisseur, à partir de l'état de la session.",
+      "Clean restart title": "Redémarrage propre",
+      "Clean restart message": "La nouvelle conversation part de cette passation. Vous pouvez la modifier avant l'envoi.",
+      "Clean restart confirm": "Redémarrer",
+      "Exclude title": "Garder l'état de la session hors de git ?",
+      "Exclude message": "Le dossier .promptops/sessions/ n'est pas encore exclu de git dans ce dépôt.",
+      "Exclude locally": "Exclure localement (.git/info/exclude)",
+      "Exclude gitignore": "Ajouter au .gitignore",
+      "Could not change": "Impossible de modifier le réglage de l'état de la session."
+    },
     "Pending Actions": "Actions en attente",
     "Action Center": "Centre d'actions",
     "Input Request": "Demande de saisie",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} nouvelles lignes"
   },
   "SETTINGS": {
+    "Context Management": "Gestion du contexte",
+    "Context Management Hint": "L'agent tient un fichier d'état pour les passations et les redémarrages propres. À activer par espace de travail via l'icône carnet en haut de la session.",
+    "New badge": "Nouveau",
     "Notifications Title": "Notifications",
     "Toast Duration": "Durée des notifications",
     "Toast Duration Hint": "Durée d'affichage des notifications de session à l'écran",

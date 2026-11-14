@@ -555,6 +555,24 @@
     "Note saved message": "تم حفظ الملاحظة بنجاح."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "حالة الجلسة",
+      "Keep state": "الاحتفاظ بملف حالة للجلسة",
+      "Keep state hint": "يحتفظ الوكيل بالملفين state.md وlogbook.md في ‎.promptops/sessions/‎ داخل مساحة العمل هذه. لا يقرأهما PromptOps إلا لتسليم العمل.",
+      "Send instructions": "إرسال التعليمات",
+      "Send instructions hint": "يرسل التعليمات إلى الوكيل في رسالة واحدة. متاح عندما يكون الوكيل خاملًا.",
+      "Send when idle": "انتظر حتى يصبح الوكيل خاملًا ثم أعد المحاولة.",
+      "Clean restart": "إعادة تشغيل نظيفة",
+      "Clean restart hint": "يبدأ محادثة جديدة مع المزوّد نفسه انطلاقًا من حالة الجلسة.",
+      "Clean restart title": "إعادة تشغيل نظيفة",
+      "Clean restart message": "تبدأ المحادثة الجديدة من هذا التسليم. يمكنك تعديله قبل الإرسال.",
+      "Clean restart confirm": "إعادة التشغيل",
+      "Exclude title": "إبقاء حالة الجلسة خارج git؟",
+      "Exclude message": "المجلد ‎.promptops/sessions/‎ غير مستبعد من git في هذا المستودع بعد.",
+      "Exclude locally": "استبعاد محليًا (‎.git/info/exclude‎)",
+      "Exclude gitignore": "إضافة إلى ‎.gitignore‎",
+      "Could not change": "تعذّر تغيير إعداد حالة الجلسة."
+    },
     "Pending Actions": "الإجراءات المعلقة",
     "Action Center": "مركز الإجراءات",
     "Input Request": "طلب إدخال",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} أسطر جديدة"
   },
   "SETTINGS": {
+    "Context Management": "إدارة السياق",
+    "Context Management Hint": "يحتفظ الوكيل بملف حالة للتسليم وإعادة التشغيل النظيفة. فعّله لكل مساحة عمل من أيقونة الدفتر أعلى الجلسة.",
+    "New badge": "جديد",
     "Notifications Title": "الإشعارات",
     "Toast Duration": "مدة الإشعارات",
     "Toast Duration Hint": "مدة بقاء إشعارات الجلسات على الشاشة",

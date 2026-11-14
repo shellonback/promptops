@@ -35,7 +35,7 @@ export class SwalService {
     const dismissible = options.dismissible !== false;
     const ref = this.modal.open(AlertDialogComponent, {
       centered: true,
-      size: "sm",
+      size: options.input?.multiline ? "lg" : "sm",
       windowClass: "alert-dialog-window",
       backdrop: dismissible ? true : "static",
       keyboard: dismissible,
@@ -156,6 +156,30 @@ export class SwalService {
       title: options.title,
       html: options.message ? escapeHtml(options.message) : undefined,
       input: { value: options.defaultValue ?? "" },
+      confirmText: options.confirmText ?? this.translate.instant("BUTTONS.Confirm"),
+      cancelText: this.translate.instant("BUTTONS.Cancel"),
+    }).then((result) => {
+      if (!result.isConfirmed) return null;
+      const value = typeof result.value === "string" ? result.value.trim() : "";
+      return value || null;
+    });
+  }
+
+  /**
+   * Long text dialog (editable draft). Resolves with the trimmed value, or
+   * null if the user cancels or empties it.
+   */
+  promptLongText(options: {
+    title: string;
+    message?: string;
+    defaultValue?: string;
+    confirmText?: string;
+  }): Promise<string | null> {
+    return this.open({
+      variant: "info",
+      title: options.title,
+      html: options.message ? escapeHtml(options.message) : undefined,
+      input: { value: options.defaultValue ?? "", multiline: true },
       confirmText: options.confirmText ?? this.translate.instant("BUTTONS.Confirm"),
       cancelText: this.translate.instant("BUTTONS.Cancel"),
     }).then((result) => {

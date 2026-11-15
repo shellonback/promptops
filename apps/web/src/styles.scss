@@ -581,6 +581,11 @@ img[src*="shellonback"] {
     opacity var(--po-duration-fast) var(--po-ease-out),
     transform var(--po-duration-fast) var(--po-ease-out);
   max-width: 320px;
+  /* Long text (a whole agent prompt) must not turn into a wall over the UI. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  overflow: hidden;
 
   background: var(--po-bg-3);
   border: 1px solid var(--po-border-strong);

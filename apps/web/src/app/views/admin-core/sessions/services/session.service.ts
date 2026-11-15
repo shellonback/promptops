@@ -139,6 +139,8 @@ export class SessionService {
       /** True = remove the account pin (follow the global active account). */
       inheritProviderAccount?: boolean;
       shell?: string | null;
+      /** New working folder (edit modal): applied at the next spawn/wake. */
+      workspace?: { path: string; name: string };
     },
   ): Promise<{ ok: boolean }> {
     return this.api.updateSessionMeta(sessionId, updates);
@@ -516,6 +518,12 @@ export class SessionService {
   onTokenContextPressure(callback: (data: { sessionId: string; subAgentId?: string | null; inputTokens: number; threshold: number }) => void): () => void {
     if (!this.isDesktop || !this.api.onTokenContextPressure) return () => {};
     return this.api.onTokenContextPressure((_event: unknown, data: any) => callback(data));
+  }
+
+  /** The context-pressure notice was shown: the 15-minute cooldown starts now. */
+  async tokenContextPressureShown(sessionId: string, subAgentId?: string | null): Promise<void> {
+    if (!this.isDesktop) return;
+    try { await this.api.tokenContextPressureShown?.(sessionId, subAgentId ?? null); } catch { /* older bridge */ }
   }
 
   // ── Desktop State (session resume after update) ────────────────

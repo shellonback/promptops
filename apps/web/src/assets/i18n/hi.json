@@ -555,6 +555,24 @@
     "Note saved message": "नोट सफलतापूर्वक सेव हुआ।"
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "सत्र की स्थिति",
+      "Keep state": "सत्र की स्थिति फ़ाइल रखें",
+      "Keep state hint": "एजेंट इस वर्कस्पेस के .promptops/sessions/ में state.md और logbook.md रखता है। PromptOps इन्हें केवल काम सौंपने के लिए पढ़ता है।",
+      "Send instructions": "निर्देश भेजें",
+      "Send instructions hint": "निर्देश एजेंट को एक संदेश में भेजता है। एजेंट निष्क्रिय होने पर उपलब्ध।",
+      "Send when idle": "एजेंट के निष्क्रिय होने तक रुकें, फिर दोबारा कोशिश करें।",
+      "Clean restart": "साफ़ रीस्टार्ट",
+      "Clean restart hint": "उसी प्रोवाइडर के साथ नई बातचीत शुरू करता है, सत्र की स्थिति से आगे बढ़ते हुए।",
+      "Clean restart title": "साफ़ रीस्टार्ट",
+      "Clean restart message": "नई बातचीत इसी हैंडऑफ़ से शुरू होगी। भेजने से पहले आप इसे बदल सकते हैं।",
+      "Clean restart confirm": "रीस्टार्ट करें",
+      "Exclude title": "सत्र की स्थिति को git से बाहर रखें?",
+      "Exclude message": "इस रिपॉज़िटरी में .promptops/sessions/ फ़ोल्डर अभी git से बाहर नहीं है।",
+      "Exclude locally": "लोकल रूप से बाहर रखें (.git/info/exclude)",
+      "Exclude gitignore": ".gitignore में जोड़ें",
+      "Could not change": "सत्र की स्थिति की सेटिंग नहीं बदली जा सकी।"
+    },
     "Pending Actions": "लंबित कार्य",
     "Action Center": "एक्शन सेंटर",
     "Input Request": "इनपुट अनुरोध",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} नई पंक्तियाँ"
   },
   "SETTINGS": {
+    "Context Management": "कॉन्टेक्स्ट प्रबंधन",
+    "Context Management Hint": "एजेंट हैंडऑफ़ और साफ़ रीस्टार्ट के लिए एक स्थिति फ़ाइल रखता है। सत्र के ऊपर नोटबुक आइकन से हर वर्कस्पेस के लिए चालू करें।",
+    "New badge": "नया",
     "Notifications Title": "सूचनाएं",
     "Toast Duration": "सूचना अवधि",
     "Toast Duration Hint": "सत्र सूचनाएं स्क्रीन पर कितनी देर दिखें",

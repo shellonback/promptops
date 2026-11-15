@@ -555,6 +555,24 @@
     "Note saved message": "메모가 성공적으로 저장되었습니다."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "세션 상태",
+      "Keep state": "세션 상태 파일 유지",
+      "Keep state hint": "에이전트가 이 워크스페이스의 .promptops/sessions/에 state.md와 logbook.md를 유지합니다. PromptOps는 작업을 넘길 때만 이 파일을 읽습니다.",
+      "Send instructions": "지침 보내기",
+      "Send instructions hint": "지침을 메시지 하나로 에이전트에게 보냅니다. 에이전트가 유휴 상태일 때 사용할 수 있습니다.",
+      "Send when idle": "에이전트가 유휴 상태가 되면 다시 시도하세요.",
+      "Clean restart": "깨끗한 재시작",
+      "Clean restart hint": "같은 제공자로 새 대화를 시작하고 세션 상태에서 이어갑니다.",
+      "Clean restart title": "깨끗한 재시작",
+      "Clean restart message": "새 대화는 이 인계 내용에서 시작합니다. 보내기 전에 수정할 수 있습니다.",
+      "Clean restart confirm": "재시작",
+      "Exclude title": "세션 상태를 git에서 제외할까요?",
+      "Exclude message": "이 저장소에서는 .promptops/sessions/ 폴더가 아직 git에서 제외되지 않았습니다.",
+      "Exclude locally": "로컬에서 제외 (.git/info/exclude)",
+      "Exclude gitignore": ".gitignore에 추가",
+      "Could not change": "세션 상태 설정을 변경할 수 없습니다."
+    },
     "Pending Actions": "대기 중인 작업",
     "Action Center": "작업 센터",
     "Input Request": "입력 요청",
@@ -2187,6 +2205,9 @@
     "New output": "새 줄 {{count}}개"
   },
   "SETTINGS": {
+    "Context Management": "컨텍스트 관리",
+    "Context Management Hint": "에이전트가 인계와 깨끗한 재시작을 위한 상태 파일을 유지합니다. 세션 상단의 노트 아이콘에서 워크스페이스별로 켜세요.",
+    "New badge": "신규",
     "Notifications Title": "알림",
     "Toast Duration": "알림 표시 시간",
     "Toast Duration Hint": "세션 알림 토스트가 화면에 표시되는 시간",

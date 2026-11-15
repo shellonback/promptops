@@ -555,6 +555,24 @@
     "Note saved message": "Anteckningen sparades."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Sessionsstatus",
+      "Keep state": "Håll en statusfil för sessionen",
+      "Keep state hint": "Agenten håller state.md och logbook.md i .promptops/sessions/ i den här arbetsytan. PromptOps läser dem bara för att lämna över arbetet.",
+      "Send instructions": "Skicka instruktionerna",
+      "Send instructions hint": "Skickar instruktionerna till agenten i ett meddelande. Tillgängligt när agenten är inaktiv.",
+      "Send when idle": "Vänta tills agenten är inaktiv och försök igen.",
+      "Clean restart": "Ren omstart",
+      "Clean restart hint": "Startar en ny konversation med samma leverantör, utifrån sessionsstatusen.",
+      "Clean restart title": "Ren omstart",
+      "Clean restart message": "Den nya konversationen börjar med den här överlämningen. Du kan redigera den innan du skickar.",
+      "Clean restart confirm": "Starta om",
+      "Exclude title": "Hålla sessionsstatusen utanför git?",
+      "Exclude message": "Mappen .promptops/sessions/ är ännu inte undantagen från git i det här repot.",
+      "Exclude locally": "Undanta lokalt (.git/info/exclude)",
+      "Exclude gitignore": "Lägg till i .gitignore",
+      "Could not change": "Det gick inte att ändra inställningen för sessionsstatus."
+    },
     "Pending Actions": "Väntande åtgärder",
     "Action Center": "Åtgärdscenter",
     "Input Request": "Inmatningsbegäran",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} nya rader"
   },
   "SETTINGS": {
+    "Context Management": "Kontexthantering",
+    "Context Management Hint": "Agenten håller en statusfil för överlämningar och rena omstarter. Slå på den per arbetsyta med anteckningsboksikonen överst i sessionen.",
+    "New badge": "Ny",
     "Notifications Title": "Aviseringar",
     "Toast Duration": "Visningstid",
     "Toast Duration Hint": "Hur länge sessionsaviseringar visas på skärmen",

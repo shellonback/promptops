@@ -51,6 +51,20 @@ describe('ProviderLimitService — switch helpers', () => {
     expect(text).not.toContain('Sub-agents');
   });
 
+  it('puts the session state first, and leaves the handoff unchanged without it', () => {
+    const base = { sessionName: 's', fromLabel: 'Claude Code', manual: true, userMessages: ['keep tests green'], changedFiles: '', subAgents: [], tail: '' };
+    const without = formatMainHandoff(base);
+    expect(formatMainHandoff({ ...base, sessionState: null })).toBe(without);
+    expect(formatMainHandoff({ ...base, sessionState: '   ' })).toBe(without);
+    const text = formatMainHandoff({ ...base, sessionState: '### state.md\nStatus: IN_PROGRESS', restart: true });
+    expect(text).toContain('clean restart');
+    const state = text.indexOf('## Session state kept by the previous agent');
+    const asked = text.indexOf('## What the user asked so far');
+    expect(state).toBeGreaterThan(0);
+    expect(state).toBeLessThan(asked);
+    expect(text).toContain('Status: IN_PROGRESS');
+  });
+
   it('says "usage limit" only when the switch comes from a limit', () => {
     const base = { sessionName: 's', fromLabel: 'Codex', userMessages: [], changedFiles: '', subAgents: [], tail: '' };
     expect(formatMainHandoff({ ...base, manual: false })).toContain('it hit its usage limit');

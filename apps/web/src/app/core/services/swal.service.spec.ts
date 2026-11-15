@@ -28,3 +28,30 @@ describe('SwalService closeWith', () => {
     expect(dismiss).toHaveBeenCalled();
   });
 });
+
+describe('SwalService promptLongText', () => {
+  function setup(result: Promise<unknown>) {
+    const ref = { componentInstance: {} as { options?: { input?: { value: string; multiline?: boolean } } }, dismiss: () => {}, result };
+    const open = jasmine.createSpy('open').and.returnValue(ref);
+    TestBed.configureTestingModule({ providers: [
+      SwalService,
+      { provide: NgbModal, useValue: { open } },
+      { provide: TranslateService, useValue: { instant: (k: string) => k } },
+    ] });
+    return { service: TestBed.inject(SwalService), ref, open };
+  }
+
+  it('opens a large dialog with a text area and resolves with the trimmed draft', async () => {
+    const { service, ref, open } = setup(Promise.resolve({ isConfirmed: true, value: '  edited draft\n' }));
+    const value = await service.promptLongText({ title: 't', defaultValue: 'draft' });
+    expect(open.calls.mostRecent().args[1].size).toBe('lg');
+    expect(ref.componentInstance.options?.input).toEqual({ value: 'draft', multiline: true });
+    expect(value).toBe('edited draft');
+  });
+
+  it('resolves with null when the user cancels or empties the draft', async () => {
+    expect(await setup(Promise.reject()).service.promptLongText({ title: 't' })).toBeNull();
+    TestBed.resetTestingModule();
+    expect(await setup(Promise.resolve({ isConfirmed: true, value: '   ' })).service.promptLongText({ title: 't' })).toBeNull();
+  });
+});

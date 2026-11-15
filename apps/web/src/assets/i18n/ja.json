@@ -555,6 +555,24 @@
     "Note saved message": "メモが正常に保存されました。"
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "セッションの状態",
+      "Keep state": "セッションの状態ファイルを保持",
+      "Keep state hint": "エージェントがこのワークスペースの .promptops/sessions/ に state.md と logbook.md を保持します。PromptOps は作業の引き継ぎ時にだけ読み込みます。",
+      "Send instructions": "指示を送信",
+      "Send instructions hint": "指示を1通のメッセージでエージェントに送ります。エージェントが待機中のときに使えます。",
+      "Send when idle": "エージェントが待機中になってから、もう一度お試しください。",
+      "Clean restart": "クリーン再起動",
+      "Clean restart hint": "同じプロバイダーで新しい会話を始め、セッションの状態から引き継ぎます。",
+      "Clean restart title": "クリーン再起動",
+      "Clean restart message": "新しい会話はこの引き継ぎから始まります。送信前に編集できます。",
+      "Clean restart confirm": "再起動",
+      "Exclude title": "セッションの状態を git から除外しますか？",
+      "Exclude message": "このリポジトリでは .promptops/sessions/ フォルダーがまだ git から除外されていません。",
+      "Exclude locally": "ローカルで除外（.git/info/exclude）",
+      "Exclude gitignore": ".gitignore に追加",
+      "Could not change": "セッションの状態の設定を変更できませんでした。"
+    },
     "Pending Actions": "保留中のアクション",
     "Action Center": "アクションセンター",
     "Input Request": "入力リクエスト",
@@ -2187,6 +2205,9 @@
     "New output": "新しい行 {{count}} 件"
   },
   "SETTINGS": {
+    "Context Management": "コンテキスト管理",
+    "Context Management Hint": "エージェントが引き継ぎとクリーン再起動のための状態ファイルを保持します。セッション上部のノートアイコンからワークスペースごとにオンにします。",
+    "New badge": "新機能",
     "Notifications Title": "通知",
     "Toast Duration": "通知の表示時間",
     "Toast Duration Hint": "セッション通知トーストが画面に表示される時間",

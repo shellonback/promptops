@@ -555,6 +555,24 @@
     "Note saved message": "Notitie succesvol opgeslagen."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Sessiestatus",
+      "Keep state": "Een statusbestand voor de sessie bijhouden",
+      "Keep state hint": "De agent houdt state.md en logbook.md bij in .promptops/sessions/ van deze workspace. PromptOps leest ze alleen om het werk over te dragen.",
+      "Send instructions": "Instructies versturen",
+      "Send instructions hint": "Stuurt de instructies in één bericht naar de agent. Beschikbaar als de agent niets doet.",
+      "Send when idle": "Wacht tot de agent niets doet en probeer het opnieuw.",
+      "Clean restart": "Schone herstart",
+      "Clean restart hint": "Start een nieuw gesprek met dezelfde provider, vanaf de sessiestatus.",
+      "Clean restart title": "Schone herstart",
+      "Clean restart message": "Het nieuwe gesprek begint met deze overdracht. Je kunt hem vóór het versturen bewerken.",
+      "Clean restart confirm": "Herstarten",
+      "Exclude title": "Sessiestatus buiten git houden?",
+      "Exclude message": "De map .promptops/sessions/ is in deze repository nog niet uitgesloten van git.",
+      "Exclude locally": "Lokaal uitsluiten (.git/info/exclude)",
+      "Exclude gitignore": "Toevoegen aan .gitignore",
+      "Could not change": "Kon de instelling voor de sessiestatus niet wijzigen."
+    },
     "Pending Actions": "Openstaande acties",
     "Action Center": "Actiecentrum",
     "Input Request": "Invoerverzoek",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} nieuwe regels"
   },
   "SETTINGS": {
+    "Context Management": "Contextbeheer",
+    "Context Management Hint": "De agent houdt een statusbestand bij voor overdrachten en schone herstarts. Zet het per workspace aan via het notitieboekpictogram bovenaan de sessie.",
+    "New badge": "Nieuw",
     "Notifications Title": "Meldingen",
     "Toast Duration": "Weergaveduur",
     "Toast Duration Hint": "Hoelang sessiemeldingen op het scherm blijven",

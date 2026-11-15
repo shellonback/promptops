@@ -555,6 +555,24 @@
     "Note saved message": "笔记保存成功。"
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "会话状态",
+      "Keep state": "保留会话状态文件",
+      "Keep state hint": "代理会在此工作区的 .promptops/sessions/ 中维护 state.md 和 logbook.md。PromptOps 只在交接工作时读取它们。",
+      "Send instructions": "发送说明",
+      "Send instructions hint": "以一条消息把说明发给代理。代理空闲时可用。",
+      "Send when idle": "请等代理空闲后再试。",
+      "Clean restart": "干净重启",
+      "Clean restart hint": "用同一个提供方开启新对话，从会话状态接手。",
+      "Clean restart title": "干净重启",
+      "Clean restart message": "新对话将从这份交接开始。发送前可以编辑。",
+      "Clean restart confirm": "重启",
+      "Exclude title": "让会话状态不进入 git？",
+      "Exclude message": "此仓库中 .promptops/sessions/ 文件夹尚未被 git 排除。",
+      "Exclude locally": "本地排除（.git/info/exclude）",
+      "Exclude gitignore": "添加到 .gitignore",
+      "Could not change": "无法更改会话状态设置。"
+    },
     "Pending Actions": "待处理操作",
     "Action Center": "操作中心",
     "Input Request": "输入请求",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} 行新输出"
   },
   "SETTINGS": {
+    "Context Management": "上下文管理",
+    "Context Management Hint": "代理会维护一个状态文件，用于交接和干净重启。在会话顶部的笔记本图标中按工作区开启。",
+    "New badge": "新",
     "Notifications Title": "通知",
     "Toast Duration": "通知显示时长",
     "Toast Duration Hint": "会话通知在屏幕上停留的时间",

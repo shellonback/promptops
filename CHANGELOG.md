@@ -5,6 +5,26 @@ PromptOps Desktop, the hosted edition, have their own release notes.
 
 ## Unreleased
 
+### Added
+
+- Context management (off by default, in Settings): the main Claude
+  session can keep `state.md` and `logbook.md` in
+  `<workspace>/.promptops/sessions/<id>/`. Turn it on per workspace from the
+  notebook icon in the session header; PromptOps offers to exclude the folder
+  from git, approves writes to those two files only, and puts the state first
+  in a provider handoff. `PROMPTOPS_SESSION_STATE=0` turns it off.
+- Clean restart: starts a fresh conversation with the same provider, command
+  and arguments from an editable handoff draft.
+
+### Fixed
+
+- Changing the folder of an existing session now applies on the next spawn or
+  wake and is no longer written back to the old path on exit.
+- The "context is heavy" notice starts its 15-minute cooldown when it is
+  shown, so a session that was off screen still gets it.
+- Tooltips on agents in the sidebar open beside the row, and long tooltips are
+  cut at eight lines.
+
 ## 2.2.1 — 2026-11-01
 
 ### Added

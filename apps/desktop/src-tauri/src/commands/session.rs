@@ -268,13 +268,13 @@ pub struct OkResult {
     pub error: Option<String>,
 }
 impl OkResult {
-    fn ok() -> Self {
+    pub(crate) fn ok() -> Self {
         Self {
             ok: true,
             error: None,
         }
     }
-    fn err(msg: impl Into<String>) -> Self {
+    pub(crate) fn err(msg: impl Into<String>) -> Self {
         Self {
             ok: false,
             error: Some(msg.into()),
@@ -867,6 +867,9 @@ impl SessionManager {
             // spawn/wake — the live PTY is not touched.
             session.config.shell = shell.clone();
         }
+        if let Some(ws) = &updates.workspace {
+            apply_workspace_change(&mut session.config, &mut session.workspace, ws);
+        }
         session.updated_at = now_iso();
         if renamed {
             guard.renamed_since_persist.insert(session_id.to_string());
@@ -982,6 +985,7 @@ impl SessionManager {
             // PTY kill: explicit ChildKiller + drop of SessionPty
             // (master/writer closed ⇒ SIGHUP to the leader's children too).
             let mut session = guard.sessions.remove(session_id).unwrap();
+            crate::commands::session_state::forget(session_id);
             session.history.push(SessionEvent {
                 timestamp: now_iso(),
                 event_type: "destroyed".into(),
@@ -2148,6 +2152,35 @@ pub struct UpdateMeta {
     /// `Some(None)` = back to the platform default.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub shell: Option<Option<String>>,
+    /// Folder changed from the "edit session" dialog: applied on the next
+    /// spawn/wake, the live PTY is left alone.
+    #[serde(default)]
+    pub workspace: Option<WorkspaceBinding>,
+}
+
+/// New working folder of an existing session. Without this step the change
+/// lived only in the stored record: wake and restart started again from the
+/// old folder, and the save on exit wrote the old one back. Returns true if
+/// the folder really changed.
+fn apply_workspace_change(
+    config: &mut SessionConfig,
+    workspace: &mut Option<WorkspaceBinding>,
+    next: &WorkspaceBinding,
+) -> bool {
+    let path = next.path.trim();
+    if path.is_empty() {
+        return false;
+    }
+    let changed = workspace.as_ref().map(|w| w.path.as_str()) != Some(path)
+        || config.cwd.as_deref() != Some(path);
+    if changed {
+        config.cwd = Some(path.to_string());
+    }
+    *workspace = Some(WorkspaceBinding {
+        path: path.to_string(),
+        name: next.name.clone(),
+    });
+    changed
 }
 
 /// explicit null → Some(None); missing field → None (via #[serde(default)]).
@@ -2427,6 +2460,9 @@ fn forget_provider_session_id(config: &mut SessionConfig, provider: &str) {
 pub struct SessionHandoffContext {
     pub user_messages: Vec<String>,
     pub changed_files: String,
+    /// Session state (state.md + tail of the logbook), only if it exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_state: Option<String>,
 }
 
 /// session:handoff-context — read by the renderer before opening the handoff
@@ -2436,7 +2472,7 @@ pub async fn session_handoff_context(
     manager: tauri::State<'_, Arc<SessionManager>>,
     session_id: String,
 ) -> Result<SessionHandoffContext, String> {
-    let (provider, cwd, sid, account) = {
+    let (provider, cwd, sid, account, root, db) = {
         let state = manager.state.lock();
         let Some(session) = state.sessions.get(&session_id) else {
             return Ok(SessionHandoffContext::default());
@@ -2446,8 +2482,15 @@ pub async fn session_handoff_context(
             session.config.cwd.clone(),
             session.claude_session_id.clone(),
             session.config.provider_account_id.clone(),
+            session
+                .workspace
+                .as_ref()
+                .map(|w| w.path.clone())
+                .or_else(|| session.config.cwd.clone()),
+            state.db_ids.get(&session_id).cloned(),
         )
     };
+    let handoff_sid = session_id.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let home = provider_home_for_config(&provider, account);
         let family = provider_resume_family(&provider);
@@ -2474,13 +2517,96 @@ pub async fn session_handoff_context(
                 text.lines().take(60).collect::<Vec<_>>().join("\n")
             })
             .unwrap_or_default();
+        // Read only if it exists: without files the handoff stays as before.
+        let session_state = match (root.as_deref(), db.as_deref()) {
+            (Some(r), Some(d)) => crate::commands::session_state::read_for_handoff(r, d),
+            _ => None,
+        }
+        .map(
+            |text| match crate::commands::session_state::on_handoff(&handoff_sid) {
+                Some(0) => format!("(updated in the last turn)\n{text}"),
+                Some(n) => format!("(last updated {n} turns ago)\n{text}"),
+                None => text,
+            },
+        );
         SessionHandoffContext {
             user_messages,
             changed_files,
+            session_state,
         }
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStateStatus {
+    /// Workspace turned on and session with a dbId: the feature applies here.
+    pub active: bool,
+    /// The instructions are already in the system prompt of the current process.
+    pub instructed: bool,
+}
+
+/// session:state-status — for the "Send instructions" prompt. Read only.
+#[tauri::command]
+pub fn session_state_status(
+    manager: tauri::State<'_, Arc<SessionManager>>,
+    session_id: String,
+) -> SessionStateStatus {
+    let (root, db, provider, is_main) = {
+        let g = manager.state.lock();
+        let Some(s) = g.sessions.get(&session_id) else {
+            return SessionStateStatus::default();
+        };
+        (
+            s.workspace
+                .as_ref()
+                .map(|w| w.path.clone())
+                .or_else(|| s.config.cwd.clone()),
+            g.db_ids.get(&session_id).cloned(),
+            s.provider.clone(),
+            s.parent_session_id.is_none(),
+        )
+    };
+    let active = is_main
+        && provider == "claude-code-cli"
+        && db.is_some()
+        && root
+            .as_deref()
+            .is_some_and(crate::commands::session_state::is_enabled);
+    SessionStateStatus {
+        active,
+        instructed: active && crate::commands::session_state::instructed_at_launch(&session_id),
+    }
+}
+
+/// session:state-instructions — instructions text for a session that is
+/// already open. From here on the approvals of the two files apply. It does not
+/// write to the terminal: the web app sends the message, only on click and
+/// with the agent idle.
+#[tauri::command]
+pub fn session_state_instructions(
+    manager: tauri::State<'_, Arc<SessionManager>>,
+    session_id: String,
+) -> Option<String> {
+    let (root, db, provider, is_main) = {
+        let g = manager.state.lock();
+        let s = g.sessions.get(&session_id)?;
+        (
+            s.workspace
+                .as_ref()
+                .map(|w| w.path.clone())
+                .or_else(|| s.config.cwd.clone())?,
+            g.db_ids.get(&session_id).cloned()?,
+            s.provider.clone(),
+            s.parent_session_id.is_none(),
+        )
+    };
+    if !is_main || provider != "claude-code-cli" {
+        return None;
+    }
+    crate::commands::session_state::activate_by_message(&session_id, &root, &db)
 }
 
 /// session:switch-worktree — moves the main session to another worktree.
@@ -2567,6 +2693,7 @@ pub async fn session_switch_provider(
     let (writer, buffer, config, previous, resume_sid) = {
         let mut state = manager.state.lock();
         let device_id = state.api_device_id.clone();
+        let state_db = state.db_ids.get(&request.session_id).cloned();
         let Some(session) = state.sessions.get_mut(&request.session_id) else {
             return Ok(OkResult::err(format!(
                 "Session not found: {}",
@@ -2596,13 +2723,41 @@ pub async fn session_switch_provider(
         // Meta: new provider, conversation id cleared, the old provider's
         // providerOptions (command/args/resume) discarded. The model,
         // if given, travels as args of the new provider.
+        // Same provider (clean restart): the starting command and args are
+        // kept, only resume is dropped; a given model replaces the one in the
+        // args. Different provider: as before.
+        let new_options = if provider == previous.0 {
+            restart_provider_options(previous.2.as_ref(), model.as_deref(), model_flag(&provider))
+        } else {
+            match (&model, model_flag(&provider)) {
+                (Some(m), Some(flag)) => Some(serde_json::json!({ "args": format!("{flag} {m}") })),
+                _ => None,
+            }
+        };
         session.provider = provider.clone();
         session.claude_session_id = None;
-        session.config.provider_options = match (&model, model_flag(&provider)) {
-            (Some(m), Some(flag)) => Some(serde_json::json!({ "args": format!("{flag} {m}") })),
-            _ => None,
-        };
+        session.config.provider_options = new_options;
         session.updated_at = now_iso();
+        // Session state: the new process gets (or loses) the instructions
+        // in the system prompt depending on the target provider.
+        if session.parent_session_id.is_none() {
+            let root = session
+                .workspace
+                .as_ref()
+                .map(|w| w.path.clone())
+                .or_else(|| session.config.cwd.clone());
+            let user_file = launch_args_have(
+                session.config.provider_options.as_ref(),
+                "--append-system-prompt-file",
+            );
+            crate::commands::session_state::prepare_launch(
+                &request.session_id,
+                &provider,
+                root.as_deref(),
+                state_db.as_deref(),
+                user_file,
+            );
+        }
         (
             pty.writer.clone(),
             pty.buffer.clone(),
@@ -4038,6 +4193,50 @@ fn provider_home_for_config(
     )
 }
 
+/// Like [`cli_help_mentions`], but the second attempt with the user's
+/// interactive login shell also applies on macOS: an app opened from the Dock
+/// does not inherit the PATH of `~/.zshrc`, and `sh -l` does not see a CLI in
+/// `~/.local/bin` that is only added there. It is the shell the launch line
+/// really runs in.
+pub(crate) fn cli_help_mentions_login_shell(cli: &str, needle: &str) -> bool {
+    let probe = format!("{cli} --help 2>/dev/null");
+    let via_sh = crate::commands::util_cmd::cmd("sh")
+        .arg("-lc")
+        .arg(&probe)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains(needle))
+        .unwrap_or(false);
+    if via_sh || cfg!(windows) {
+        return via_sh;
+    }
+    let mut c = crate::commands::util_cmd::cmd(login_shell());
+    for arg in login_args() {
+        c.arg(arg);
+    }
+    c.arg("-c")
+        .arg(&probe)
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).contains(needle))
+        .unwrap_or(false)
+}
+
+/// Does the user already have `flag` in the CLI command or arguments? Claude
+/// keeps only the LAST `--append-system-prompt-file`: adding ours would drop
+/// theirs, so in that case PromptOps adds nothing.
+pub(crate) fn launch_args_have(provider_options: Option<&JsonValue>, flag: &str) -> bool {
+    let field = |k: &str| {
+        provider_options
+            .and_then(|o| o.get(k))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+    };
+    let with_eq = format!("{flag}=");
+    [field("command"), field("args")]
+        .iter()
+        .flat_map(|t| t.split_whitespace())
+        .any(|tok| tok == flag || tok.starts_with(&with_eq))
+}
+
 // ── Claude Code hooks per process ─────────────────────────────────────────
 //
 // The hooks used to be merged into `<repo>/.claude/settings.local.json` on every
@@ -4458,6 +4657,40 @@ fn spawn_session_pty(
     // and server host must be translated — a hook with a Windows path in
     // there spams "PreToolUse:Bash hook error" on every tool call.
     let mut hook_env: Vec<(String, String)> = Vec::new();
+    // Session state: main sessions only, and only in workspaces turned on.
+    {
+        let (root, db, is_main) = {
+            let g = manager.state.lock();
+            let s = g.sessions.get(session_id);
+            (
+                s.and_then(|s| {
+                    s.workspace
+                        .as_ref()
+                        .map(|w| w.path.clone())
+                        .or_else(|| s.config.cwd.clone())
+                }),
+                g.db_ids.get(session_id).cloned(),
+                s.is_some_and(|s| s.parent_session_id.is_none()),
+            )
+        };
+        if is_main && cmd_remote.is_none() {
+            // Claude keeps only the last `--append-system-prompt-file`: if the
+            // session already passes one, the instructions arrive by message.
+            let user_file = launch_args_have(
+                config.provider_options.as_ref(),
+                "--append-system-prompt-file",
+            );
+            crate::commands::session_state::prepare_launch(
+                session_id,
+                provider,
+                root.as_deref(),
+                db.as_deref(),
+                user_file,
+            );
+        } else {
+            crate::commands::session_state::forget(session_id);
+        }
+    }
     // Command transport: Claude runs on the REMOTE HOST — local hooks are useless
     // (and write_hook_settings on a virtual cwd would dirty the local disk).
     if provider == "claude-code-cli" && cmd_remote.is_none() {
@@ -5249,6 +5482,53 @@ pub(crate) fn model_flag(provider: &str) -> Option<&'static str> {
     }
 }
 
+/// providerOptions to restart with the SAME provider: the starting `command`
+/// and `args` are kept (without `resume`, the restart is clean). With a new
+/// model, the `<flag> <value>` pair already in the args is replaced.
+pub(crate) fn restart_provider_options(
+    previous: Option<&JsonValue>,
+    model: Option<&str>,
+    flag: Option<&str>,
+) -> Option<JsonValue> {
+    let mut out = serde_json::Map::new();
+    if let Some(cmd) = previous
+        .and_then(|o| o.get("command"))
+        .and_then(|v| v.as_str())
+    {
+        out.insert("command".into(), JsonValue::String(cmd.to_string()));
+    }
+    let mut tokens: Vec<String> = previous
+        .and_then(|o| o.get("args"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .split_whitespace()
+        .map(str::to_string)
+        .collect();
+    if let (Some(m), Some(flag)) = (model, flag) {
+        let mut kept = Vec::with_capacity(tokens.len() + 2);
+        let mut i = 0;
+        while i < tokens.len() {
+            if tokens[i] == flag {
+                i += 2; // skip flag and value
+                continue;
+            }
+            if tokens[i].starts_with(&format!("{flag}=")) {
+                i += 1;
+                continue;
+            }
+            kept.push(tokens[i].clone());
+            i += 1;
+        }
+        kept.push(flag.to_string());
+        kept.push(m.to_string());
+        tokens = kept;
+    }
+    if !tokens.is_empty() {
+        out.insert("args".into(), JsonValue::String(tokens.join(" ")));
+    }
+    (!out.is_empty()).then_some(JsonValue::Object(out))
+}
+
 /// Codex (≥ 0.100, default `tui.alternate_screen = auto`) opens the TUI
 /// in the ALTERNATE SCREEN: in xterm.js the alt buffer has no scrollback, so
 /// everything that leaves the viewport is unreachable — no scrollbar, no
@@ -5969,11 +6249,19 @@ fn build_launch_command_inner(
                 })
                 .and_then(|_| claude_settings_fragment(provider))
                 .unwrap_or_default();
+            // Session state: instructions in the system prompt, only if
+            // prepared at spawn (workspace turned on, known dbId, local).
+            let state_prompt = if provider == "claude-code-cli" {
+                crate::commands::session_state::launch_fragment(mcp_session).unwrap_or_default()
+            } else {
+                String::new()
+            };
             let full_args: Vec<&str> = [
                 args.as_str(),
                 resume_flag.as_str(),
                 mcp.as_str(),
                 settings.as_str(),
+                state_prompt.as_str(),
             ]
             .into_iter()
             .filter(|s| !s.is_empty())
@@ -8244,5 +8532,88 @@ mod pty_size_guard_tests {
         assert!(!pty_size_is_usable(10, 40));
         assert!(pty_size_is_usable(20, 8));
         assert!(pty_size_is_usable(120, 30));
+    }
+}
+
+#[cfg(test)]
+mod restart_and_workspace_tests {
+    use super::*;
+
+    #[test]
+    fn same_provider_restart_keeps_command_and_args() {
+        let prev = serde_json::json!({ "command": "claude-work", "args": "--model opus --verbose", "resume": true });
+        // No new model: command and args stay, only resume is dropped.
+        let out = restart_provider_options(Some(&prev), None, Some("--model")).unwrap();
+        assert_eq!(
+            out,
+            serde_json::json!({ "command": "claude-work", "args": "--model opus --verbose" })
+        );
+        // New model: it replaces the one in the args.
+        let out = restart_provider_options(Some(&prev), Some("sonnet"), Some("--model")).unwrap();
+        assert_eq!(out["args"], "--verbose --model sonnet");
+        let eq = serde_json::json!({ "args": "--model=opus -x" });
+        let out = restart_provider_options(Some(&eq), Some("sonnet"), Some("--model")).unwrap();
+        assert_eq!(out["args"], "-x --model sonnet");
+        // Nothing from before: only the model, or nothing.
+        assert!(restart_provider_options(None, None, Some("--model")).is_none());
+        assert_eq!(
+            restart_provider_options(None, Some("opus"), Some("--model")).unwrap(),
+            serde_json::json!({ "args": "--model opus" })
+        );
+    }
+
+    #[test]
+    fn workspace_change_moves_cwd_and_binding() {
+        let mut config = SessionConfig {
+            cwd: Some("C:\\old".into()),
+            ..Default::default()
+        };
+        let mut ws = Some(WorkspaceBinding {
+            path: "C:\\old".into(),
+            name: "old".into(),
+        });
+
+        // New folder: cwd and binding follow, so wake and persist use it.
+        let next = WorkspaceBinding {
+            path: "D:\\work\\new".into(),
+            name: "new".into(),
+        };
+        assert!(apply_workspace_change(&mut config, &mut ws, &next));
+        assert_eq!(config.cwd.as_deref(), Some("D:\\work\\new"));
+        assert_eq!(
+            ws.as_ref().map(|w| (w.path.as_str(), w.name.as_str())),
+            Some(("D:\\work\\new", "new"))
+        );
+
+        // Same folder: no change.
+        assert!(!apply_workspace_change(&mut config, &mut ws, &next));
+
+        // Empty path: ignored, no silent fallback to the home folder.
+        let empty = WorkspaceBinding {
+            path: "  ".into(),
+            name: "x".into(),
+        };
+        assert!(!apply_workspace_change(&mut config, &mut ws, &empty));
+        assert_eq!(config.cwd.as_deref(), Some("D:\\work\\new"));
+
+        // The field comes from the renderer in camelCase inside `updates`.
+        let meta: UpdateMeta = serde_json::from_value(
+            serde_json::json!({ "workspace": { "path": "/a/b", "name": "b" } }),
+        )
+        .unwrap();
+        assert_eq!(meta.workspace.map(|w| w.path), Some("/a/b".to_string()));
+    }
+
+    #[test]
+    fn user_flags_are_detected_in_command_and_args() {
+        let o = serde_json::json!({ "command": "claude", "args": "--model opus --settings /me/s.json" });
+        assert!(launch_args_have(Some(&o), "--settings"));
+        let o = serde_json::json!({ "args": "--append-system-prompt=hello" });
+        assert!(launch_args_have(Some(&o), "--append-system-prompt"));
+        let o = serde_json::json!({ "command": "claude --settings x.json" });
+        assert!(launch_args_have(Some(&o), "--settings"));
+        let o = serde_json::json!({ "args": "--settings-extra --model x" });
+        assert!(!launch_args_have(Some(&o), "--settings"));
+        assert!(!launch_args_have(None, "--settings"));
     }
 }

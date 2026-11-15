@@ -215,12 +215,22 @@ fn input_reaches_the_process() {
     assert!(text.contains("got:abc"), "{text:?}");
 }
 
-#[cfg(unix)]
 #[test]
 fn resize_reaches_the_process() {
     let s = start();
     let c = Client::connect(&s.dir).unwrap();
-    spawn(&c, "r", "sleep 0.5; stty size", 80, 24);
+    // Windows: the size is read by a native program that is a child of the
+    // shell, like an agent CLI (full-screen window → larger ConPTY).
+    let (script, expected) = if cfg!(windows) {
+        // No quotes: cmd /C would pass them to PowerShell as a string.
+        (
+            "ping -n 3 127.0.0.1 >nul & powershell -NoProfile -Command [Console]::WindowHeight*1000+[Console]::WindowWidth",
+            "30100",
+        )
+    } else {
+        ("sleep 0.5; echo size $(stty size)", "size 30 100")
+    };
+    spawn(&c, "r", script, 80, 24);
     c.request(&Request::Resize {
         id: "r".into(),
         cols: 100,
@@ -228,8 +238,8 @@ fn resize_reaches_the_process() {
     })
     .unwrap();
     c.request(&Request::Attach { id: "r".into() }).unwrap();
-    let (text, _) = collect(&c, Some("30 100"));
-    assert!(text.contains("30 100"), "{text:?}");
+    let (text, _) = collect(&c, Some(expected));
+    assert!(text.contains(expected), "{text:?}");
 }
 
 #[test]

@@ -419,6 +419,16 @@ fn cache_hit_pct(state: &SessionTokenState) -> f64 {
 
 /// Per-turn input threshold above which to suggest /compact.
 const CONTEXT_PRESSURE_THRESHOLD: i64 = 120_000;
+
+/// Threshold on the model window: the lower of the absolute cap and 60% of
+/// the window. Unknown window → the cap, the historical threshold. With the
+/// Claude windows (200k, 1M) the result stays 120k.
+pub(crate) fn context_pressure_threshold(context_window: Option<i64>) -> i64 {
+    match context_window {
+        Some(w) if w > 0 => CONTEXT_PRESSURE_THRESHOLD.min(w * 6 / 10),
+        _ => CONTEXT_PRESSURE_THRESHOLD,
+    }
+}
 const CONTEXT_PRESSURE_COOLDOWN_MS: i64 = 15 * 60 * 1000;
 const TOKEN_CONTEXT_PRESSURE: &str = "token:context-pressure";
 /// Sessions kept in token-efficiency-history.json. The whole file is rewritten
@@ -1027,6 +1037,14 @@ impl TokenTracker {
         let Some(delta) = self.read_transcript_delta(session_id, path) else {
             return false;
         };
+        if sub_agent_id.is_none()
+            && delta
+                .events
+                .iter()
+                .any(|e| matches!(e, TranscriptEvent::Boundary { .. }))
+        {
+            crate::commands::session_state::on_compact(session_id);
+        }
         self.apply_transcript_events(session_id, sub_agent_id, &delta.events);
         let has_usage = delta.input + delta.output + delta.cache_read + delta.cache_write > 0;
         if has_usage {
@@ -1332,6 +1350,13 @@ impl TokenTracker {
         }
     }
 
+    /// The web app showed the heavy-context notice: the cooldown starts here.
+    pub(crate) fn mark_context_pressure_shown(&self, key: &str) {
+        self.pressure_notified_at
+            .lock()
+            .insert(key.to_string(), now_ms());
+    }
+
     /// PromptOps is about to send /compact: the next manual compact_boundary
     /// within COMPACT_REQUEST_WINDOW_MS is attributed to PromptOps.
     pub(crate) fn mark_compact_requested(&self, session_id: &str) {
@@ -1349,20 +1374,24 @@ impl TokenTracker {
         sub_agent_id: Option<&str>,
         input_tokens: i64,
     ) {
-        if input_tokens < CONTEXT_PRESSURE_THRESHOLD {
+        // Claude transcript: the window is not read here → historical threshold (120k).
+        let threshold = context_pressure_threshold(None);
+        if input_tokens < threshold {
             return;
         }
         let now = now_ms();
         {
+            // The cooldown starts when the web app SHOWS the notice
+            // (token_context_pressure_shown), not here: before, a session that
+            // was not on screen used up the 15 minutes with a dropped event.
             let key = sub_agent_id.unwrap_or(session_id);
-            let mut notified = self.pressure_notified_at.lock();
+            let notified = self.pressure_notified_at.lock();
             if notified
                 .get(key)
                 .is_some_and(|t| now - t < CONTEXT_PRESSURE_COOLDOWN_MS)
             {
                 return;
             }
-            notified.insert(key.to_string(), now);
         }
         let _ = app.emit(
             TOKEN_CONTEXT_PRESSURE,
@@ -1370,7 +1399,7 @@ impl TokenTracker {
                 "sessionId": session_id,
                 "subAgentId": sub_agent_id,
                 "inputTokens": input_tokens,
-                "threshold": CONTEXT_PRESSURE_THRESHOLD,
+                "threshold": threshold,
             }),
         );
     }
@@ -1824,6 +1853,18 @@ pub fn token_request_compact(
     session_id: String,
 ) -> OkResult {
     tracker.mark_compact_requested(&session_id);
+    OkResult::ok()
+}
+
+/// token:context-pressure-shown — the notice was shown to the user: the
+/// 15-minute cooldown starts for that session (or for that agent).
+#[tauri::command]
+pub fn token_context_pressure_shown(
+    tracker: tauri::State<'_, Arc<TokenTracker>>,
+    session_id: String,
+    sub_agent_id: Option<String>,
+) -> OkResult {
+    tracker.mark_context_pressure_shown(sub_agent_id.as_deref().unwrap_or(&session_id));
     OkResult::ok()
 }
 
@@ -5708,6 +5749,18 @@ impl OkResult {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn context_threshold_stays_120k_for_claude_windows() {
+        use super::context_pressure_threshold as t;
+        assert_eq!(t(None), 120_000);
+        assert_eq!(t(Some(200_000)), 120_000);
+        assert_eq!(t(Some(1_000_000)), 120_000);
+        // Small window (Codex 258k → still 120k; 128k → 76.8k).
+        assert_eq!(t(Some(258_400)), 120_000);
+        assert_eq!(t(Some(128_000)), 76_800);
+        assert_eq!(t(Some(0)), 120_000);
+    }
+
     use super::*;
 
     fn usage_snapshot(provider: &str) -> ProviderUsageSnapshot {

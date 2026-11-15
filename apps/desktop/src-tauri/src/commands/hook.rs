@@ -581,7 +581,11 @@ fn route(
             .and_then(|e| e.get("hook_event_name"))
             .and_then(|v| v.as_str())
             == Some("PreToolUse");
-        let should_auto_approve = is_pre_tool_use && manager.auto_approve(session_id);
+        let should_auto_approve = is_pre_tool_use
+            && (manager.auto_approve(session_id)
+                || payload
+                    .get("event")
+                    .is_some_and(|e| crate::commands::session_state::approves_tool(session_id, e)));
         return json_response(&json!({ "ok": true, "autoApprove": should_auto_approve }));
     }
 
@@ -622,7 +626,9 @@ fn route(
 
         let is_pre_tool_use =
             event.get("hook_event_name").and_then(|v| v.as_str()) == Some("PreToolUse");
-        let allow = is_pre_tool_use && manager.auto_approve(&session_id);
+        let allow = is_pre_tool_use
+            && (manager.auto_approve(&session_id)
+                || crate::commands::session_state::approves_tool(&session_id, &event));
         if allow {
             return json_response(&json!({
                 "hookSpecificOutput": {
@@ -719,6 +725,11 @@ fn dispatch_hook_event(app: &AppHandle, manager: &Arc<HookManager>, payload: &Va
     // cache, provider usage probe. For sub-agent children only tool-use and
     // stop are forwarded (never
     // session-start: it would remap the parent's provider/probe on every spawn).
+    // Session state: measures only for main sessions that keep their state.
+    if sub_parent.is_none() && !session_id.is_empty() {
+        crate::commands::session_state::on_hook(&session_id, event_name, &event);
+    }
+
     match &sub_parent {
         None => wire_metrics(app, event_name, &session_id, None, &event),
         Some(parent) if matches!(event_name, "PreToolUse" | "PostToolUse" | "Stop") => {

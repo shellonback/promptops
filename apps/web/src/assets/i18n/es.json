@@ -555,6 +555,24 @@
     "Note saved message": "Nota guardada con éxito."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Estado de la sesión",
+      "Keep state": "Mantener un archivo de estado de la sesión",
+      "Keep state hint": "El agente mantiene state.md y logbook.md en .promptops/sessions/ de este espacio de trabajo. PromptOps solo los lee para traspasar el trabajo.",
+      "Send instructions": "Enviar las instrucciones",
+      "Send instructions hint": "Envía las instrucciones al agente en un solo mensaje. Disponible cuando el agente está inactivo.",
+      "Send when idle": "Espera a que el agente esté inactivo y vuelve a intentarlo.",
+      "Clean restart": "Reinicio limpio",
+      "Clean restart hint": "Abre una conversación nueva con el mismo proveedor, a partir del estado de la sesión.",
+      "Clean restart title": "Reinicio limpio",
+      "Clean restart message": "La nueva conversación parte de este traspaso. Puedes editarlo antes de enviarlo.",
+      "Clean restart confirm": "Reiniciar",
+      "Exclude title": "¿Mantener el estado de la sesión fuera de git?",
+      "Exclude message": "La carpeta .promptops/sessions/ aún no está excluida de git en este repositorio.",
+      "Exclude locally": "Excluir en local (.git/info/exclude)",
+      "Exclude gitignore": "Añadir a .gitignore",
+      "Could not change": "No se pudo cambiar el ajuste del estado de la sesión."
+    },
     "Pending Actions": "Acciones pendientes",
     "Action Center": "Centro de acciones",
     "Input Request": "Solicitud de entrada",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} líneas nuevas"
   },
   "SETTINGS": {
+    "Context Management": "Gestión del contexto",
+    "Context Management Hint": "El agente mantiene un archivo de estado para traspasos y reinicios limpios. Se activa por espacio de trabajo desde el icono del cuaderno arriba en la sesión.",
+    "New badge": "Nuevo",
     "Notifications Title": "Notificaciones",
     "Toast Duration": "Duración de las notificaciones",
     "Toast Duration Hint": "Cuánto tiempo permanecen en pantalla los avisos de sesión",

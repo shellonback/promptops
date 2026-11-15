@@ -555,6 +555,24 @@
     "Note saved message": "Notiz erfolgreich gespeichert."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Sitzungsstatus",
+      "Keep state": "Statusdatei der Sitzung führen",
+      "Keep state hint": "Der Agent führt state.md und logbook.md in .promptops/sessions/ dieses Workspace. PromptOps liest sie nur zur Übergabe der Arbeit.",
+      "Send instructions": "Anweisungen senden",
+      "Send instructions hint": "Sendet die Anweisungen in einer Nachricht an den Agenten. Verfügbar, wenn der Agent untätig ist.",
+      "Send when idle": "Warte, bis der Agent untätig ist, und versuche es erneut.",
+      "Clean restart": "Sauberer Neustart",
+      "Clean restart hint": "Startet eine neue Unterhaltung mit demselben Anbieter, ausgehend vom Sitzungsstatus.",
+      "Clean restart title": "Sauberer Neustart",
+      "Clean restart message": "Die neue Unterhaltung beginnt mit dieser Übergabe. Du kannst sie vor dem Senden bearbeiten.",
+      "Clean restart confirm": "Neu starten",
+      "Exclude title": "Sitzungsstatus aus git heraushalten?",
+      "Exclude message": "Der Ordner .promptops/sessions/ ist in diesem Repository noch nicht von git ausgeschlossen.",
+      "Exclude locally": "Lokal ausschließen (.git/info/exclude)",
+      "Exclude gitignore": "Zu .gitignore hinzufügen",
+      "Could not change": "Die Einstellung für den Sitzungsstatus konnte nicht geändert werden."
+    },
     "Pending Actions": "Ausstehende Aktionen",
     "Action Center": "Aktionscenter",
     "Input Request": "Eingabeanfrage",
@@ -2187,6 +2205,9 @@
     "New output": "{{count}} neue Zeilen"
   },
   "SETTINGS": {
+    "Context Management": "Kontextverwaltung",
+    "Context Management Hint": "Der Agent führt eine Statusdatei für Übergaben und saubere Neustarts. Pro Workspace über das Notizbuch-Symbol oben in der Sitzung einschalten.",
+    "New badge": "Neu",
     "Notifications Title": "Benachrichtigungen",
     "Toast Duration": "Anzeigedauer",
     "Toast Duration Hint": "Wie lange Sitzungs-Benachrichtigungen auf dem Bildschirm bleiben",

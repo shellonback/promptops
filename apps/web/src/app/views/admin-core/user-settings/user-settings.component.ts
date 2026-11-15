@@ -18,6 +18,7 @@ import type { UiPreferences } from "@core/models/user";
 import { NgbModal } from "@ng-bootstrap/ng-bootstrap";
 import { VoiceOnboardingModalComponent } from "@/app/components/voice-agent/voice-onboarding-modal.component";
 import { ClaudeHookService } from "@/app/views/admin-core/sessions/services/claude-hook.service";
+import { SessionStateService } from "@/app/views/admin-core/sessions/services/session-state.service";
 import { SessionService } from "@/app/views/admin-core/sessions/services/session.service";
 import { SystemCleanupComponent } from "@components/system-cleanup/system-cleanup.component";
 import { AboutCardComponent } from "@components/about-card/about-card.component";
@@ -480,6 +481,18 @@ const MONO_FONT_OPTIONS = [
                 <span class="po-switch-slider"></span>
               </label>
             </div>
+            @if (sessionState.supported()) {
+            <div class="setting-row" id="setting-context-management" [class.highlighted]="highlightRow() === 'context-management'">
+              <div class="setting-info">
+                <span class="setting-label">{{ "SETTINGS.Context Management" | translate }}<span class="setting-new">{{ "SETTINGS.New badge" | translate }}</span></span>
+                <span class="setting-hint">{{ "SETTINGS.Context Management Hint" | translate }}</span>
+              </div>
+              <label class="po-switch" style="flex-shrink: 0;">
+                <input type="checkbox" [checked]="sessionState.globalEnabled()" (change)="onContextManagementToggle($any($event.target))">
+                <span class="po-switch-slider"></span>
+              </label>
+            </div>
+            }
           </div>
           }
 
@@ -785,6 +798,19 @@ const MONO_FONT_OPTIONS = [
       color: var(--po-accent);
       border: 1px solid color-mix(in srgb, var(--po-accent) 45%, transparent);
     }
+    .setting-new {
+      margin-left: 0.35rem;
+      padding: 0.05rem 0.4rem;
+      border-radius: 999px;
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+      color: var(--po-accent);
+      background: color-mix(in srgb, var(--po-accent) 14%, transparent);
+      border: 1px solid color-mix(in srgb, var(--po-accent) 45%, transparent);
+    }
     .setting-hint {
       font-size: 0.72rem;
       color: var(--po-text-tertiary);
@@ -1088,6 +1114,13 @@ export class UserSettingsComponent implements OnInit {
   // Session/sub-agent toast prefs live here (localStorage-only) — must never
   // enter the saved ui-preferences payload.
   protected readonly hookService = inject(ClaudeHookService);
+  protected readonly sessionState = inject(SessionStateService);
+
+  /** Settings → Context management: the desktop app owns the value. */
+  async onContextManagementToggle(input: HTMLInputElement): Promise<void> {
+    const res = await this.sessionState.setGlobal(input.checked);
+    if (!res.ok) input.checked = this.sessionState.globalEnabled();
+  }
   private readonly sessionService = inject(SessionService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -1184,6 +1217,7 @@ export class UserSettingsComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    void this.sessionState.loadGlobal();
     this.store
       .select(getUser)
       .pipe(

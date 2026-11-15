@@ -555,6 +555,24 @@
     "Note saved message": "Notatka zapisana pomyślnie."
   },
   "SESSIONS": {
+    "SESSION_STATE": {
+      "Title": "Stan sesji",
+      "Keep state": "Prowadź plik stanu sesji",
+      "Keep state hint": "Agent prowadzi state.md i logbook.md w .promptops/sessions/ tego obszaru roboczego. PromptOps czyta je tylko przy przekazaniu pracy.",
+      "Send instructions": "Wyślij instrukcje",
+      "Send instructions hint": "Wysyła instrukcje do agenta w jednej wiadomości. Dostępne, gdy agent jest bezczynny.",
+      "Send when idle": "Poczekaj, aż agent będzie bezczynny, i spróbuj ponownie.",
+      "Clean restart": "Czysty restart",
+      "Clean restart hint": "Otwiera nową rozmowę z tym samym dostawcą, zaczynając od stanu sesji.",
+      "Clean restart title": "Czysty restart",
+      "Clean restart message": "Nowa rozmowa zacznie się od tego przekazania. Możesz je edytować przed wysłaniem.",
+      "Clean restart confirm": "Uruchom ponownie",
+      "Exclude title": "Trzymać stan sesji poza git?",
+      "Exclude message": "Folder .promptops/sessions/ nie jest jeszcze wykluczony z git w tym repozytorium.",
+      "Exclude locally": "Wyklucz lokalnie (.git/info/exclude)",
+      "Exclude gitignore": "Dodaj do .gitignore",
+      "Could not change": "Nie udało się zmienić ustawienia stanu sesji."
+    },
     "Pending Actions": "Oczekujące akcje",
     "Action Center": "Centrum akcji",
     "Input Request": "Prośba o dane wejściowe",
@@ -2187,6 +2205,9 @@
     "New output": "Nowe wiersze: {{count}}"
   },
   "SETTINGS": {
+    "Context Management": "Zarządzanie kontekstem",
+    "Context Management Hint": "Agent prowadzi plik stanu do przekazania pracy i czystych restartów. Włącz go dla obszaru ikoną notesu u góry sesji.",
+    "New badge": "Nowość",
     "Notifications Title": "Powiadomienia",
     "Toast Duration": "Czas wyświetlania",
     "Toast Duration Hint": "Jak długo powiadomienia sesji pozostają na ekranie",

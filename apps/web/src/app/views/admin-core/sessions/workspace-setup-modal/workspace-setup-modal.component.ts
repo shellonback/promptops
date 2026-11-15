@@ -542,6 +542,13 @@ export class WorkspaceSetupModalComponent implements OnInit {
         await this.sessionService.upsertDeviceWorkspace(this.sessionId, path);
       }
 
+      // The live desktop session keeps its own copy of the folder: push the
+      // new one too, or the next spawn/wake still starts in the old path.
+      const folderName = path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+      await this.sessionService
+        .updateSessionMeta(this.sessionId, { workspace: { path, name: folderName } })
+        .catch(() => { /* session not live in the desktop app — path is saved anyway */ });
+
       // Windows: persist the chosen shell on the session (applied at next
       // spawn/wake). Tauri: '' (Default) → null = clear the override so the
       // session follows the Settings default.

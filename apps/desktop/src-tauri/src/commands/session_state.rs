@@ -347,7 +347,7 @@ fn not_redirected(target: &Path) -> bool {
         return false;
     };
     match std::fs::canonicalize(dir) {
-        Ok(real) => real == dir,
+        Ok(real) => same_real_path(&real, dir),
         // Folder not created yet: the agent creates it on the first save.
         // The first existing ancestor must be the expected one.
         Err(_) => {
@@ -357,11 +357,33 @@ fn not_redirected(target: &Path) -> bool {
                     return false;
                 };
                 if let Ok(real) = std::fs::canonicalize(parent) {
-                    return real == parent;
+                    return same_real_path(&real, parent);
                 }
                 probe = parent;
             }
         }
+    }
+}
+
+/// `canonicalize` on Windows answers with the verbatim prefix (`\\?\C:\…`),
+/// which never equals the path we built: compare without it, and without
+/// case, there. Elsewhere the two paths must be identical.
+fn same_real_path(real: &Path, expected: &Path) -> bool {
+    #[cfg(windows)]
+    {
+        let norm = |p: &Path| {
+            let s = p.to_string_lossy().replace('/', "\\");
+            let s = match s.strip_prefix(r"\\?\UNC\") {
+                Some(rest) => format!(r"\\{rest}"),
+                None => s.strip_prefix(r"\\?\").unwrap_or(&s).to_string(),
+            };
+            s.trim_end_matches('\\').to_lowercase()
+        };
+        norm(real) == norm(expected)
+    }
+    #[cfg(not(windows))]
+    {
+        real == expected
     }
 }
 
@@ -762,7 +784,19 @@ mod tests {
 
     #[test]
     fn approves_only_exact_paths_and_write_tools() {
-        let dir = PathBuf::from("/w/.promptops/sessions/7");
+        // A real, canonical base: on Windows the root of "/w" is not "/".
+        let base = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        let base = PathBuf::from(
+            base.to_string_lossy()
+                .trim_start_matches(r"\\?\")
+                .to_string(),
+        );
+        let dir = base
+            .join("po-approve-missing")
+            .join(".promptops")
+            .join("sessions")
+            .join("7");
+        let at = |rel: &str| format!("{}/{rel}", dir.display());
         active().lock().insert(
             "s-approve".into(),
             Active {
@@ -773,30 +807,18 @@ mod tests {
             },
         );
         let ev = |tool: &str, p: &str| serde_json::json!({ "tool_name": tool, "tool_input": { "file_path": p } });
-        assert!(approves_tool(
-            "s-approve",
-            &ev("Write", "/w/.promptops/sessions/7/state.md")
-        ));
-        assert!(approves_tool(
-            "s-approve",
-            &ev("Edit", "/w/.promptops/sessions/7/logbook.md")
-        ));
+        assert!(approves_tool("s-approve", &ev("Write", &at("state.md"))));
+        assert!(approves_tool("s-approve", &ev("Edit", &at("logbook.md"))));
+        assert!(!approves_tool("s-approve", &ev("Bash", &at("state.md"))));
+        assert!(!approves_tool("s-approve", &ev("Write", &at("other.md"))));
         assert!(!approves_tool(
             "s-approve",
-            &ev("Bash", "/w/.promptops/sessions/7/state.md")
-        ));
-        assert!(!approves_tool(
-            "s-approve",
-            &ev("Write", "/w/.promptops/sessions/7/other.md")
-        ));
-        assert!(!approves_tool(
-            "s-approve",
-            &ev("Write", "/w/.promptops/sessions/7/../7/state.md")
+            &ev("Write", &at("../7/state.md"))
         ));
         assert!(!approves_tool("s-approve", &ev("Write", "state.md")));
         assert!(!approves_tool(
             "other-session",
-            &ev("Write", "/w/.promptops/sessions/7/state.md")
+            &ev("Write", &at("state.md"))
         ));
         let frag = launch_fragment(Some("s-approve")).unwrap();
         assert_eq!(
@@ -804,10 +826,7 @@ mod tests {
             "--append-system-prompt-file \"/data/session-state/7.md\""
         );
         forget("s-approve");
-        assert!(!approves_tool(
-            "s-approve",
-            &ev("Write", "/w/.promptops/sessions/7/state.md")
-        ));
+        assert!(!approves_tool("s-approve", &ev("Write", &at("state.md"))));
     }
 
     #[cfg(unix)]

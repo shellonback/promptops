@@ -438,7 +438,12 @@ pub fn drag_drop_paths() -> Vec<String> {
             .filter_map(|p| p.downcast::<NSString>().ok().map(|s| s.to_string()))
             .collect()
     }
-    #[cfg(not(target_os = "macos"))]
+    // Linux: paths read from the GTK drag, because WebKitGTK hides them from the page.
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux_env::drag_paths()
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     Vec::new()
 }
 

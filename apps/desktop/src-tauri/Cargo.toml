@@ -62,7 +62,7 @@ sqlx = { version = "0.9", default-features = false, features = [
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 bigdecimal = "0.4"
 # system_info domain (hardware scan / memory diagnostics)
-sysinfo = "0.39"
+sysinfo = "0.40"
 # HTTP client for the services you choose (AI providers with your keys,
 # Whisper model download, plugin catalog); there is no PromptOps backend.
 reqwest = { version = "0.13", features = ["json", "blocking"] }
@@ -70,7 +70,7 @@ reqwest = { version = "0.13", features = ["json", "blocking"] }
 sha2 = "0.11"
 # Plugin runtime: encrypted secrets on disk (AES-256-GCM), key in the system keychain.
 # aes-gcm and getrandom are already in the lock as transitive dependencies.
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 getrandom = "0.4"
 # Encrypted backups (local_backup.rs): Argon2id derives the key from the
 # passphrase. Already in the lock as a transitive dependency; MIT OR Apache-2.0.
@@ -89,6 +89,9 @@ libc = "0.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 # Same version as wry (which already enables v2_40): WebKitGTK settings (linux_env::tune_webview).
 webkit2gtk = "2.0"
+# Same version as wry/tao (already in the lock): reads the real paths of dragged
+# files from GTK, which WebKitGTK hides from the page (linux_env::track_drag_paths).
+gtk = "0.18"
 keyring = { version = "3.6", default-features = false, features = ["async-secret-service", "tokio", "crypto-rust"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]

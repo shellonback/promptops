@@ -1022,6 +1022,7 @@ export class SessionAssetsPanelComponent {
       this.expandPanel();
     }
     this.uploading.set(true);
+    this.actionError.set(null);
     try {
       const added = await this.assetsService.importPaths(ws, paths);
       if (!added) return;
@@ -1032,6 +1033,10 @@ export class SessionAssetsPanelComponent {
         setTimeout(() => this.highlightedAssets.set(new Set()), 1600);
       }
     } catch (err) {
+      // Come handleUpload: l'errore (es. permessi, file > 512 MB) va mostrato
+      // nel pannello, altrimenti il drop fallisce senza che l'utente lo sappia.
+      // Prima: catch vuoto
+      this.reportError('ASSETS.Upload failed', err);
     } finally {
       this.uploading.set(false);
     }

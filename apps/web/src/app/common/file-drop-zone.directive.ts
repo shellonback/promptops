@@ -10,7 +10,15 @@ import {
   inject,
 } from '@angular/core';
 
-function isLinux(): boolean {
+// Il sistema operativo reale lo inietta Rust (lib.rs `init_script`) in
+// `window.__PROMPTOPS_OS__`: lo userAgent di WebKitGTK si spaccia per Safari su Mac,
+// quindi su Linux il solo controllo dello userAgent rispondeva "non è Linux" e
+// spegneva il ripiego text/uri-list (drop dal file manager ignorati senza errori).
+// Lo userAgent resta come ripiego quando l'app non gira dentro Tauri (es. test, browser).
+// Prima: return /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
+export function isLinux(): boolean {
+  const os = (window as { __PROMPTOPS_OS__?: string }).__PROMPTOPS_OS__;
+  if (os) return os === 'linux';
   return /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
 }
 
@@ -21,7 +29,7 @@ function isLinux(): boolean {
 export function fileUrisFromDrop(e: DragEvent): string[] {
   if (!isLinux()) return [];
   const list = e.dataTransfer?.getData('text/uri-list') || '';
-  return list
+  const fromUriList = list
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(l => l && !l.startsWith('#') && l.startsWith('file://'))
@@ -33,6 +41,13 @@ export function fileUrisFromDrop(e: DragEvent): string[] {
       }
     })
     .filter(p => p.startsWith('/'));
+  if (fromUriList.length) return fromUriList;
+  // WebKitGTK 2.5x dichiara text/uri-list ma lo consegna vuoto (nasconde gli URL
+  // file:// alla pagina): i percorsi reali li ha letti Rust dal drag GTK e il
+  // bridge li espone con getDragPaths (linux_env::track_drag_paths).
+  if (!e.dataTransfer?.types?.includes('text/uri-list')) return [];
+  const bridge = (window as { promptops?: { getDragPaths?: () => string[] } }).promptops;
+  return (bridge?.getDragPaths?.() ?? []).filter(p => p.startsWith('/'));
 }
 
 /**

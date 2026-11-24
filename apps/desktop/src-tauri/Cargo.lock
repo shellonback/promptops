@@ -4958,6 +4958,7 @@ dependencies = [
  "core-graphics",
  "futures-util",
  "getrandom 0.4.3",
+ "gtk",
  "image",
  "keyring",
  "libc",

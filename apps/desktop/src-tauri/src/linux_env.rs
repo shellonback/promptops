@@ -101,6 +101,43 @@ pub fn tune_webview(win: &tauri::WebviewWindow) {
     });
 }
 
+/// Percorsi locali dell'ultimo trascinamento di file arrivato da fuori (file manager).
+static DRAG_PATHS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Equivalente Linux del pasteboard di trascinamento di macOS (`drag_drop_paths`).
+/// WebKitGTK (≥ 2.4x) nasconde alla pagina gli URL file:// dei drop esterni:
+/// `dataTransfer.files` e `text/uri-list` arrivano vuoti, quindi il pannello Assets
+/// non sapeva quale file importare. GTK invece consegna la uri-list completa
+/// alla webview (segnale `drag-data-received`, emesso quando WebKit chiede i dati
+/// del drag): qui la leggiamo prima di WebKit, senza fermarne la gestione, e la
+/// teniamo per il bridge. Ogni nuovo drag con uri-list sostituisce la lista
+/// (anche con una vuota, es. link http), così non restano percorsi vecchi.
+pub fn track_drag_paths(win: &tauri::WebviewWindow) {
+    use gtk::prelude::*;
+    let _ = win.with_webview(|pw| {
+        pw.inner()
+            .connect_drag_data_received(|_, _, _, _, data, _, _| {
+                let uris = data.uris();
+                if uris.is_empty() {
+                    return; // non è una uri-list (testo, html…)
+                }
+                let paths = uris
+                    .iter()
+                    .filter_map(|u| gtk::glib::filename_from_uri(u).ok())
+                    .map(|(p, _)| p.to_string_lossy().into_owned())
+                    .collect();
+                if let Ok(mut slot) = DRAG_PATHS.lock() {
+                    *slot = paths;
+                }
+            });
+    });
+}
+
+/// Percorsi salvati da `track_drag_paths` (vuoto se il drag non porta file locali).
+pub fn drag_paths() -> Vec<String> {
+    DRAG_PATHS.lock().map(|p| p.clone()).unwrap_or_default()
+}
+
 fn want_wayland() -> bool {
     match env::var("PROMPTOPS_WAYLAND").as_deref() {
         Ok("1") => true,

@@ -101,17 +101,17 @@ pub fn tune_webview(win: &tauri::WebviewWindow) {
     });
 }
 
-/// Percorsi locali dell'ultimo trascinamento di file arrivato da fuori (file manager).
+/// Local paths of the last file drag coming from outside the app (file manager).
 static DRAG_PATHS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
 
-/// Equivalente Linux del pasteboard di trascinamento di macOS (`drag_drop_paths`).
-/// WebKitGTK (≥ 2.4x) nasconde alla pagina gli URL file:// dei drop esterni:
-/// `dataTransfer.files` e `text/uri-list` arrivano vuoti, quindi il pannello Assets
-/// non sapeva quale file importare. GTK invece consegna la uri-list completa
-/// alla webview (segnale `drag-data-received`, emesso quando WebKit chiede i dati
-/// del drag): qui la leggiamo prima di WebKit, senza fermarne la gestione, e la
-/// teniamo per il bridge. Ogni nuovo drag con uri-list sostituisce la lista
-/// (anche con una vuota, es. link http), così non restano percorsi vecchi.
+/// Linux counterpart of the macOS drag pasteboard (`drag_drop_paths`).
+/// WebKitGTK (≥ 2.4x) hides the file:// URLs of external drops from the page:
+/// `dataTransfer.files` and `text/uri-list` arrive empty, so the Assets panel
+/// could not tell which file to import. GTK, however, hands the full uri-list
+/// to the webview (`drag-data-received` signal, emitted when WebKit requests the
+/// drag data): we read it here before WebKit, without stopping its handling, and
+/// keep it for the bridge. Every new drag with a uri-list replaces the list
+/// (even with an empty one, e.g. http links), so no stale paths are left behind.
 pub fn track_drag_paths(win: &tauri::WebviewWindow) {
     use gtk::prelude::*;
     let _ = win.with_webview(|pw| {
@@ -119,7 +119,7 @@ pub fn track_drag_paths(win: &tauri::WebviewWindow) {
             .connect_drag_data_received(|_, _, _, _, data, _, _| {
                 let uris = data.uris();
                 if uris.is_empty() {
-                    return; // non è una uri-list (testo, html…)
+                    return; // not a uri-list (text, html…)
                 }
                 let paths = uris
                     .iter()
@@ -133,7 +133,7 @@ pub fn track_drag_paths(win: &tauri::WebviewWindow) {
     });
 }
 
-/// Percorsi salvati da `track_drag_paths` (vuoto se il drag non porta file locali).
+/// Paths stored by `track_drag_paths` (empty if the drag carries no local files).
 pub fn drag_paths() -> Vec<String> {
     DRAG_PATHS.lock().map(|p| p.clone()).unwrap_or_default()
 }

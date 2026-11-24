@@ -174,12 +174,11 @@
   // synchronous at drop time and resolves by basename. '' if unknown.
   var lastDroppedPaths = [];
   var dragPathsInflight = false;
-  // Linux: WebKitGTK consegna i drop dal file manager come text/uri-list (spesso
-  // senza 'Files') e svuota gli URL file://: i percorsi li legge Rust dal drag GTK.
+  // Linux: WebKitGTK delivers file manager drops as text/uri-list (often without
+  // 'Files') and empties the file:// URLs: Rust reads the paths from the GTK drag.
   var isLinuxOs = window.__PROMPTOPS_OS__ === 'linux';
   function refreshDragPaths(e) {
     var types = e && e.dataTransfer && e.dataTransfer.types;
-    // Prima: if (!types || Array.prototype.indexOf.call(types, 'Files') < 0) return;
     if (!types) return;
     var osFiles = Array.prototype.indexOf.call(types, 'Files') >= 0 ||
       (isLinuxOs && Array.prototype.indexOf.call(types, 'text/uri-list') >= 0);
@@ -188,15 +187,14 @@
     dragPathsInflight = true;
     invoke('drag_drop_paths').then(function (paths) {
       dragPathsInflight = false;
-      // Linux: la lista di Rust è quella vera anche se vuota (drag senza file locali).
-      // Prima: if (paths && paths.length) lastDroppedPaths = paths;
+      // Linux: the list from Rust is authoritative even when empty (no local files).
       if (paths && (paths.length || isLinuxOs)) lastDroppedPaths = paths;
     }, function () { dragPathsInflight = false; });
   }
   window.addEventListener('dragenter', refreshDragPaths, true);
   window.addEventListener('dragover', refreshDragPaths, true);
-  // Linux: a drop finito i percorsi si azzerano (dopo che le drop zone li hanno
-  // letti), così un drag successivo non importa per errore i file di quello prima.
+  // Linux: once the drop is over the paths are cleared (after the drop zones have
+  // read them), so a later drag cannot import the previous drag's files by mistake.
   if (isLinuxOs) {
     var clearDragPaths = function () { setTimeout(function () { lastDroppedPaths = []; }, 0); };
     window.addEventListener('drop', clearDragPaths, true);
@@ -895,8 +893,8 @@
       }
       return '';
     },
-    // Percorsi assoluti del drag di file in corso (Linux: ripiego quando
-    // text/uri-list arriva vuoto, vedi fileUrisFromDrop nel frontend).
+    // Absolute paths of the current file drag (Linux: fallback when
+    // text/uri-list arrives empty, see fileUrisFromDrop in the frontend).
     getDragPaths: function () { return lastDroppedPaths.slice(); },
 
     // ── Presence signals ─────────────────────────────────────────────────

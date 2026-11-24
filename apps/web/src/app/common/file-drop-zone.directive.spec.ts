@@ -1,14 +1,14 @@
 import { fileUrisFromDrop, isLinux } from './file-drop-zone.directive';
 
-// Drop simulato con il solo text/uri-list, come lo consegna WebKitGTK quando si
-// trascina un file dal file manager Linux (dataTransfer.files vuoto).
+// Simulated drop carrying only text/uri-list, as WebKitGTK delivers it when a
+// file is dragged from the Linux file manager (empty dataTransfer.files).
 function uriListDrop(uriList: string): DragEvent {
   const dt = new DataTransfer();
   dt.setData('text/uri-list', uriList);
   return new DragEvent('drop', { dataTransfer: dt });
 }
 
-describe('file-drop-zone: rilevamento Linux e ripiego text/uri-list', () => {
+describe('file-drop-zone: Linux detection and text/uri-list fallback', () => {
   const w = window as { __PROMPTOPS_OS__?: string };
   let saved: string | undefined;
 
@@ -18,7 +18,7 @@ describe('file-drop-zone: rilevamento Linux e ripiego text/uri-list', () => {
     else w.__PROMPTOPS_OS__ = saved;
   });
 
-  it('usa il sistema operativo iniettato da Rust anche se lo userAgent dice Mac', () => {
+  it('uses the OS injected by Rust even when the user agent says Mac', () => {
     w.__PROMPTOPS_OS__ = 'linux';
     expect(isLinux()).toBeTrue();
     w.__PROMPTOPS_OS__ = 'darwin';
@@ -27,32 +27,32 @@ describe('file-drop-zone: rilevamento Linux e ripiego text/uri-list', () => {
     expect(isLinux()).toBeFalse();
   });
 
-  it('su Linux estrae i percorsi assoluti decodificati, ignorando commenti e URL non file', () => {
+  it('on Linux extracts decoded absolute paths, ignoring comments and non-file URLs', () => {
     w.__PROMPTOPS_OS__ = 'linux';
     const e = uriListDrop(
-      '# commento\r\nfile:///home/utente/Immagini/foto%20mare.png\r\nhttps://example.com/x.png\r\nfile:///tmp/%C3%A8.txt\r\n',
+      '# comment\r\nfile:///home/user/Pictures/beach%20photo.png\r\nhttps://example.com/x.png\r\nfile:///tmp/caf%C3%A9.txt\r\n',
     );
-    expect(fileUrisFromDrop(e)).toEqual(['/home/utente/Immagini/foto mare.png', '/tmp/è.txt']);
+    expect(fileUrisFromDrop(e)).toEqual(['/home/user/Pictures/beach photo.png', '/tmp/café.txt']);
   });
 
-  it('fuori da Linux non attiva il ripiego (macOS/Windows usano dataTransfer.files)', () => {
+  it('does not enable the fallback outside Linux (macOS/Windows use dataTransfer.files)', () => {
     w.__PROMPTOPS_OS__ = 'darwin';
     expect(fileUrisFromDrop(uriListDrop('file:///Users/u/a.png'))).toEqual([]);
   });
 
-  it('uri-list vuota (WebKitGTK la nasconde): usa i percorsi letti da Rust via bridge', () => {
+  it('empty uri-list (hidden by WebKitGTK): uses the paths read by Rust through the bridge', () => {
     w.__PROMPTOPS_OS__ = 'linux';
     const win = window as { promptops?: { getDragPaths?: () => string[] } };
     const savedBridge = win.promptops;
-    win.promptops = { getDragPaths: () => ['/home/utente/foto mare.png', 'relativo.txt'] };
+    win.promptops = { getDragPaths: () => ['/home/user/beach photo.png', 'relative.txt'] };
     try {
-      expect(fileUrisFromDrop(uriListDrop(''))).toEqual(['/home/utente/foto mare.png']);
+      expect(fileUrisFromDrop(uriListDrop(''))).toEqual(['/home/user/beach photo.png']);
     } finally {
       win.promptops = savedBridge;
     }
   });
 
-  it('drop senza uri-list: nessun percorso', () => {
+  it('drop without uri-list: no paths', () => {
     w.__PROMPTOPS_OS__ = 'linux';
     expect(fileUrisFromDrop(new DragEvent('drop'))).toEqual([]);
   });

@@ -1196,7 +1196,7 @@ pub fn run() {
             }
             #[cfg(target_os = "linux")]
             linux_env::tune_webview(&_win);
-            // Percorsi reali dei file trascinati dal file manager (vedi drag_drop_paths).
+            // Real paths of files dragged from the file manager (see drag_drop_paths).
             #[cfg(target_os = "linux")]
             linux_env::track_drag_paths(&_win);
             #[cfg(target_os = "macos")]

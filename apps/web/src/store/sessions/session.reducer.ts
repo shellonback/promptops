@@ -64,7 +64,14 @@ export const sessionsReducer = createReducer(
           prev.pendingInteractionCount === s.pendingInteractionCount &&
           prev.workspaceId === s.workspaceId &&
           prev.standbyAt === s.standbyAt &&
-          prev.layoutMode === s.layoutMode
+          prev.layoutMode === s.layoutMode &&
+          // Folder binding too: after "Relink folder" only the path changes,
+          // and skipping it kept the old path and the "invalid path" banner.
+          // The validity status is left out on purpose: the poll always says
+          // 'configured' and the path check flips it afterwards, so comparing
+          // it would replace the list on every poll of a broken session.
+          prev.workspace?.path === s.workspace?.path &&
+          prev.deviceWorkspace?.localPath === s.deviceWorkspace?.localPath
         );
       });
     return {

@@ -17,6 +17,7 @@ describe('WorkspaceSetupModalComponent error states', () => {
       selectWorkspace: jasmine.createSpy('selectWorkspace'),
       validateWorkspacePath: jasmine.createSpy('validateWorkspacePath'),
       upsertDeviceWorkspace: jasmine.createSpy('upsertDeviceWorkspace'),
+      updateSessionMeta: jasmine.createSpy('updateSessionMeta'),
       gitClone: jasmine.createSpy('gitClone'),
     };
     TestBed.configureTestingModule({ providers: [
@@ -49,5 +50,30 @@ describe('WorkspaceSetupModalComponent error states', () => {
     await component.cloneRepository();
     expect(component.error()).toBe('t:SESSIONS.DEVICE_WORKSPACE.Error clone');
     expect(component.cloning()).toBeFalse();
+  });
+
+  it('relink binds the folder to the stored session record, not the live id', async () => {
+    component.sessionId = 'live-uuid';
+    component.sessionDbId = 'db-id';
+    component.selectedPath.set('/home/user/new-folder');
+    (sessions['validateWorkspacePath'] as jasmine.Spy).and.resolveTo({ valid: true });
+    (sessions['upsertDeviceWorkspace'] as jasmine.Spy).and.resolveTo({ ok: true });
+    (sessions['updateSessionMeta'] as jasmine.Spy).and.resolveTo({ ok: true });
+    await component.confirm();
+    expect(sessions['upsertDeviceWorkspace']).toHaveBeenCalledWith('db-id', '/home/user/new-folder');
+    expect(sessions['updateSessionMeta']).toHaveBeenCalledWith('live-uuid', {
+      workspace: { path: '/home/user/new-folder', name: 'new-folder' },
+    });
+    expect(modal.close).toHaveBeenCalledWith({ localPath: '/home/user/new-folder' });
+  });
+
+  it('relink of a session never stored falls back to the live id', async () => {
+    component.sessionId = 'live-uuid';
+    component.selectedPath.set('/tmp/x');
+    (sessions['validateWorkspacePath'] as jasmine.Spy).and.resolveTo({ valid: true });
+    (sessions['upsertDeviceWorkspace'] as jasmine.Spy).and.resolveTo({ ok: true });
+    (sessions['updateSessionMeta'] as jasmine.Spy).and.resolveTo({ ok: true });
+    await component.confirm();
+    expect(sessions['upsertDeviceWorkspace']).toHaveBeenCalledWith('live-uuid', '/tmp/x');
   });
 });

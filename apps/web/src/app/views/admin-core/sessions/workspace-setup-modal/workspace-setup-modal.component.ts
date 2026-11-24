@@ -320,6 +320,12 @@ export class WorkspaceSetupModalComponent implements OnInit {
   repoUrl: string | null = null;
   repoBranch: string | null = null;
   deviceWorkspaceId: string | null = null;
+  /**
+   * Id of the session's stored record. Device workspaces are keyed by it
+   * (migration, retry configuration): binding with the live id instead created
+   * a new record nobody reads on every relink.
+   */
+  sessionDbId: string | null = null;
 
   /** 'not_configured' when no device workspace exists, 'invalid_path' when path is missing */
   mode = signal<DeviceWorkspaceStatus>('not_configured');
@@ -539,7 +545,7 @@ export class WorkspaceSetupModalComponent implements OnInit {
       if (this.deviceWorkspaceId && this.mode() === 'invalid_path') {
         await this.sessionService.updateDeviceWorkspace(this.deviceWorkspaceId, path);
       } else {
-        await this.sessionService.upsertDeviceWorkspace(this.sessionId, path);
+        await this.sessionService.upsertDeviceWorkspace(this.sessionDbId ?? this.sessionId, path);
       }
 
       // The live desktop session keeps its own copy of the folder: push the

@@ -166,7 +166,9 @@ pub async fn browser_chrome_status(port: Option<u16>) -> Result<ChromeStatus, St
 /// A live Chrome/Chromium process (sysinfo), excluding our own binary.
 fn chrome_process_running() -> bool {
     use sysinfo::System;
-    let sys = System::new_all();
+    let Ok(sys) = System::new_all() else {
+        return false;
+    };
     sys.processes().values().any(|p| {
         let n = p.name().to_string_lossy().to_lowercase();
         (n.contains("google chrome")
@@ -822,7 +824,9 @@ fn copy_dir_all(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result
 fn kill_agent_chrome(profile: &std::path::Path) -> bool {
     use sysinfo::System;
     let marker = format!("--user-data-dir={}", profile.display());
-    let sys = System::new_all();
+    let Ok(sys) = System::new_all() else {
+        return false;
+    };
     let mut killed = false;
     for p in sys.processes().values() {
         let cmd = p.cmd();
@@ -1250,7 +1254,9 @@ fn codex_trust_header(path: &str) -> String {
 fn agent_chrome_pids(profile: &std::path::Path) -> Vec<u32> {
     use sysinfo::System;
     let marker = format!("--user-data-dir={}", profile.display());
-    let sys = System::new_all();
+    let Ok(sys) = System::new_all() else {
+        return Vec::new();
+    };
     sys.processes()
         .iter()
         .filter(|(_, p)| p.cmd().iter().any(|a| a.to_string_lossy() == marker))

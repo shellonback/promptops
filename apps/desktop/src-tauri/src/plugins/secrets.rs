@@ -138,7 +138,7 @@ fn seal(key: &[u8; 32], plugin_id: &str, secrets: &Secrets) -> Result<Vec<u8>, S
     let plain = serde_json::to_vec(secrets).map_err(|e| e.to_string())?;
     let data = Aes256Gcm::new(key.into())
         .encrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &plain,
                 aad: plugin_id.as_bytes(),
@@ -155,10 +155,11 @@ fn seal(key: &[u8; 32], plugin_id: &str, secrets: &Secrets) -> Result<Vec<u8>, S
 
 fn open(key: &[u8; 32], plugin_id: &str, sealed: &Sealed) -> Option<Secrets> {
     let nonce = B64.decode(&sealed.nonce).ok().filter(|n| n.len() == 12)?;
+    let nonce = Nonce::try_from(nonce.as_slice()).ok()?;
     let data = B64.decode(&sealed.data).ok()?;
     let plain = Aes256Gcm::new(key.into())
         .decrypt(
-            Nonce::from_slice(&nonce),
+            &nonce,
             Payload {
                 msg: &data,
                 aad: plugin_id.as_bytes(),

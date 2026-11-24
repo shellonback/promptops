@@ -927,9 +927,9 @@ fn platform_label() -> String {
 
 /// Builds the snapshot via sysinfo. `terminal_pids` = PIDs of the live PTYs
 /// (passed by the pool, mirror of `terminalManager.pids()`).
-fn build_memory_snapshot(terminal_pids: Vec<i64>) -> MemorySnapshot {
-    // `new_all()` populates processes + memory + CPU; signature stable across versions.
-    let sys = System::new_all();
+fn build_memory_snapshot(terminal_pids: Vec<i64>) -> Option<MemorySnapshot> {
+    // `new_all()` populates processes + memory + CPU; fails only if sysinfo cannot init.
+    let sys = System::new_all().ok()?;
 
     let self_pid_u = std::process::id();
     let self_pid = Pid::from_u32(self_pid_u);
@@ -976,7 +976,7 @@ fn build_memory_snapshot(terminal_pids: Vec<i64>) -> MemorySnapshot {
 
     let uptime_sec = sys.process(self_pid).map(|p| p.run_time()).unwrap_or(0);
 
-    MemorySnapshot {
+    Some(MemorySnapshot {
         ts: now_iso(),
         platform: platform_label(),
         uptime_sec,
@@ -1008,7 +1008,7 @@ fn build_memory_snapshot(terminal_pids: Vec<i64>) -> MemorySnapshot {
         } else {
             None
         },
-    }
+    })
 }
 
 /// BFS over children starting from `root_pid` (pid-reuse guard via `seen`).
@@ -1104,12 +1104,12 @@ pub async fn diagnostics_memory(terminal_pids: Option<Vec<i64>>) -> DiagnosticsM
     })
     .await;
     match result {
-        Ok(snapshot) => DiagnosticsMemoryResult {
+        Ok(Some(snapshot)) => DiagnosticsMemoryResult {
             ok: true,
             snapshot: Some(snapshot),
             error: None,
         },
-        Err(_) => DiagnosticsMemoryResult {
+        Ok(None) | Err(_) => DiagnosticsMemoryResult {
             ok: false,
             snapshot: None,
             error: Some("memory snapshot failed".into()),
@@ -2122,11 +2122,11 @@ fn derive_accelerator(gpus: &[GpuInfo], memory: &MemoryInfo) -> (String, u64) {
     ("cpu".into(), 0)
 }
 
-fn detect_hardware() -> HardwareProfile {
+fn detect_hardware() -> Option<HardwareProfile> {
     let mut warnings: Vec<String> = Vec::new();
 
     // `new_all()` gives us total/free memory and the CPU list (for brand+count).
-    let sys = System::new_all();
+    let sys = System::new_all().ok()?;
 
     let os_info = detect_os();
     let memory = detect_memory(&sys);
@@ -2141,7 +2141,7 @@ fn detect_hardware() -> HardwareProfile {
         );
     }
 
-    HardwareProfile {
+    Some(HardwareProfile {
         os: os_info,
         cpu,
         memory,
@@ -2149,7 +2149,7 @@ fn detect_hardware() -> HardwareProfile {
         accelerator,
         effective_vram_mb,
         warnings,
-    }
+    })
 }
 
 /// hardware:scan — detect local hardware + rank open models. `{ ok, data }`.
@@ -2157,7 +2157,7 @@ fn detect_hardware() -> HardwareProfile {
 pub async fn hardware_scan(options: Option<HardwareScanOptions>) -> HardwareScanResponse {
     let opts = options.unwrap_or_default();
     // Blocking thread: up to three external commands (6 s cap each).
-    let Ok(mut hardware) = tauri::async_runtime::spawn_blocking(detect_hardware).await else {
+    let Ok(Some(mut hardware)) = tauri::async_runtime::spawn_blocking(detect_hardware).await else {
         return HardwareScanResponse {
             ok: false,
             data: None,

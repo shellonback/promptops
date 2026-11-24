@@ -247,6 +247,7 @@ commands.allow = [
   "profile_list",
   "profile_update",
   "project_brief_collect",
+  "project_brief_provider_files",
   "provider_account_capabilities",
   "provider_account_create",
   "provider_account_delete",

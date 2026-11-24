@@ -708,6 +708,7 @@ pub fn run() {
             commands::workspace::workspace_context_file_check,
             commands::workspace::workspace_context_policy_set,
             commands::workspace::project_brief_collect,
+            commands::workspace::project_brief_provider_files,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

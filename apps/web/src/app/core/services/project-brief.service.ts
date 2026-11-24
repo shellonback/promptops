@@ -45,6 +45,21 @@ export interface ProjectBriefData {
   aiSource: string;
 }
 
+/** File read by an AI provider (instructions, settings, MCP, commands, sub-agents, skills, rules). */
+export interface ProviderFileEntry {
+  provider: 'claude' | 'codex' | 'gemini' | 'other';
+  scope: 'project' | 'global';
+  kind: 'instructions' | 'settings' | 'mcp' | 'command' | 'agent' | 'skill' | 'rule';
+  root: string;
+  rel: string;
+  name: string;
+  description?: string | null;
+  readBy: string[];
+  exists: boolean;
+  size: number;
+  modifiedMs?: number | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProjectBriefService {
   get isDesktop(): boolean {
@@ -65,6 +80,41 @@ export class ProjectBriefService {
     const res = await this.api.collectProjectBrief({ workspacePath });
     if (!res?.ok) throw new Error(res?.error || 'collect_failed');
     return res.data as ProjectBriefData;
+  }
+
+  /** Inventory of the provider files (project + active account home); [] on older bridges. */
+  async providerFiles(workspacePath: string): Promise<ProviderFileEntry[]> {
+    if (!this.isDesktop || typeof this.api.listProviderFiles !== 'function') return [];
+    try {
+      const res = await this.api.listProviderFiles({ workspacePath });
+      return res?.ok ? (res.files as ProviderFileEntry[]) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  /** Reads a text file under `root` (same sandbox as the editor: nothing outside root). */
+  async readText(root: string, rel: string): Promise<string | null> {
+    if (!this.isDesktop || typeof this.api.fsReadFile !== 'function') throw new Error('desktop_only');
+    const res = await this.api.fsReadFile(root, rel);
+    return res?.ok ? (res.content ?? '') : null;
+  }
+
+  async writeText(root: string, rel: string, content: string): Promise<void> {
+    if (!this.isDesktop || typeof this.api.fsWriteFile !== 'function') throw new Error('desktop_only');
+    const res = await this.api.fsWriteFile(root, rel, content);
+    if (!res?.ok) throw new Error(res?.error || 'write_failed');
+  }
+
+  /** Direct entries of a folder under `root`; [] when it does not exist. */
+  async listDir(root: string, rel: string): Promise<{ name: string; isDir: boolean }[]> {
+    if (!this.isDesktop || typeof this.api.fsListDirShallow !== 'function') return [];
+    try {
+      const res = await this.api.fsListDirShallow(root, rel);
+      return res?.ok ? (res.entries ?? []).map((e: any) => ({ name: e.name, isDir: !!e.isDir })) : [];
+    } catch {
+      return [];
+    }
   }
 
   /** One-shot LLM call through the session's provider CLI (local, nothing else is called). */

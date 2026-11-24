@@ -8,7 +8,7 @@ import { Injectable, inject, signal } from '@angular/core';
  * disappears from the interface (menu item, badge, button or chip), nothing is deleted.
  * The choice stays on this device.
  */
-export type BuiltinKey = 'agent-evals' | 'git-writer' | 'browser' | 'ssh' | 'database' | 'docker' | 'ai-squad' | 'goal' | 'worker' | 'auto-approve' | 'multi-session' | 'floor-plan';
+export type BuiltinKey = 'agent-evals' | 'git-writer' | 'browser' | 'ssh' | 'database' | 'docker' | 'ai-squad' | 'goal' | 'worker' | 'auto-approve' | 'multi-session' | 'floor-plan' | 'agents-dashboard';
 
 export interface BuiltinPlugin {
   key: BuiltinKey;
@@ -19,11 +19,15 @@ export interface BuiltinPlugin {
   /** Where it shows up in the app: the card displays it. */
   where: string;
   category: string;
+  /** Recently released: the card shows the NEW badge. */
+  isNew?: boolean;
   /** Who signs it in the card: PromptOps (verified, compact logo) with some exceptions. */
   publisher?: { label: string; avatar: string; kind: 'user' | 'team'; verified: boolean; ownerEmail?: string };
 }
 
 export const BUILTIN_PLUGINS: BuiltinPlugin[] = [
+  { key: 'agents-dashboard', pluginId: 'promptops.agents-dashboard', name: 'Agents Dashboard', category: 'Session sidebar', where: 'Session sidebar › Agents Dashboard, at the top', isNew: true,
+    description: 'One brain over every session: all your active agents as a list or a pipeline (needs you, error, done, working), what changed since your last look, and a button that takes you straight to each terminal.' },
   { key: 'floor-plan', pluginId: 'promptops.floor-plan', name: 'Floor Plan', category: 'Session sidebar', where: 'Session sidebar › Floor plan, at the top',
     description: 'Your whole PromptOps from above, as a 3D virtual office: folders are rooms, workspaces are desks, with the agents at work. Click a desk to open it.' },
   { key: 'agent-evals', pluginId: 'promptops.agent-evals-builtin', name: 'AI Agent Evals', category: 'Menu page', where: 'Side menu › AI Agent Evals',
@@ -73,7 +77,7 @@ export const ABSORBED_BY_BUILTIN: Record<string, BuiltinKey> = {
 
 const STORAGE_KEY = 'po.builtinPlugins.off';
 /** Built-ins that start off: they turn on only by an explicit choice, saved in ENABLED_KEY. */
-const DEFAULT_OFF: ReadonlySet<BuiltinKey> = new Set<BuiltinKey>(['auto-approve']);
+const DEFAULT_OFF: ReadonlySet<BuiltinKey> = new Set<BuiltinKey>(['auto-approve', 'floor-plan']);
 const ENABLED_KEY = 'po.builtinPlugins.on';
 /** Uninstalled: they disappear from Installed and stay in the Catalog with "Install". They are also off. */
 const REMOVED_KEY = 'po.builtinPlugins.removed';
@@ -81,9 +85,9 @@ const REMOVED_KEY = 'po.builtinPlugins.removed';
 @Injectable({ providedIn: 'root' })
 export class BuiltinPluginsService {
   private orgPolicy = inject(OrgPolicyService);
-  /** Keys that are off. Everything else is on: built-in plugins start enabled, except DEFAULT_OFF. */
+  /** Turned off by an explicit choice. */
   readonly off = signal<ReadonlySet<BuiltinKey>>(this.load(STORAGE_KEY));
-  /** Plugin DEFAULT_OFF accesi dalla persona. */
+  /** Turned on by an explicit choice. */
   readonly enabled = signal<ReadonlySet<BuiltinKey>>(this.load(ENABLED_KEY));
   readonly removed = signal<ReadonlySet<BuiltinKey>>(this.load(REMOVED_KEY));
 
@@ -104,21 +108,32 @@ export class BuiltinPluginsService {
     // Organization policy (Enterprise) wins over the local switch.
     if (key === 'auto-approve' && !this.orgPolicy.autoApproveAllowed()) return false;
     if (!this.orgPolicy.canEnableBuiltinPlugins()) return false;
-    return DEFAULT_OFF.has(key) ? this.enabled().has(key) : !this.off().has(key);
+    return this.localOn(key);
+  }
+
+  /** Factory default of the plugin. */
+  defaultOn(key: BuiltinKey): boolean {
+    return !DEFAULT_OFF.has(key);
   }
 
   setOn(key: BuiltinKey, on: boolean): void {
-    if (DEFAULT_OFF.has(key)) {
-      const enabled = new Set(this.enabled());
-      if (on) enabled.add(key); else enabled.delete(key);
-      this.enabled.set(enabled);
-      try { localStorage.setItem(ENABLED_KEY, JSON.stringify([...enabled])); } catch { /* stays in memory */ }
-      return;
-    }
-    const next = new Set(this.off());
-    if (on) next.delete(key); else next.add(key);
-    this.off.set(next);
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...next])); } catch { /* stays in memory */ }
+    const enabled = new Set(this.enabled());
+    const off = new Set(this.off());
+    if (on) { enabled.add(key); off.delete(key); } else { off.add(key); enabled.delete(key); }
+    this.enabled.set(enabled);
+    this.off.set(off);
+    try {
+      localStorage.setItem(ENABLED_KEY, JSON.stringify([...enabled]));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify([...off]));
+    } catch { /* stays in memory */ }
+  }
+
+  /** An explicit choice wins; without one the factory default applies. */
+  private localOn(key: BuiltinKey): boolean {
+    if (this.removed().has(key)) return false;
+    if (this.enabled().has(key)) return true;
+    if (this.off().has(key)) return false;
+    return this.defaultOn(key);
   }
 
   private load(storageKey: string): ReadonlySet<BuiltinKey> {

@@ -2246,7 +2246,10 @@ fn apply_workspace_change(
 
 /// Store fields of a session's working folder: the config (whose `cwd` is
 /// where the PTY starts) and the folder the session list and restore read.
-fn workspace_store_patch(config: &SessionConfig, workspace: Option<&WorkspaceBinding>) -> JsonValue {
+fn workspace_store_patch(
+    config: &SessionConfig,
+    workspace: Option<&WorkspaceBinding>,
+) -> JsonValue {
     serde_json::json!({
         "config": config_for_store(config),
         "workspace_path": workspace.map(|w| w.path.clone()),

@@ -39,7 +39,7 @@ vt100 = "0.18"
 # Native terminal (same author as WezTerm)
 portable-pty = "0.9"
 # fs domain
-notify = "8"
+notify = "9"
 trash = "5"
 # shell/clipboard domain
 arboard = "3"

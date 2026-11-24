@@ -33,7 +33,7 @@ const PLUGINS_LAYOUT_KEY = 'po.plugins.layout';
 const BUILTIN_SECTION: Record<BuiltinKey, string> = {
   'agent-evals': 'pages', 'git-writer': 'pages', browser: 'pages',
   ssh: 'data', database: 'data', docker: 'data', 'multi-session': 'agent',
-  'ai-squad': 'agent', goal: 'agent', worker: 'agent', 'auto-approve': 'agent', 'floor-plan': 'pages',
+  'ai-squad': 'agent', goal: 'agent', worker: 'agent', 'auto-approve': 'agent', 'floor-plan': 'pages', 'agents-dashboard': 'agent',
 };
 
 /** Publishers shown for the official plugins (see publisherOf). */
@@ -93,6 +93,7 @@ const OFFICIAL_PUBLISHERS: Record<string, { handle: string; avatar: string | nul
                 <div class="hp-title" [attr.title]="pub.label + '/' + bName">
                   <span class="hp-owner">{{ pub.label }}/</span><span class="hp-name">{{ bName }}</span>
                 </div>
+                @if (b.isNew) { <span class="hp-new" title="New in PromptOps">New</span> }
               </div>
             </div>
             <div class="hp-subrow">
@@ -508,6 +509,7 @@ const OFFICIAL_PUBLISHERS: Record<string, { handle: string; avatar: string | nul
     .hp-avatar-check { position: absolute; right: -5px; bottom: -5px; display: inline-flex; border-radius: 50%; background: var(--hp-bg); box-shadow: 0 0 0 1.5px var(--hp-bg); line-height: 0; }
     .hp-card.is-installed .hp-avatar-check { background: var(--hp-soft); box-shadow: 0 0 0 1.5px var(--hp-soft); }
     .hp-avatar-fallback { display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; text-transform: uppercase; color: var(--hp-muted); }
+    .hp-new { flex: none; font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 1px 7px; border-radius: 10px; background: var(--promptops-primary, #6366f1); color: #fff; }
     .hp-title { font-size: 14px; line-height: 1.3; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .hp-owner { color: var(--hp-muted); } .hp-name { font-weight: 600; margin-right: 4px; }
     .hp-go { font-size: 12px; color: var(--hp-muted); text-decoration: none; flex: none; } .hp-go:hover { color: var(--hp-ink); text-decoration: underline; text-underline-offset: 3px; }

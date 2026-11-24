@@ -990,17 +990,7 @@
             >
               <iconify-icon icon="solar:checklist-minimalistic-bold" width="14"></iconify-icon>
             </button>
-            <po-provider-account-switcher
-              [provider]="$any(newAgentProvider())"
-              mode="picker"
-              [value]="newAgentAccountId()"
-              [showInherit]="true"
-              [allowOptOut]="true"
-              [compact]="true"
-              [iconOnly]="true"
-              placement="top-end bottom-end"
-              (valueChange)="newAgentAccountId.set($event)"
-            />
+            <!-- Account: the selector in the session header drives it (new agents inherit it). -->
             <!-- Starting worktree of the new agent -->
             @if (spawnWorktrees().length > 0 && newAgentProvider() !== 'generic-shell') {
               <div

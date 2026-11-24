@@ -52,7 +52,6 @@ import { TooltipDirective } from '../../../../common/tooltip.directive';
 import { MentionAutocompleteComponent } from '../../../../components/mention-autocomplete/mention-autocomplete.component';
 import { CommandAutocompleteComponent } from '../../../../components/command-autocomplete/command-autocomplete.component';
 import { getActiveWorkspace } from '../../../../../store/workspaces/workspace.selectors';
-import { ProviderAccountSwitcherComponent } from '../../provider-accounts/switcher/provider-account-switcher.component';
 import { ProviderAccountsService, type ProviderId } from '../../provider-accounts/services/provider-accounts.service';
 import { FeatureFlagService } from '@core/services/feature-flag.service';
 import { getProviderUsage, getProviderUsageError } from '../../../../../store/token-efficiency/token-efficiency.selectors';
@@ -89,7 +88,6 @@ type SpawnProviderId = 'claude-code-cli' | 'codex' | 'gemini-cli' | 'antigravity
     MentionAutocompleteComponent,
     CommandAutocompleteComponent,
     GitSettingsModalComponent,
-    ProviderAccountSwitcherComponent,
   ],
   templateUrl: './action-center.component.html',
   schemas: [CUSTOM_ELEMENTS_SCHEMA],

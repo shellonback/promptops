@@ -2730,7 +2730,7 @@ pub(crate) fn do_spawn(
 
         // Resolved provider account (explicit or inherited from the parent) → CLI
         // env.
-        if let Some((env_var, config_dir, account_id)) = remote
+        let resolved_account = remote
             .is_none()
             .then(|| {
                 crate::commands::provider_account::resolve_account_env(
@@ -2738,8 +2738,21 @@ pub(crate) fn do_spawn(
                     account_explicit.clone(),
                 )
             })
-            .flatten()
-        {
+            .flatten();
+        // Session folder already trusted for the CLI: the trust dialog does
+        // not block the prompt injection. Native local spawns only.
+        if remote.is_none() && !is_wsl {
+            if let Some(dir) = cwd.as_deref() {
+                crate::commands::browser::pretrust_spawn_folder(
+                    &provider,
+                    dir,
+                    resolved_account
+                        .as_ref()
+                        .map(|(var, dir, _)| (*var, dir.as_str())),
+                );
+            }
+        }
+        if let Some((env_var, config_dir, account_id)) = resolved_account {
             account_vars = crate::commands::provider_account::account_env_vars(
                 env_var,
                 &config_dir,

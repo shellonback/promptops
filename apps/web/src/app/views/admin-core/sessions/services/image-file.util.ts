@@ -12,3 +12,7 @@ export function isRasterImagePath(path: string): boolean {
 export function toDataUrl(mimeType: string, base64: string): string {
   return `data:${mimeType};base64,${base64}`;
 }
+
+export function isPdfPath(path: string): boolean {
+  return /\.pdf$/i.test(path);
+}

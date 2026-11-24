@@ -28,6 +28,8 @@ import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { PluginMenuPage, PluginRuntimeService } from '../../plugins/plugin-runtime.service';
 import { Router } from '@angular/router';
 import { FloorPlanService } from '../floor-plan/floor-plan.service';
+import { AgentsDashboardService } from '../agents-dashboard/agents-dashboard.service';
+import { SidebarExpandStateService } from './sidebar-expand-state.service';
 import { SessionWindowsService } from '../services/session-windows.service';
 import { canDetach } from '@/app/detached/detached-window';
 import { PROVIDER_LOGO } from '../provider-logos';
@@ -115,6 +117,7 @@ const NO_SUB_AGENTS: SubAgent[] = [];
     .plugin-entry-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
     .plugin-entry-puzzle { font-size: 12px; opacity: .5; flex: none; }
     .collapsed-plugin-entry { position: relative; }
+    .plugin-entry-new { font-size: 9.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 0 6px; border-radius: 8px; background: var(--promptops-primary, #6366f1); color: #fff; }
     .plugin-entry-alert { font-size: 10px; font-weight: 700; min-width: 16px; padding: 0 5px; border-radius: 8px; text-align: center;
       background: rgba(245,158,11,.18); color: #d97706; border: 1px solid rgba(245,158,11,.45); flex: none; }
     .collapsed-plugin-alert { position: absolute; top: 3px; right: 3px; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
@@ -1354,11 +1357,16 @@ export class SessionSidebarComponent {
   readonly pluginEntries = computed(() => this.pluginRuntime.sidebarPages());
   protected floorPlan = inject(FloorPlanService);
   private sessionWindows = inject(SessionWindowsService);
-  readonly hasTopEntries = computed(() => this.builtins.isOn('floor-plan') || this.pluginEntries().length > 0);
+  protected agentsDashboard = inject(AgentsDashboardService);
+  readonly hasTopEntries = computed(() => this.builtins.isOn('agents-dashboard') || this.builtins.isOn('floor-plan') || this.pluginEntries().length > 0);
 
   toggleFloorPlan(): void {
     if (this.floorPlan.mode() === 'full') this.floorPlan.close();
-    else this.floorPlan.showFull();
+    else { this.agentsDashboard.close(); this.floorPlan.showFull(); }
+  }
+
+  toggleAgentsDashboard(): void {
+    this.agentsDashboard.toggle();
   }
 
   openPluginEntry(entry: PluginMenuPage): void {
@@ -1459,12 +1467,16 @@ export class SessionSidebarComponent {
   /** localStorage key for persisting per-workspace expand/collapse state */
   private static readonly WORKSPACE_EXPAND_STORAGE_KEY = 'promptops_workspace_expanded';
 
+  /** Open/closed state shared with the Agents Dashboard: same localStorage keys. */
+  private expandState = inject(SidebarExpandStateService);
+
   /** Track expanded/collapsed state per workspace (signal so computeds re-run on toggle) */
-  private expandedMap = signal<Map<string, boolean>>(this.loadExpandedFromStorage());
+  private expandedMap = this.expandState.workspaces;
 
   /** Workspaces closed by the auto-collapse (not by the user): the only ones a wake may reopen. */
   private static readonly WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY = 'promptops_workspace_autocollapsed';
-  private autoCollapsed = new Set<string>(this.loadAutoCollapsedFromStorage());
+  private get autoCollapsed(): Set<string> { return this.expandState.auto; }
+  private set autoCollapsed(v: Set<string>) { this.expandState.auto = v; }
 
   /**
    * Sessions grouped by workspace — deliberately does NOT read expandedMap,
@@ -1595,7 +1607,34 @@ export class SessionSidebarComponent {
         this.saveAutoCollapsedToStorage(next.auto);
       });
     });
+
+    // Active (or just opened) session: its workspace opens once per session
+    // change. After that, if the user closes it, it stays closed.
+    effect(() => {
+      const activeId = this.activeSessionId();
+      if (!activeId) {
+        this.lastRevealedSessionId = null;
+        return;
+      }
+      if (activeId === this.lastRevealedSessionId) return;
+      const group = this.groupedSessions().find(g => g.sessions.some(s => s.id === activeId));
+      if (!group) return; // groups not hydrated yet: retry on the next run
+      this.lastRevealedSessionId = activeId;
+      const wsId = group.workspace.id;
+      untracked(() => {
+        if (isExpanded(this.expandedMap(), wsId)) return;
+        const expanded = new Map(this.expandedMap());
+        expanded.set(wsId, true);
+        this.autoCollapsed.delete(wsId);
+        this.expandedMap.set(expanded);
+        this.saveExpandedToStorage(expanded);
+        this.saveAutoCollapsedToStorage(this.autoCollapsed);
+      });
+    });
   }
+
+  /** Last active session whose workspace was already opened. */
+  private lastRevealedSessionId: string | null = null;
 
   /** Sessions that don't belong to any workspace */
   standaloneSessions = computed(() => {
@@ -1645,35 +1684,11 @@ export class SessionSidebarComponent {
     return this.searching() || isExpanded(this.expandedMap(), wsId);
   }
 
-  private loadAutoCollapsedFromStorage(): Set<string> {
-    try {
-      return parseIdSet(localStorage.getItem(SessionSidebarComponent.WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY));
-    } catch {
-      return new Set();
-    }
-  }
-
   private saveAutoCollapsedToStorage(ids: Set<string>): void {
     try {
       localStorage.setItem(SessionSidebarComponent.WORKSPACE_AUTO_COLLAPSED_STORAGE_KEY, JSON.stringify([...ids]));
     } catch {
       /* localStorage may be unavailable (private mode, quota) — fail silently */
-    }
-  }
-
-  private loadExpandedFromStorage(): Map<string, boolean> {
-    try {
-      const raw = localStorage.getItem(SessionSidebarComponent.WORKSPACE_EXPAND_STORAGE_KEY);
-      if (!raw) return new Map();
-      const parsed = JSON.parse(raw);
-      if (!parsed || typeof parsed !== 'object') return new Map();
-      const map = new Map<string, boolean>();
-      for (const [k, v] of Object.entries(parsed)) {
-        if (typeof v === 'boolean') map.set(k, v);
-      }
-      return map;
-    } catch {
-      return new Map();
     }
   }
 
@@ -1692,9 +1707,7 @@ export class SessionSidebarComponent {
   /** localStorage key for persisting per-folder expand/collapse state (device-local). */
   private static readonly FOLDER_EXPAND_STORAGE_KEY = 'promptops_folder_expanded';
 
-  private folderExpandedMap = signal<Map<string, boolean>>(
-    this.loadBooleanMapFromStorage(SessionSidebarComponent.FOLDER_EXPAND_STORAGE_KEY),
-  );
+  private folderExpandedMap = this.expandState.folders;
 
   // ── Project search (minimal only) ──
   readonly searchQuery = signal('');

@@ -294,12 +294,6 @@
           [attr.aria-label]="'DOCS.Quick note' | translate">
           <iconify-icon icon="solar:document-add-bold" width="17"></iconify-icon>
         </button>
-        @if (uiStyle() === 'minimal') {
-          <button type="button" class="icon-btn" (click)="onProjectBrief.emit()" [appTooltip]="'BRIEF.Project brief' | translate"
-            [attr.aria-label]="'BRIEF.Project brief' | translate">
-            <iconify-icon icon="solar:presentation-graph-bold" width="17"></iconify-icon>
-          </button>
-        }
         @if (providerAsAccountId(); as pa) {
           <po-provider-account-switcher
             [provider]="pa"

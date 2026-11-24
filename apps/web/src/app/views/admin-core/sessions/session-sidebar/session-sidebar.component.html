@@ -23,6 +23,13 @@
       <button class="btn-collapsed-action" (click)="onCreateSession.emit()" [appTooltip]="'SESSIONS.TOOLTIPS.New session' | translate">
         <iconify-icon icon="solar:add-circle-bold" width="18"></iconify-icon>
       </button>
+      @if (builtins.isOn('agents-dashboard')) {
+        <button class="btn-collapsed-action collapsed-plugin-entry" [class.active]="agentsDashboard.mode() !== 'off'" (click)="toggleAgentsDashboard()" appTooltip="Agents Dashboard · PromptOps">
+          <i class="ti ti-brain" aria-hidden="true"></i>
+          @if (agentsDashboard.alertCount() || agentsDashboard.neverOpened()) { <span class="collapsed-plugin-alert" aria-hidden="true"></span> }
+          <i class="ti ti-puzzle plugin-entry-puzzle" aria-hidden="true"></i>
+        </button>
+      }
       @if (builtins.isOn('floor-plan')) {
         <button class="btn-collapsed-action collapsed-plugin-entry" [class.active]="floorPlan.mode() !== 'off'" (click)="toggleFloorPlan()" [appTooltip]="('SESSIONS.FLOOR_PLAN.Title' | translate) + ' · PromptOps'" [attr.aria-label]="'SESSIONS.FLOOR_PLAN.Title' | translate">
           <i class="ti ti-map-2" aria-hidden="true"></i>
@@ -576,6 +583,15 @@
       <!-- Plugin entries ("sidebar" zone): at the top, separate from folders and workspaces -->
       @if (hasTopEntries()) {
         <div class="plugin-entries">
+          @if (builtins.isOn('agents-dashboard')) {
+            <button type="button" class="plugin-entry" [class.active]="agentsDashboard.mode() !== 'off'" (click)="toggleAgentsDashboard()" appTooltip="Agents Dashboard · PromptOps">
+              <i class="ti ti-brain" aria-hidden="true"></i>
+              <span class="plugin-entry-title">Agents Dashboard</span>
+              @if (agentsDashboard.neverOpened()) { <span class="plugin-entry-new">New</span> }
+              @if (agentsDashboard.alertCount()) { <span class="plugin-entry-alert" [attr.aria-label]="agentsDashboard.alertCount() + ' updates'">{{ agentsDashboard.alertCount() }}</span> }
+              <i class="ti ti-puzzle plugin-entry-puzzle" aria-hidden="true"></i>
+            </button>
+          }
           @if (builtins.isOn('floor-plan')) {
             <button type="button" class="plugin-entry" [class.active]="floorPlan.mode() !== 'off'" (click)="toggleFloorPlan()" [appTooltip]="('SESSIONS.FLOOR_PLAN.Title' | translate) + ' · PromptOps'">
               <i class="ti ti-map-2" aria-hidden="true"></i>

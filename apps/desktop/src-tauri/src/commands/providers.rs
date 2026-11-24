@@ -709,6 +709,189 @@ pub(crate) fn parse_agy_models(out: &str) -> Vec<ProviderModel> {
     models
 }
 
+fn valid_model_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 60
+        && id.chars().next().is_some_and(|c| c.is_ascii_alphanumeric())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_'))
+}
+
+/// `claude-opus-4-5-20251101` → (`claude-opus-4-5`, "Opus 4.5", family rank, version).
+fn claude_model_entry(raw: &str) -> Option<(ProviderModel, usize, Vec<u32>)> {
+    // `[1m]` and the like are context variants of the same model.
+    let id = raw.split('[').next().unwrap_or("").trim();
+    let rest = id.strip_prefix("claude-")?;
+    if !valid_model_id(id) {
+        return None;
+    }
+    let mut parts: Vec<&str> = rest.split('-').collect();
+    // Dated snapshot: the undated alias is the same id the picker uses.
+    if parts
+        .last()
+        .is_some_and(|p| p.len() == 8 && p.chars().all(|c| c.is_ascii_digit()))
+    {
+        parts.pop();
+    }
+    let family_idx = parts
+        .iter()
+        .position(|p| p.chars().all(|c| c.is_ascii_alphabetic()))?;
+    let family = parts[family_idx];
+    let version: Vec<u32> = parts
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != family_idx)
+        .map(|(_, p)| p.parse::<u32>().ok())
+        .collect::<Option<Vec<u32>>>()?;
+    let mut label = family[..1].to_ascii_uppercase() + &family[1..];
+    if !version.is_empty() {
+        label.push(' ');
+        label.push_str(
+            &version
+                .iter()
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join("."),
+        );
+    }
+    const FAMILIES: [&str; 5] = ["mythos", "fable", "opus", "sonnet", "haiku"];
+    let rank = FAMILIES
+        .iter()
+        .position(|f| *f == family)
+        .unwrap_or(FAMILIES.len());
+    let id = format!("claude-{}", parts.join("-"));
+    Some((
+        ProviderModel {
+            id,
+            label,
+            efforts: vec![],
+        },
+        rank,
+        version,
+    ))
+}
+
+/// Claude account models from `.claude.json`: the cache Claude Code itself
+/// fills for `/model` (costs per enabled model + extra options), so it follows
+/// the account's real access (e.g. limited access programs).
+pub(crate) fn parse_claude_models(config_json: &str) -> Vec<ProviderModel> {
+    let Ok(root) = serde_json::from_str::<serde_json::Value>(config_json) else {
+        return Vec::new();
+    };
+    let mut ids: Vec<String> = Vec::new();
+    if let Some(costs) = root
+        .get("additionalModelCostsCache")
+        .and_then(|v| v.as_object())
+    {
+        ids.extend(costs.keys().cloned());
+    }
+    if let Some(options) = root
+        .get("additionalModelOptionsCache")
+        .and_then(|v| v.as_array())
+    {
+        ids.extend(
+            options
+                .iter()
+                .filter_map(|o| o.get("value")?.as_str().map(str::to_string)),
+        );
+    }
+    let mut entries: Vec<(ProviderModel, usize, Vec<u32>)> = Vec::new();
+    for raw in &ids {
+        if let Some(entry) = claude_model_entry(raw) {
+            if !entries.iter().any(|(m, _, _)| m.id == entry.0.id) {
+                entries.push(entry);
+            }
+        }
+    }
+    // Most capable family first, then the newest version.
+    entries.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| b.2.cmp(&a.2)));
+    entries.into_iter().map(|(m, _, _)| m).collect()
+}
+
+/// Codex account models from `models_cache.json` (the `/model` list): only
+/// those with `visibility: "list"`, in the CLI priority order.
+pub(crate) fn parse_codex_models(cache_json: &str) -> Vec<ProviderModel> {
+    let Ok(root) = serde_json::from_str::<serde_json::Value>(cache_json) else {
+        return Vec::new();
+    };
+    let Some(models) = root.get("models").and_then(|v| v.as_array()) else {
+        return Vec::new();
+    };
+    let mut rows: Vec<(i64, ProviderModel)> = models
+        .iter()
+        .filter(|m| m.get("visibility").and_then(|v| v.as_str()) == Some("list"))
+        .filter_map(|m| {
+            let id = m.get("slug")?.as_str()?.trim();
+            if !valid_model_id(id) {
+                return None;
+            }
+            let label = m
+                .get("display_name")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && l.len() <= 60)
+                .unwrap_or(id);
+            let priority = m
+                .get("priority")
+                .and_then(|v| v.as_i64())
+                .unwrap_or(i64::MAX);
+            Some((
+                priority,
+                ProviderModel {
+                    id: id.to_string(),
+                    label: label.to_string(),
+                    efforts: vec![],
+                },
+            ))
+        })
+        .collect();
+    rows.sort_by_key(|(priority, _)| *priority);
+    let mut out: Vec<ProviderModel> = Vec::new();
+    for (_, m) in rows {
+        if !out.iter().any(|o| o.id == m.id) {
+            out.push(m);
+        }
+    }
+    out
+}
+
+/// Claude and Codex: no process, the active account cache is read.
+fn account_cached_models(provider: &str) -> Vec<ProviderModel> {
+    use crate::commands::provider_account as accounts;
+    let home = std::path::PathBuf::from(home_dir());
+    match provider {
+        "claude-code-cli" => {
+            let root = accounts::active_claude_root();
+            // Without CLAUDE_CONFIG_DIR the file is `~/.claude.json`, not inside `~/.claude/`.
+            let file = if root == home.join(".claude") {
+                home.join(".claude.json")
+            } else {
+                root.join(".claude.json")
+            };
+            std::fs::read_to_string(file)
+                .map(|s| parse_claude_models(&s))
+                .unwrap_or_default()
+        }
+        "codex" => {
+            let dir = accounts::active_codex_home()
+                .filter(|d| !d.is_empty())
+                .map(std::path::PathBuf::from)
+                .or_else(|| {
+                    std::env::var("CODEX_HOME")
+                        .ok()
+                        .filter(|d| !d.is_empty())
+                        .map(std::path::PathBuf::from)
+                })
+                .unwrap_or_else(|| home.join(".codex"));
+            std::fs::read_to_string(dir.join("models_cache.json"))
+                .map(|s| parse_codex_models(&s))
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
+}
+
 fn run_with_timeout(program: &str, args: &[&str]) -> Option<String> {
     let home = home_dir();
     let mut extra = default_extra_paths();
@@ -745,6 +928,12 @@ fn run_with_timeout(program: &str, args: &[&str]) -> Option<String> {
 /// providers:models — dynamic list (empty = use the picker's static one).
 #[tauri::command]
 pub async fn providers_models(provider: String, force: Option<bool>) -> Vec<ProviderModel> {
+    if provider == "claude-code-cli" || provider == "codex" {
+        // Local file of the active account: always fresh, no cache (it changes with the account).
+        return tauri::async_runtime::spawn_blocking(move || account_cached_models(&provider))
+            .await
+            .unwrap_or_default();
+    }
     if provider != "antigravity" {
         return Vec::new();
     }
@@ -1269,6 +1458,44 @@ mod generate_text_tests {
 #[cfg(test)]
 mod models_tests {
     use super::*;
+
+    #[test]
+    fn claude_models_follow_the_account_cache() {
+        let json = r#"{"additionalModelCostsCache":{"claude-opus-5-5":{},"claude-haiku-4-5-20251001":{},
+            "claude-mythos-5-2":{},"claude-fable-5-2":{},"claude-fable-5":{},"--evil":{},"gpt-x":{}},
+            "additionalModelOptionsCache":[{"value":"claude-fable-5-2[1m]"},{"value":"claude-sonnet-5[1m]"}]}"#;
+        let models = parse_claude_models(json);
+        let ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "claude-mythos-5-2",
+                "claude-fable-5-2",
+                "claude-fable-5",
+                "claude-opus-5-5",
+                "claude-sonnet-5",
+                "claude-haiku-4-5"
+            ]
+        );
+        assert_eq!(models[0].label, "Mythos 5.2");
+        assert_eq!(models[5].label, "Haiku 4.5");
+        assert!(parse_claude_models("not json").is_empty());
+        assert!(parse_claude_models("{}").is_empty());
+    }
+
+    #[test]
+    fn codex_models_keep_only_listed_ones_by_priority() {
+        let json = r#"{"models":[
+            {"slug":"gpt-6-sol","display_name":"GPT-6-Sol","visibility":"list","priority":5},
+            {"slug":"gpt-reserve","display_name":"Reserve","visibility":"hide","priority":0},
+            {"slug":"gpt-6.2-sol","display_name":"GPT-6.2-Sol","visibility":"list","priority":1},
+            {"slug":"-m evil","display_name":"x","visibility":"list","priority":2}]}"#;
+        let models = parse_codex_models(json);
+        let ids: Vec<&str> = models.iter().map(|m| m.id.as_str()).collect();
+        assert_eq!(ids, ["gpt-6.2-sol", "gpt-6-sol"]);
+        assert_eq!(models[0].label, "GPT-6.2-Sol");
+        assert!(parse_codex_models("{}").is_empty());
+    }
 
     #[test]
     fn agy_models_fold_effort_variants() {

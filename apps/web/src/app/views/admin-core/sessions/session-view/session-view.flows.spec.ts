@@ -20,6 +20,7 @@ function baseView(over: Record<string, unknown> = {}): any {
     errors,
     dedicatedSessionId: null,
     floorPlan: { dock() {}, acknowledge() {} },
+    agentsDashboard: { mode: () => 'off', close() {} },
     activeSessionId: signal<string | null>(null),
     sessions: signal<any[]>([]),
     store: { dispatch: (a: any) => dispatched.push(a) },

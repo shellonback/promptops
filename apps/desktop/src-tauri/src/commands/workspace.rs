@@ -1337,9 +1337,10 @@ fn brief_claude_memories(workspace_path: &str) -> BriefAgentMemories {
         .join(claude_project_dir_name(workspace_path))
         .join("memory");
 
+    // The folder is returned even when it does not exist yet: the Brief creates the first note there.
     let Ok(read_dir) = std::fs::read_dir(&memory_dir) else {
         return BriefAgentMemories {
-            dir: None,
+            dir: Some(memory_dir.to_string_lossy().into_owned()),
             entries: Vec::new(),
             file_count: 0,
         };
@@ -1524,9 +1525,551 @@ pub async fn project_brief_collect(workspace_path: String) -> JsonValue {
     .unwrap_or_else(|_| serde_json::json!({ "ok": false, "error": "join error" }))
 }
 
+// ── Brief: files used by the AI providers ─────────────────────────────────
+//
+// Inventory of instructions, settings, MCP, commands, sub-agents, skills and rules that Claude Code,
+// Codex, Gemini CLI and the others read, in the project and in the provider home (active account).
+// Each entry has `root` + `rel`: the panel opens and saves them with fs_read_file/fs_write_file.
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderFileEntry {
+    provider: &'static str,
+    /// "project" | "global"
+    scope: &'static str,
+    /// instructions | settings | mcp | command | agent | skill | rule
+    kind: &'static str,
+    root: String,
+    rel: String,
+    name: String,
+    description: Option<String>,
+    /// Providers that read the file (AGENTS.md: Codex, OpenCode, Antigravity...).
+    read_by: Vec<&'static str>,
+    exists: bool,
+    size: u64,
+    modified_ms: Option<u64>,
+}
+
+const PF_MAX_PER_DIR: usize = 200;
+
+fn pf_entry(
+    provider: &'static str,
+    scope: &'static str,
+    kind: &'static str,
+    root: &Path,
+    rel: &str,
+    read_by: &[&'static str],
+    keep_missing: bool,
+) -> Option<ProviderFileEntry> {
+    let full = root.join(rel);
+    let meta = std::fs::metadata(&full).ok().filter(|m| m.is_file());
+    if meta.is_none() && !keep_missing {
+        return None;
+    }
+    let description = if meta.is_some()
+        && (kind == "skill" || kind == "agent" || kind == "command" || kind == "rule")
+    {
+        std::fs::read_to_string(&full)
+            .ok()
+            .and_then(|raw| parse_memory_frontmatter(&raw).1)
+    } else {
+        None
+    };
+    let name = if kind == "skill" {
+        Path::new(rel)
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|n| n.to_str())
+            .unwrap_or(rel)
+            .to_string()
+    } else {
+        rel.to_string()
+    };
+    Some(ProviderFileEntry {
+        provider,
+        scope,
+        kind,
+        root: root.to_string_lossy().into_owned(),
+        rel: rel.replace('\\', "/"),
+        name,
+        description,
+        read_by: read_by.to_vec(),
+        exists: meta.is_some(),
+        size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+        modified_ms: meta
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64),
+    })
+}
+
+/// Files with extension `ext` directly in `root/dir` (or `root/dir/*/SKILL.md` with `skill_dirs`).
+fn pf_scan(
+    out: &mut Vec<ProviderFileEntry>,
+    provider: &'static str,
+    scope: &'static str,
+    kind: &'static str,
+    root: &Path,
+    dir: &str,
+    exts: &[&str],
+    skill_dirs: bool,
+    read_by: &[&'static str],
+) {
+    let Ok(rd) = std::fs::read_dir(root.join(dir)) else {
+        return;
+    };
+    let mut names: Vec<(String, bool)> = rd
+        .filter_map(|e| e.ok())
+        .filter_map(|e| {
+            let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+            e.file_name().to_str().map(|n| (n.to_string(), is_dir))
+        })
+        .filter(|(n, _)| !n.starts_with('.'))
+        .collect();
+    names.sort();
+    for (n, is_dir) in names.into_iter().take(PF_MAX_PER_DIR) {
+        if skill_dirs {
+            if is_dir {
+                if let Some(e) = pf_entry(
+                    provider,
+                    scope,
+                    kind,
+                    root,
+                    &format!("{dir}/{n}/SKILL.md"),
+                    read_by,
+                    false,
+                ) {
+                    out.push(e);
+                }
+            }
+        } else if is_dir && kind == "command" {
+            // Namespaced commands: .claude/commands/<ns>/<cmd>.md
+            pf_scan(
+                out,
+                provider,
+                scope,
+                kind,
+                root,
+                &format!("{dir}/{n}"),
+                exts,
+                false,
+                read_by,
+            );
+        } else if !is_dir && exts.iter().any(|x| n.ends_with(x)) {
+            if let Some(e) = pf_entry(
+                provider,
+                scope,
+                kind,
+                root,
+                &format!("{dir}/{n}"),
+                read_by,
+                false,
+            ) {
+                out.push(e);
+            }
+        }
+    }
+}
+
+pub fn collect_provider_files(workspace_path: &str) -> Vec<ProviderFileEntry> {
+    let ws = Path::new(workspace_path);
+    let home = {
+        let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+        PathBuf::from(std::env::var(var).unwrap_or_else(|_| ".".into()))
+    };
+    let claude_root = crate::commands::provider_account::active_claude_root();
+    let codex_root = crate::commands::provider_account::active_codex_home()
+        .or_else(|| std::env::var("CODEX_HOME").ok())
+        .filter(|v| !v.trim().is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join(".codex"));
+    let gemini_root = home.join(".gemini");
+
+    const CLAUDE: &[&str] = &["claude"];
+    const AGENTS_MD: &[&str] = &["codex", "opencode", "antigravity", "muse"];
+    const GEMINI: &[&str] = &["gemini", "antigravity"];
+
+    let mut out = Vec::new();
+    let mut add = |e: Option<ProviderFileEntry>| {
+        if let Some(e) = e {
+            out.push(e)
+        }
+    };
+
+    // Project: main instructions even when missing (they can be created from the panel).
+    add(pf_entry(
+        "claude",
+        "project",
+        "instructions",
+        ws,
+        "CLAUDE.md",
+        CLAUDE,
+        true,
+    ));
+    add(pf_entry(
+        "claude",
+        "project",
+        "instructions",
+        ws,
+        "CLAUDE.local.md",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "claude",
+        "project",
+        "instructions",
+        ws,
+        ".claude/CLAUDE.md",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "claude",
+        "project",
+        "settings",
+        ws,
+        ".claude/settings.json",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "claude",
+        "project",
+        "settings",
+        ws,
+        ".claude/settings.local.json",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "claude",
+        "project",
+        "mcp",
+        ws,
+        ".mcp.json",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "codex",
+        "project",
+        "instructions",
+        ws,
+        "AGENTS.md",
+        AGENTS_MD,
+        true,
+    ));
+    add(pf_entry(
+        "codex",
+        "project",
+        "instructions",
+        ws,
+        "AGENTS.override.md",
+        &["codex"],
+        false,
+    ));
+    add(pf_entry(
+        "codex",
+        "project",
+        "settings",
+        ws,
+        ".codex/config.toml",
+        &["codex"],
+        false,
+    ));
+    add(pf_entry(
+        "gemini",
+        "project",
+        "instructions",
+        ws,
+        "GEMINI.md",
+        GEMINI,
+        true,
+    ));
+    add(pf_entry(
+        "gemini",
+        "project",
+        "settings",
+        ws,
+        ".gemini/settings.json",
+        &["gemini"],
+        false,
+    ));
+    add(pf_entry(
+        "other",
+        "project",
+        "rule",
+        ws,
+        ".github/copilot-instructions.md",
+        &["copilot"],
+        false,
+    ));
+    add(pf_entry(
+        "other",
+        "project",
+        "rule",
+        ws,
+        ".cursorrules",
+        &["cursor"],
+        false,
+    ));
+    add(pf_entry(
+        "other",
+        "project",
+        "rule",
+        ws,
+        ".windsurfrules",
+        &["windsurf"],
+        false,
+    ));
+
+    // Global (active provider account).
+    add(pf_entry(
+        "claude",
+        "global",
+        "instructions",
+        &claude_root,
+        "CLAUDE.md",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "claude",
+        "global",
+        "settings",
+        &claude_root,
+        "settings.json",
+        CLAUDE,
+        false,
+    ));
+    add(pf_entry(
+        "codex",
+        "global",
+        "instructions",
+        &codex_root,
+        "AGENTS.md",
+        &["codex"],
+        false,
+    ));
+    add(pf_entry(
+        "codex",
+        "global",
+        "settings",
+        &codex_root,
+        "config.toml",
+        &["codex"],
+        false,
+    ));
+    add(pf_entry(
+        "gemini",
+        "global",
+        "instructions",
+        &gemini_root,
+        "GEMINI.md",
+        &["gemini"],
+        false,
+    ));
+    add(pf_entry(
+        "gemini",
+        "global",
+        "settings",
+        &gemini_root,
+        "settings.json",
+        &["gemini"],
+        false,
+    ));
+
+    // Folders: commands, sub-agents, skills, rules.
+    pf_scan(
+        &mut out,
+        "claude",
+        "project",
+        "command",
+        ws,
+        ".claude/commands",
+        &[".md"],
+        false,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "claude",
+        "project",
+        "agent",
+        ws,
+        ".claude/agents",
+        &[".md"],
+        false,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "claude",
+        "project",
+        "skill",
+        ws,
+        ".claude/skills",
+        &[],
+        true,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "codex",
+        "project",
+        "skill",
+        ws,
+        ".agents/skills",
+        &[],
+        true,
+        &["codex", "agent-skills"],
+    );
+    pf_scan(
+        &mut out,
+        "gemini",
+        "project",
+        "command",
+        ws,
+        ".gemini/commands",
+        &[".toml"],
+        false,
+        &["gemini"],
+    );
+    pf_scan(
+        &mut out,
+        "other",
+        "project",
+        "rule",
+        ws,
+        ".agents/rules",
+        &[".md"],
+        false,
+        &["antigravity"],
+    );
+    pf_scan(
+        &mut out,
+        "other",
+        "project",
+        "rule",
+        ws,
+        ".cursor/rules",
+        &[".mdc", ".md"],
+        false,
+        &["cursor"],
+    );
+    pf_scan(
+        &mut out,
+        "claude",
+        "global",
+        "command",
+        &claude_root,
+        "commands",
+        &[".md"],
+        false,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "claude",
+        "global",
+        "agent",
+        &claude_root,
+        "agents",
+        &[".md"],
+        false,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "claude",
+        "global",
+        "skill",
+        &claude_root,
+        "skills",
+        &[],
+        true,
+        CLAUDE,
+    );
+    pf_scan(
+        &mut out,
+        "codex",
+        "global",
+        "command",
+        &codex_root,
+        "prompts",
+        &[".md"],
+        false,
+        &["codex"],
+    );
+    pf_scan(
+        &mut out,
+        "codex",
+        "global",
+        "skill",
+        &codex_root,
+        "skills",
+        &[],
+        true,
+        &["codex"],
+    );
+    pf_scan(
+        &mut out,
+        "gemini",
+        "global",
+        "command",
+        &gemini_root,
+        "commands",
+        &[".toml"],
+        false,
+        &["gemini"],
+    );
+    out
+}
+
+#[tauri::command]
+pub async fn project_brief_provider_files(workspace_path: String) -> JsonValue {
+    tauri::async_runtime::spawn_blocking(move || {
+        let trimmed = workspace_path.trim();
+        if trimmed.is_empty() {
+            return serde_json::json!({ "ok": false, "error": "workspacePath required" });
+        }
+        serde_json::json!({ "ok": true, "files": collect_provider_files(trimmed) })
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({ "ok": false, "error": "join error" }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn provider_files_lists_project_and_missing_instructions() {
+        let dir = std::env::temp_dir().join(format!("po-pf-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".claude/skills/demo")).unwrap();
+        std::fs::write(dir.join("CLAUDE.md"), "# x").unwrap();
+        std::fs::write(
+            dir.join(".claude/skills/demo/SKILL.md"),
+            "---\nname: demo\ndescription: A skill\n---\n",
+        )
+        .unwrap();
+        let files = collect_provider_files(dir.to_str().unwrap());
+        let claude = files
+            .iter()
+            .find(|f| f.scope == "project" && f.rel == "CLAUDE.md")
+            .unwrap();
+        assert!(claude.exists && claude.size == 3);
+        assert!(files.iter().any(|f| f.rel == "AGENTS.md" && !f.exists));
+        let skill = files
+            .iter()
+            .find(|f| f.kind == "skill" && f.scope == "project")
+            .unwrap();
+        assert_eq!(skill.name, "demo");
+        assert_eq!(skill.description.as_deref(), Some("A skill"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn strips_a_complete_promptops_block() {

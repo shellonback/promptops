@@ -1,4 +1,5 @@
 import { DestroyRef, Injectable, inject, signal } from "@angular/core";
+import { refreshProviderModels } from "../../sessions/services/model-labels";
 
 export type ProviderId =
   | "claude-code-cli"
@@ -238,6 +239,8 @@ export class ProviderAccountsService {
     if (!api?.setActiveProviderAccount) return false;
     const res = await api.setActiveProviderAccount(id, provider);
     if (!res.ok) this.error.set(res.error);
+    // Another account can have a different set of models (e.g. limited-access programs).
+    else refreshProviderModels(provider);
     return res.ok;
   }
 

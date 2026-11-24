@@ -3,7 +3,7 @@ import { Store } from '@ngrx/store';
 import { TranslateService } from '@ngx-translate/core';
 import { firstValueFrom } from 'rxjs';
 import { SwalService } from '@core/services/swal.service';
-import { wakeSession } from '../../../../../store/sessions/session.actions';
+import { updateSessionSuccess, wakeSession } from '../../../../../store/sessions/session.actions';
 import { getSessions } from '../../../../../store/sessions/session.selectors';
 import { SessionService } from './session.service';
 
@@ -118,9 +118,22 @@ export class SessionAccountGuardService {
         await this.api()?.prepareSessionAccountRelaunch?.(sessionId);
       } else {
         // "" = default config → explicit opt-out (null), so the resume keeps using it.
-        await this.sessionService.updateSessionMeta(sessionId, {
-          providerAccountId: check.sessionAccountId || null,
-        });
+        const providerAccountId = check.sessionAccountId || null;
+        await this.sessionService.updateSessionMeta(sessionId, { providerAccountId });
+        // Reflect the pin in the store: without it the header kept showing the
+        // global active account, so "Keep" looked like it had switched anyway.
+        const sessions = await firstValueFrom(this.store.select(getSessions));
+        const session = sessions.find((s) => s.id === sessionId) as
+          | (Record<string, unknown> & { id: string; config?: Record<string, unknown> })
+          | undefined;
+        if (session) {
+          const patched = {
+            ...session,
+            providerAccountId,
+            ...(session.config ? { config: { ...session.config, providerAccountId } } : {}),
+          };
+          this.store.dispatch(updateSessionSuccess({ session: patched as never }));
+        }
       }
     } catch {
       /* best-effort: the wake goes on with the current behavior */

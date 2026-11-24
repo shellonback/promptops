@@ -306,7 +306,10 @@
 
       <!-- Main area -->
       <div class="sessions-main">
-        @if (builtins.isOn('floor-plan') && floorPlan.mode() === 'full') {
+        @if (builtins.isOn('agents-dashboard') && agentsDashboard.mode() === 'full') {
+          <!-- Built-in Agents Dashboard plugin: all the active agents, it takes the place of the agents -->
+          <app-agents-dashboard-view class="fp-main" />
+        } @else if (builtins.isOn('floor-plan') && floorPlan.mode() === 'full') {
           <!-- Built-in Floor Plan plugin: takes the place of the agents until a session is opened -->
           <app-floor-plan-view class="fp-main" [activeSession]="activeSessionId()" (openSession)="openFromFloorPlan($event)" />
         } @else if (sessionWindows.isDetached(activeSessionId())) {
@@ -358,6 +361,13 @@
                         (click)="selectSaPanelTab('editor', $event, solo)">
                   <iconify-icon icon="tabler:code" width="14"></iconify-icon>
                   <span>Editor</span>
+                </button>
+                <button class="sa-panel-tab" role="tab" [class.active]="saPanelTabActive('brief')"
+                        [attr.aria-selected]="saPanelTabActive('brief')"
+                        (click)="selectSaPanelTab('brief', $event, solo)"
+                        [appTooltip]="'BRIEF.Project brief' | translate">
+                  <iconify-icon icon="solar:presentation-graph-linear" width="14"></iconify-icon>
+                  <span>Brief</span>
                 </button>
               </div>
           </ng-template>
@@ -440,7 +450,6 @@
             [showFocusToggle]="!(subAgentService.hasActiveSubAgents() || mainSoloBar())"
             (onSetupWorkspace)="openWorkspaceSetupModal($event)"
             (onAddNote)="openAddNoteModal(session.id)"
-            (onProjectBrief)="openProjectBriefModal(session.id)"
             (onDevLinks)="openDevLinksModal(session.id)"
           >
             <ng-container ngProjectAs="[poHeaderBar]">
@@ -458,8 +467,6 @@
             [sessionId]="session.id"
           ></app-add-note-modal>
 
-          <!-- Project Brief Modal (coding-agent memories, local-only) -->
-          <app-project-brief-modal #projectBriefModal></app-project-brief-modal>
 
           <!-- Dev Links Modal (open project dev URLs in the browser, local-only) -->
           <app-dev-links-modal #devLinksModal></app-dev-links-modal>
@@ -909,7 +916,7 @@
             </div>
           }          <!-- ═══ STANDARD LAYOUT ═══ -->
           @if (currentLayoutMode() === 'standard' && !providerMissing()) {
-            <div class="sessions-content" @layoutFade>
+            <div class="sessions-content" @layoutFade [style.display]="briefView() ? 'none' : null">
               <div class="terminal-area has-subagents" #terminalAreaEl
                    [class.cover-main]="(subAgentsCoverMain() || mainIsFlattened()) && subAgentService.hasActiveSubAgents()"
                    [class.sa-drag-over]="saDropZoneActive()"
@@ -1399,16 +1406,40 @@
             </div>
           }
 
+          <!-- ═══ PROJECT BRIEF (tab next to Editor) ═══
+               Covers the area like Editor; Agents/Editor stay mounted underneath (display:none) and the terminals stay alive. -->
+          @if (briefView() && !providerMissing()) {
+            <div class="brief-view-pane">
+              @if (!saBarInHeader()) {
+                <div class="subagents-accordion-header solo-bar">
+                  <ng-container *ngTemplateOutlet="saPanelTabsTpl; context: { solo: mainSoloBar() }"></ng-container>
+                  <div class="subagents-header-actions">
+                    <button class="btn-sa-mode" (click)="briefPanel?.copyAll()" [disabled]="!briefPanel?.data()"
+                            [appTooltip]="'BRIEF.Copy' | translate">
+                      <iconify-icon icon="codicon:copy" width="14"></iconify-icon>
+                    </button>
+                    <button class="btn-sa-mode" (click)="briefPanel?.refresh()" [disabled]="briefPanel?.loading()"
+                            [appTooltip]="'BRIEF.Refresh' | translate">
+                      <iconify-icon icon="codicon:refresh" width="14" [class.sa-spin]="briefPanel?.loading()"></iconify-icon>
+                    </button>
+                  </div>
+                </div>
+              }
+              <app-project-brief-panel #briefPanel
+                [workspacePath]="session.workspace?.path" [provider]="session.provider"></app-project-brief-panel>
+            </div>
+          }
+
           <!-- ═══ CODE EDITOR (IDE) LAYOUT ═══ -->
           @if (!providerMissing() && (currentLayoutMode() === 'code' || editorSessionId() === session.id)) {
             <!-- Same tab bar as the standard layout: this is the way back to Agents or Ports. -->
-            @if (currentLayoutMode() === 'code' && !saBarInHeader()) {
+            @if (currentLayoutMode() === 'code' && !saBarInHeader() && !briefView()) {
               <div class="subagents-accordion-header solo-bar">
                 <ng-container *ngTemplateOutlet="saPanelTabsTpl; context: { solo: mainSoloBar() }"></ng-container>
               </div>
             }
             @for (editorSession of [session.id]; track editorSession) {
-            <div class="ide-layout" [style.display]="currentLayoutMode() === 'code' ? null : 'none'">
+            <div class="ide-layout" [style.display]="currentLayoutMode() === 'code' && !briefView() ? null : 'none'">
 
               <!-- CENTER: Code Editor (includes its own file tree sidebar) -->
               <div class="ide-panel ide-panel-center">

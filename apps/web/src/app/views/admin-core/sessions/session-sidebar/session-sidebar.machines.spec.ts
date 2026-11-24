@@ -11,6 +11,7 @@ import { AgentRosterService } from '../agents/agent-roster.service';
 import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { PluginRuntimeService } from '../../plugins/plugin-runtime.service';
 import { FloorPlanService } from '../floor-plan/floor-plan.service';
+import { AgentsDashboardService } from '../agents-dashboard/agents-dashboard.service';
 import { DesktopSessionApiService } from '../services/desktop-session-api.service';
 import { EcoModeService } from '../services/eco-mode.service';
 import { InteractionService } from '../services/interaction.service';
@@ -133,6 +134,7 @@ describe('SessionSidebarComponent — machine level', () => {
         { provide: BuiltinPluginsService, useValue: { isOn: () => false } },
         { provide: PluginRuntimeService, useValue: { sidebarPages: () => [] } },
         { provide: FloorPlanService, useValue: { mode: () => 'off', alertCount: () => 0, showFull: () => undefined, close: () => undefined } },
+        { provide: AgentsDashboardService, useValue: { mode: () => 'off', alertCount: () => 0, neverOpened: () => false, toggle: () => undefined, close: () => undefined } },
         { provide: SessionWindowsService, useValue: { open: () => undefined } },
         { provide: Router, useValue: { navigate: async () => true } },
         { provide: Store, useValue: { select: () => of(null), dispatch: () => undefined } },

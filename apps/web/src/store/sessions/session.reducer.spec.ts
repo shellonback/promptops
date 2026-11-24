@@ -60,3 +60,24 @@ describe('sessionsReducer loadSessionsSuccess layoutMode', () => {
     expect(next.sessions[0].layoutMode).toBe('code');
   });
 });
+
+describe('sessionsReducer loadSessionsSuccess folder relink', () => {
+  const bound = (path: string, status: 'configured' | 'invalid_path'): SessionSummary => ({
+    ...session('a', 'A'),
+    workspace: { path, name: path.split('/').pop()! },
+    deviceWorkspace: { id: '', localPath: path, status, updatedAt: '2026-01-01T00:00:00Z' },
+  });
+
+  it('takes the new folder after a relink, dropping the invalid path state', () => {
+    const state = stateWith([bound('/home/user/old', 'invalid_path')], 'a');
+    const next = sessionsReducer(state, loadSessionsSuccess({ sessions: [bound('/home/user/new', 'configured')] }));
+    expect(next.sessions[0].workspace?.path).toBe('/home/user/new');
+    expect(next.sessions[0].deviceWorkspace?.status).toBe('configured');
+  });
+
+  it('keeps the same array when only the validity status differs (same folder)', () => {
+    const state = stateWith([bound('/home/user/old', 'invalid_path')], 'a');
+    const next = sessionsReducer(state, loadSessionsSuccess({ sessions: [bound('/home/user/old', 'configured')] }));
+    expect(next.sessions).toBe(state.sessions);
+  });
+});

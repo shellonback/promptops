@@ -7277,6 +7277,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     modalRef.componentInstance.repoUrl = session.repoUrl ?? null;
     modalRef.componentInstance.repoBranch = session.repoBranch ?? null;
     modalRef.componentInstance.deviceWorkspaceId = session.deviceWorkspace?.id ?? null;
+    modalRef.componentInstance.sessionDbId = session.dbId ?? null;
 
     if (session.deviceWorkspace?.status === 'invalid_path') {
       modalRef.componentInstance.mode.set('invalid_path');

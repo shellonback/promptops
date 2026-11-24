@@ -886,15 +886,27 @@ impl SessionManager {
             // spawn/wake — the live PTY is not touched.
             session.config.shell = shell.clone();
         }
-        if let Some(ws) = &updates.workspace {
-            apply_workspace_change(&mut session.config, &mut session.workspace, ws);
-        }
+        // A real folder change (e.g. "Relink folder") is stored right away, like
+        // the account pin above: the renderer reloads the session list from
+        // the store as soon as the dialog closes, and restore reads the folder
+        // from there too. Kept only in RAM, the banner kept reporting the old,
+        // missing path and an unclean shutdown brought it back at next launch.
+        let workspace_patch = updates
+            .workspace
+            .as_ref()
+            .filter(|ws| apply_workspace_change(&mut session.config, &mut session.workspace, ws))
+            .map(|_| workspace_store_patch(&session.config, session.workspace.as_ref()));
         session.updated_at = now_iso();
         if renamed {
             guard.renamed_since_persist.insert(session_id.to_string());
         }
         let db_id = guard.db_ids.get(session_id).cloned();
         drop(guard);
+        if let (Some(patch), Some(db_id)) = (workspace_patch, db_id.as_deref()) {
+            // Blocking on purpose: the list reload that follows must already
+            // see the new folder (the store is a local file, the write is quick).
+            api_update_sync(&self.snapshot_auth(), db_id, &patch);
+        }
         if let (Some(config), Some(db_id)) = (account_config, db_id) {
             api_update(
                 &self.snapshot_auth(),
@@ -2230,6 +2242,19 @@ fn apply_workspace_change(
         name: next.name.clone(),
     });
     changed
+}
+
+/// Store fields of a session's working folder: the config (whose `cwd` is
+/// where the PTY starts) and the folder the session list and restore read.
+fn workspace_store_patch(
+    config: &SessionConfig,
+    workspace: Option<&WorkspaceBinding>,
+) -> JsonValue {
+    serde_json::json!({
+        "config": config_for_store(config),
+        "workspace_path": workspace.map(|w| w.path.clone()),
+        "workspace_name": workspace.map(|w| w.name.clone()),
+    })
 }
 
 /// explicit null → Some(None); missing field → None (via #[serde(default)]).
@@ -8752,6 +8777,13 @@ mod restart_and_workspace_tests {
         };
         assert!(!apply_workspace_change(&mut config, &mut ws, &empty));
         assert_eq!(config.cwd.as_deref(), Some("D:\\work\\new"));
+
+        // What gets stored: the new folder both as config.cwd (spawn/restore)
+        // and as workspace_path/name (session list, "invalid path" banner).
+        let patch = workspace_store_patch(&config, ws.as_ref());
+        assert_eq!(patch["config"]["cwd"], "D:\\work\\new");
+        assert_eq!(patch["workspace_path"], "D:\\work\\new");
+        assert_eq!(patch["workspace_name"], "new");
 
         // The field comes from the renderer in camelCase inside `updates`.
         let meta: UpdateMeta = serde_json::from_value(

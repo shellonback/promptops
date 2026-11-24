@@ -77,8 +77,13 @@ const AGY_FALLBACK_MODELS: ProviderModel[] = [
 ];
 SPAWN_MODELS['antigravity'] = AGY_FALLBACK_MODELS.map(({ id, label }) => ({ id, label }));
 
-/** Providers whose CLI can list the models the ACCOUNT may use (`providers_models`). */
-const DYNAMIC_MODEL_PROVIDERS: ReadonlySet<string> = new Set(['antigravity']);
+/**
+ * Providers whose CLI can tell which models the ACCOUNT may use (`providers_models`):
+ * agy lists them live; Claude Code and Codex are read from the cache their own
+ * `/model` picker uses, so a model enabled only for some accounts shows up only there.
+ * The static SPAWN_MODELS entry stays as the fallback when nothing is returned.
+ */
+const DYNAMIC_MODEL_PROVIDERS: ReadonlySet<string> = new Set(['antigravity', 'claude-code-cli', 'codex']);
 const FALLBACK_MODELS: Record<string, ProviderModel[]> = { antigravity: AGY_FALLBACK_MODELS };
 const dynamicModels = signal<Record<string, ProviderModel[]>>({});
 const modelsInFlight = new Set<string>();
@@ -106,6 +111,16 @@ export function loadProviderModels(provider: string, force = false): void {
     .finally(() => { modelsInFlight.delete(provider); modelsAsked.add(provider); });
 }
 
+/** The active account of `provider` changed: its model list may differ, ask again. */
+export function refreshProviderModels(provider?: string): void {
+  for (const p of provider ? [provider] : ['claude-code-cli', 'codex']) {
+    if (p === 'antigravity' || !DYNAMIC_MODEL_PROVIDERS.has(p)) continue;
+    // Drop the previous account's list right away: the static fallback shows until the new one lands.
+    dynamicModels.update((all) => { const { [p]: _gone, ...rest } = all; return rest; });
+    loadProviderModels(p, true);
+  }
+}
+
 function providerModels(provider: string): ProviderModel[] | null {
   loadProviderModels(provider);
   return dynamicModels()[provider] ?? FALLBACK_MODELS[provider] ?? null;
@@ -114,6 +129,11 @@ function providerModels(provider: string): ProviderModel[] | null {
 /** Launch picker models: the account's live list when the CLI exposes one, else the static list. */
 export function spawnModels(provider: string): ReadonlyArray<{ id: string; label: string }> {
   return providerModels(provider) ?? SPAWN_MODELS[provider] ?? [];
+}
+
+// Warm the two file-backed lists early, so a remembered pick is validated against the account's models.
+if (typeof window !== 'undefined') {
+  setTimeout(() => { loadProviderModels('claude-code-cli'); loadProviderModels('codex'); }, 0);
 }
 
 const EFFORT_SUFFIX = /-(low|medium|high|xhigh|max)$/;

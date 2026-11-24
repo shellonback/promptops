@@ -17,6 +17,7 @@ import {
   ChangeDetectionStrategy
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { TranslatePipe, TranslateService } from '@ngx-translate/core';
 import { NgbActiveModal, NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
@@ -24,7 +25,7 @@ import { TerminalBootLoaderComponent } from '../../terminal/terminal-boot-loader
 import { GitService, GitFile } from '../services/git.service';
 import { SessionService } from '../services/session.service';
 import { SessionTerminalComponent } from '../session-terminal/session-terminal.component';
-import { isRasterImagePath, toDataUrl } from '../services/image-file.util';
+import { isPdfPath, isRasterImagePath, toDataUrl } from '../services/image-file.util';
 import { SwalService } from '@core/services/swal.service';
 
 /* ───────────────────── Interfaces ───────────────────── */
@@ -47,8 +48,11 @@ interface OpenFile {
   originalContent: string;
   modified: boolean;
   language: string;
-  kind?: 'text' | 'image' | 'binary'; // absent = text (backward compatible)
+  kind?: 'text' | 'image' | 'pdf' | 'binary'; // absent = text (backward compatible)
   imageDataUrl?: string;
+  /** Blob URL of a PDF tab (revoked on close) + its sanitized form for the iframe. */
+  pdfBlobUrl?: string;
+  pdfSafeUrl?: SafeResourceUrl;
   sizeBytes?: number;
   binaryError?: string;
 }
@@ -552,6 +556,10 @@ function setupMonacoTheme(): void {
                       @if (imagePreviewDims()) { <span>· {{ imagePreviewDims() }}</span> }
                       @if (af.sizeBytes) { <span>· {{ formatBytes(af.sizeBytes) }}</span> }
                     </div>
+                  </div>
+                } @else if (af.kind === 'pdf') {
+                  <div class="pdf-preview-pane">
+                    <iframe [src]="af.pdfSafeUrl" [title]="af.name"></iframe>
                   </div>
                 } @else if (af.kind === 'binary') {
                   <div class="editor-empty">
@@ -1193,6 +1201,19 @@ function setupMonacoTheme(): void {
       color: var(--po-text-secondary);
     }
 
+    /* ─── PDF preview (native WebView viewer) ─── */
+    .pdf-preview-pane {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      background: #1e1f27;
+    }
+    .pdf-preview-pane iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
     /* ─── Image preview (raster files) ─── */
     .image-preview-pane {
       position: absolute;
@@ -1403,6 +1424,7 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
   private zone = inject(NgZone);
   private swal = inject(SwalService);
   private translate = inject(TranslateService);
+  private sanitizer = inject(DomSanitizer);
 
   inline = input(false);
   visible = input(true);
@@ -1608,6 +1630,7 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
     this.disposeDiff();
     this.stopFsWatcher();
     this.disposeEditor();
+    for (const f of this.openFiles()) if (f.pdfBlobUrl) URL.revokeObjectURL(f.pdfBlobUrl);
   }
 
   /* ── FS Watcher ── */
@@ -1712,6 +1735,12 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
     for (const f of open) {
       if (!changedSet.has(f.path)) continue;
       if (f.modified) continue; // user has local edits — never silently overwrite
+      if (f.kind === 'pdf') {
+        // An agent regenerated the PDF: swap in the new bytes (old blob revoked).
+        try { await this.reloadPdfTab(f.path); } catch { /* keep last-known preview */ }
+        continue;
+      }
+      if ((f.kind ?? 'text') !== 'text') continue; // images/binary: no text to reload
       try {
         const r = await api().fsReadFile(this._cwd, f.path);
         if (!r?.ok) continue;
@@ -2040,7 +2069,7 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
 
       const bridge = api();
       const paths: string[] = Array.isArray(state.open)
-        ? state.open.filter((p: any) => typeof p === 'string' && !isRasterImagePath(p)).slice(-MAX_RESTORED_TABS)
+        ? state.open.filter((p: any) => typeof p === 'string' && !isRasterImagePath(p) && !isPdfPath(p)).slice(-MAX_RESTORED_TABS)
         : [];
       const alreadyOpen = new Set(this.openFiles().map(f => f.path));
       const reads = await Promise.all(paths.map(async (p) => {
@@ -2626,6 +2655,86 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
 
   /* ── File Operations ── */
 
+  /** Builds a PDF tab from an fsReadFileBase64 result (or a notice tab on failure). */
+  private addPdfTab(tabPath: string, name: string, result: any): void {
+    let file: OpenFile;
+    if (result?.ok) {
+      const pdfBlobUrl = this.pdfBlobUrlFromBase64(result.data);
+      file = {
+        path: tabPath, name, content: '', originalContent: '', modified: false, language: 'plaintext',
+        kind: 'pdf', pdfBlobUrl, pdfSafeUrl: this.sanitizer.bypassSecurityTrustResourceUrl(pdfBlobUrl),
+        sizeBytes: result.size,
+      };
+    } else {
+      file = {
+        path: tabPath, name, content: '', originalContent: '', modified: false, language: 'plaintext',
+        kind: 'binary', binaryError: result?.error || 'Preview failed',
+      };
+    }
+    this.openFiles.update(files => [...files, file]);
+    this.activeFilePath.set(tabPath);
+    this.updateSaveStatus();
+  }
+
+  private pdfBlobUrlFromBase64(data: string): string {
+    const bin = atob(data);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+  }
+
+  /** Re-reads a workspace PDF tab after an on-disk change; on failure the old preview stays. */
+  private async reloadPdfTab(path: string): Promise<void> {
+    const result = await api().fsReadFileBase64(this._cwd, path);
+    if (!result?.ok) return;
+    const current = this.openFiles().find(f => f.path === path);
+    if (!current || current.kind !== 'pdf') return; // closed while reading
+    const pdfBlobUrl = this.pdfBlobUrlFromBase64(result.data);
+    if (current.pdfBlobUrl) URL.revokeObjectURL(current.pdfBlobUrl);
+    this.openFiles.update(list => list.map(of =>
+      of.path === path
+        ? { ...of, pdfBlobUrl, pdfSafeUrl: this.sanitizer.bypassSecurityTrustResourceUrl(pdfBlobUrl), sizeBytes: result.size }
+        : of,
+    ));
+  }
+
+  /**
+   * Read-only preview of a PDF/image that lives OUTSIDE the workspace (e.g. a
+   * file an agent wrote to its scratchpad and printed as an absolute path).
+   * The read is scoped to the file's own folder; the tab is keyed by the
+   * absolute path. Returns false for file types it can't preview.
+   */
+  async openExternalPreview(absPath: string): Promise<boolean> {
+    const pdf = isPdfPath(absPath);
+    if (!pdf && !isRasterImagePath(absPath)) return false;
+    if (this.openFiles().some(f => f.path === absPath)) {
+      this.activeFilePath.set(absPath);
+      return true;
+    }
+    const slash = absPath.lastIndexOf('/');
+    const dir = absPath.slice(0, slash) || '/';
+    const name = absPath.slice(slash + 1);
+    const result = await api().fsReadFileBase64(dir, name);
+    if (pdf) {
+      this.addPdfTab(absPath, name, result);
+    } else {
+      const file: OpenFile = result?.ok
+        ? {
+            path: absPath, name, content: '', originalContent: '', modified: false, language: 'plaintext',
+            kind: 'image', imageDataUrl: toDataUrl(result.mimeType, result.data), sizeBytes: result.size,
+          }
+        : {
+            path: absPath, name, content: '', originalContent: '', modified: false, language: 'plaintext',
+            kind: 'binary', binaryError: result?.error || 'Preview failed',
+          };
+      this.openFiles.update(files => [...files, file]);
+      this.activeFilePath.set(absPath);
+      this.imagePreviewDims.set(null);
+      this.updateSaveStatus();
+    }
+    return true;
+  }
+
   async openFile(path: string): Promise<void> {
     const existing = this.openFiles().find(f => f.path === path);
     if (existing) {
@@ -2638,6 +2747,11 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
 
     try {
       const name = this.getFileName(path);
+
+      if (isPdfPath(path)) {
+        this.addPdfTab(path, name, await api().fsReadFileBase64(this.cwd, path));
+        return;
+      }
 
       if (isRasterImagePath(path)) {
         const result = await api().fsReadFileBase64(this.cwd, path);
@@ -2752,6 +2866,7 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
     if (idx === -1) return;
 
     this.flushContentSync();
+    if (files[idx].pdfBlobUrl) URL.revokeObjectURL(files[idx].pdfBlobUrl!);
     if (this.diffMode() && this.activeFilePath() === path) this.closeDiff();
     // Dispose Monaco model for this file
     const model = this.editorModels.get(path);
@@ -3316,12 +3431,14 @@ export class SessionCodeEditorComponent implements OnInit, OnDestroy, AfterViewI
         const model = this.editorModels.get(node.path);
         if (model) { model.dispose(); this.editorModels.delete(node.path); }
         this.viewStates.delete('/' + node.path);
+        const trashed = this.openFiles().find(f => f.path === node.path);
+        if (trashed?.pdfBlobUrl) URL.revokeObjectURL(trashed.pdfBlobUrl);
         this.openFiles.update(list => list.filter(f => f.path !== node.path));
         if (this.activeFilePath() === node.path) {
           const remaining = this.openFiles();
           if (remaining.length > 0) {
             this.activeFilePath.set(remaining[0].path);
-            this.switchEditorModel(remaining[0].path);
+            if (this.isTextFile(remaining[0].path)) this.switchEditorModel(remaining[0].path);
           } else {
             this.activeFilePath.set(null);
             this.editor?.setModel(null);

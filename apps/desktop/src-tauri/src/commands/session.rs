@@ -101,7 +101,12 @@ pub struct SessionConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_id: Option<String>,
     /// `Some(Some(id))` = specific account, `Some(None)` = opt-out, `None` = inherit.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Double option: a stored `null` stays an opt-out on restore.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_double_option"
+    )]
     pub provider_account_id: Option<Option<String>>,
     /// Account the last CLI actually started with ("" = no account,
     /// default config). The transcript lives in THAT account's config dir:
@@ -236,6 +241,11 @@ pub struct SessionSummary {
     /// dropped the live output (invisible shell prompt).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub respawned: Option<bool>,
+    /// Session account pin (config.provider_account_id): missing = follow the
+    /// active account, null = opt-out, string = account. Without it, after a
+    /// webview reload the header fell back to the global active account.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_account_id: Option<Option<String>>,
 }
 
 /// ProviderCheckResult — result of provider:check.
@@ -436,6 +446,7 @@ impl AgentSession {
             standby_at: self.standby_at.clone(),
             db_id: None,
             respawned: None,
+            provider_account_id: self.config.provider_account_id.clone(),
         }
     }
 }
@@ -859,9 +870,17 @@ impl SessionManager {
             // Shallow merge ({ ...old, ...new }).
             session.view_state = Some(merge_view_state(session.view_state.clone(), vs.clone()));
         }
-        if let Some(pa) = &updates.provider_account_id {
+        let account_before = session.config.provider_account_id.clone();
+        if updates.inherit_provider_account == Some(true) {
+            session.config.provider_account_id = None;
+        } else if let Some(pa) = &updates.provider_account_id {
             session.config.provider_account_id = Some(pa.clone());
         }
+        // The account pin is stored right away: restore reads the config from
+        // the store, and without this an unclean shutdown lost it (the session
+        // went back to the global active account).
+        let account_config = (session.config.provider_account_id != account_before)
+            .then(|| config_for_store(&session.config));
         if let Some(shell) = &updates.shell {
             // Config updated right away, effect on the next
             // spawn/wake — the live PTY is not touched.
@@ -873,6 +892,15 @@ impl SessionManager {
         session.updated_at = now_iso();
         if renamed {
             guard.renamed_since_persist.insert(session_id.to_string());
+        }
+        let db_id = guard.db_ids.get(session_id).cloned();
+        drop(guard);
+        if let (Some(config), Some(db_id)) = (account_config, db_id) {
+            api_update(
+                &self.snapshot_auth(),
+                &db_id,
+                serde_json::json!({ "config": config }),
+            );
         }
     }
 
@@ -1326,6 +1354,7 @@ impl SessionManager {
                         .to_string(),
                 );
             }
+            restored_account_compat(&mut config);
             let workspace =
                 row.get("workspace_path")
                     .and_then(|v| v.as_str())
@@ -1808,6 +1837,21 @@ impl SessionManager {
             session.updated_at = now_iso();
             updated.push(session.id.clone());
         }
+        // Like update_meta: the pin must survive a restart.
+        let patches: Vec<(String, JsonValue)> = updated
+            .iter()
+            .filter_map(|id| {
+                let db_id = guard.db_ids.get(id)?.clone();
+                Some((db_id, config_for_store(&guard.sessions.get(id)?.config)))
+            })
+            .collect();
+        drop(guard);
+        if !patches.is_empty() {
+            let auth = self.snapshot_auth();
+            for (db_id, config) in patches {
+                api_update(&auth, &db_id, serde_json::json!({ "config": config }));
+            }
+        }
         updated
     }
 
@@ -2146,8 +2190,13 @@ pub struct UpdateMeta {
     pub workspace_id: Option<Option<String>>,
     #[serde(default)]
     pub view_state: Option<SessionViewState>,
-    #[serde(default)]
+    /// Explicit `null` = opt-out (default config): without the double option
+    /// the null arrived as "missing field" and the choice was lost.
+    #[serde(default, deserialize_with = "deserialize_double_option")]
     pub provider_account_id: Option<Option<String>>,
+    /// true = drop the pin: the session follows the active account again.
+    #[serde(default)]
+    pub inherit_provider_account: Option<bool>,
     /// Windows shell (applied on the next spawn/wake, the live PTY is not touched).
     /// `Some(None)` = back to the platform default.
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -6360,6 +6409,12 @@ fn build_launch_command_inner(
         }
     };
     launch.map(|line| {
+        // Account alias picked by the user: an explicit choice, never bypassed.
+        let line = if cfg!(windows) && alias.is_none() && config.remote_command.is_none() {
+            gitbash_skip_claude_alias(config.shell.as_deref(), line)
+        } else {
+            line
+        };
         let line =
             crate::commands::provider_account::override_launch_command(line, alias.as_deref());
         if provider == "promptops-cli" && config.remote_command.is_none() {
@@ -6368,6 +6423,35 @@ fn build_launch_command_inner(
             line
         }
     })
+}
+
+/// Git Bash: many users have `alias claude='winpty claude'` (needed in
+/// mintty). Inside our ConPTY winpty opens a second hidden console that copies
+/// the screen back: truncated lines and broken full screen. `command` skips
+/// aliases and functions and runs the real binary. Only for the `gitbash`
+/// shell and only when the line starts exactly with `claude`: a custom command
+/// is left as it is.
+pub(crate) fn gitbash_skip_claude_alias(shell: Option<&str>, line: String) -> String {
+    let is_gitbash = shell.is_some_and(|s| s.split(':').next() == Some("gitbash"));
+    let first = line.split(char::is_whitespace).next().unwrap_or("");
+    if is_gitbash && first == "claude" {
+        format!("command {line}")
+    } else {
+        line
+    }
+}
+
+/// Restore backward compatibility: before the double option a stored opt-out
+/// (`null`) came back as "inherit", so the session restarted on the active
+/// account and its conversation lives there. It is honored only when the last
+/// launch really ran without an account (`launched == ""`): otherwise the old
+/// behavior stays and resume still finds the transcript.
+pub(crate) fn restored_account_compat(config: &mut SessionConfig) {
+    if matches!(config.provider_account_id, Some(None))
+        && config.launched_provider_account_id.as_deref() != Some("")
+    {
+        config.provider_account_id = None;
+    }
 }
 
 /// inject_when_ready — injects the launch command once the shell is ready.
@@ -7733,11 +7817,84 @@ mod tests {
             standby_at: None,
             db_id: None,
             respawned: None,
+            provider_account_id: None,
         };
         let plain = serde_json::to_value(&summary).unwrap();
         assert!(plain.get("respawned").is_none());
+        // Account pin: missing = inherit, null = opt-out, string = account.
+        assert!(plain.get("providerAccountId").is_none());
+        let mut s2 = summary.clone();
         let woke = serde_json::to_value(summary.with_respawned(false)).unwrap();
         assert_eq!(woke.get("respawned"), Some(&serde_json::json!(false)));
+        s2.provider_account_id = Some(Some("acc-personal".into()));
+        assert_eq!(
+            serde_json::to_value(&s2).unwrap()["providerAccountId"],
+            "acc-personal"
+        );
+        s2.provider_account_id = Some(None);
+        assert_eq!(
+            serde_json::to_value(&s2).unwrap().get("providerAccountId"),
+            Some(&JsonValue::Null)
+        );
+    }
+
+    #[test]
+    fn restored_opt_out_is_kept_only_when_last_launch_had_no_account() {
+        let restore = |json: serde_json::Value| {
+            let mut c: SessionConfig = serde_json::from_value(json).unwrap();
+            restored_account_compat(&mut c);
+            c.provider_account_id
+        };
+        // Explicit account and missing field: unchanged.
+        assert_eq!(
+            restore(serde_json::json!({ "providerAccountId": "a1" })),
+            Some(Some("a1".into()))
+        );
+        assert_eq!(restore(serde_json::json!({})), None);
+        // Opt-out consistent with the last launch: stays opt-out.
+        assert_eq!(
+            restore(
+                serde_json::json!({ "providerAccountId": null, "launchedProviderAccountId": "" })
+            ),
+            Some(None)
+        );
+        // Old data: null but launched on an account, or launch unknown → inherit as before.
+        assert_eq!(
+            restore(
+                serde_json::json!({ "providerAccountId": null, "launchedProviderAccountId": "a1" })
+            ),
+            None
+        );
+        assert_eq!(
+            restore(serde_json::json!({ "providerAccountId": null })),
+            None
+        );
+    }
+
+    #[test]
+    fn gitbash_launch_skips_the_claude_alias_only() {
+        let run =
+            |shell: Option<&str>, line: &str| gitbash_skip_claude_alias(shell, line.to_string());
+        assert_eq!(
+            run(Some("gitbash"), "claude --resume a\r"),
+            "command claude --resume a\r"
+        );
+        assert_eq!(run(Some("gitbash"), "claude\r"), "command claude\r");
+        // Other shells, no shell, custom commands: line untouched.
+        for shell in [
+            None,
+            Some("powershell"),
+            Some("pwsh"),
+            Some("cmd"),
+            Some("wsl:Ubuntu"),
+        ] {
+            assert_eq!(run(shell, "claude --resume a\r"), "claude --resume a\r");
+        }
+        assert_eq!(
+            run(Some("gitbash"), "claude-work --resume a\r"),
+            "claude-work --resume a\r"
+        );
+        assert_eq!(run(Some("gitbash"), "codex resume a\r"), "codex resume a\r");
     }
 
     #[test]

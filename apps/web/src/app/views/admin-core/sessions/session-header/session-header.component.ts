@@ -11,6 +11,7 @@ import { TooltipDirective } from '../../../../common/tooltip.directive';
 import { EscCloseDirective } from '../../../../common/esc-close.directive';
 import { User } from '@core/models/user';
 import { ProviderAccountSwitcherComponent } from '../../provider-accounts/switcher/provider-account-switcher.component';
+import { ProviderAccountsService } from '../../provider-accounts/services/provider-accounts.service';
 import { ProviderId } from '../../provider-accounts/services/provider-accounts.service';
 
 
@@ -1146,6 +1147,7 @@ function pathSegments(path: string): string[] {
 export class SessionHeaderComponent implements OnDestroy {
   protected hookService = inject(ClaudeHookService);
   protected sessionService = inject(SessionService);
+  private readonly providerAccounts = inject(ProviderAccountsService);
   private devLinksService = inject(DevLinksService);
   private smartActionService = inject(SmartActionService);
   protected ff = inject(FeatureFlagService);
@@ -1168,7 +1170,6 @@ export class SessionHeaderComponent implements OnDestroy {
   private tabsScroll = viewChild<ElementRef<HTMLElement>>('tabsScroll');
 
   onAddNote = output<void>();
-  onProjectBrief = output<void>();
   onAddTab = output<void>();
   onSelectTab = output<string>();
   onCloseTab = output<string>();
@@ -1556,6 +1557,12 @@ export class SessionHeaderComponent implements OnDestroy {
         await this.sessionService.updateSessionMeta(s.id, { inheritProviderAccount: true });
       } else {
         await this.sessionService.updateSessionMeta(s.id, { providerAccountId: value });
+      }
+      // The last choice becomes the provider's active account: it is saved
+      // (provider-accounts.json) and new sessions use it. Terminals already
+      // open do not change: the env is fixed at spawn.
+      if (value !== undefined) {
+        void this.providerAccounts.setActive(value, s.provider as ProviderId);
       }
     } catch {
       this.accountOverride.set(null); // revert on failure — picker falls back to config

@@ -18,6 +18,7 @@ import {
   ProviderId,
 } from "../services/provider-accounts.service";
 import { openManageAccountsModal } from "../modal/manage-accounts-modal.component";
+import { PROVIDER_LOGOS } from "../../sessions/services/spawn-providers.const";
 
 type SwitcherMode = "picker" | "global";
 
@@ -54,7 +55,11 @@ type SwitcherMode = "picker" | "global";
         [disabled]="isDisabled()"
         [attr.title]="tooltip()"
       >
-        <iconify-icon [attr.icon]="iconFor(provider())" width="14"></iconify-icon>
+        @if (logoFor(provider()); as logo) {
+          <img [src]="logo" class="pa-provider-logo" width="14" height="14" alt="" />
+        } @else {
+          <iconify-icon [attr.icon]="iconFor(provider())" width="14"></iconify-icon>
+        }
         @if (iconOnly()) {
           @if (accountColor(); as c) {
             <span class="pa-dot pa-dot-badge" [style.background-color]="c"></span>
@@ -181,6 +186,12 @@ type SwitcherMode = "picker" | "global";
         line-height: 1;
         cursor: pointer;
         transition: background 120ms ease, border-color 120ms ease;
+      }
+      .pa-provider-logo {
+        width: 14px;
+        height: 14px;
+        flex-shrink: 0;
+        object-fit: contain;
       }
       .pa-chip::after {
         display: none !important;
@@ -380,6 +391,11 @@ export class ProviderAccountSwitcherComponent implements OnInit {
 
   providerLabel(p: ProviderId): string {
     return PROVIDER_LABELS[p];
+  }
+
+  /** Real provider logo (same assets as the spawn chip); null → fallback icon. */
+  logoFor(p: ProviderId): string | null {
+    return PROVIDER_LOGOS[p] ?? null;
   }
 
   iconFor(p: ProviderId): string {

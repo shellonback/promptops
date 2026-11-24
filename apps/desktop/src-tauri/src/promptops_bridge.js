@@ -193,7 +193,10 @@
   // (sessions→folders, tab reordering) stays intact.
   function cancelOsFileDrag(e) {
     var types = e.dataTransfer && e.dataTransfer.types;
-    if (types && Array.prototype.indexOf.call(types, 'Files') >= 0) e.preventDefault();
+    if (!types) return;
+    var has = function (t) { return Array.prototype.indexOf.call(types, t) >= 0; };
+    // Linux/WebKitGTK: a drop from the file manager may carry only text/uri-list.
+    if (has('Files') || (window.__PROMPTOPS_OS__ === 'linux' && has('text/uri-list'))) e.preventDefault();
   }
   window.addEventListener('dragover', cancelOsFileDrag, false);
   window.addEventListener('drop', cancelOsFileDrag, false);
@@ -772,6 +775,10 @@
     collectProjectBrief: function (payload) {
       var p = payload || {};
       return call('project_brief_collect', { workspacePath: p.workspacePath });
+    },
+    listProviderFiles: function (payload) {
+      var p = payload || {};
+      return call('project_brief_provider_files', { workspacePath: p.workspacePath });
     },
 
     // ── AI Agent Evals (native page) ──

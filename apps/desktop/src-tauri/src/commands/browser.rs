@@ -1000,6 +1000,49 @@ fn trust_codex_project(path: &str) {
     TrustFiles::user().trust_codex(path);
 }
 
+/// When an agent spawns, its working folder (the session workspace, already
+/// picked by the user in PromptOps) is marked as trusted in the config of the
+/// account the CLI starts with: no "Do you trust…" dialog blocking the first
+/// prompt. `account` = (env var, config dir) resolved for the spawn; with an
+/// alias the config lives elsewhere, so nothing is written and the dialog
+/// stays. Never fails: if the write is skipped, the dialog shows up as before.
+pub(crate) fn pretrust_spawn_folder(
+    provider: &str,
+    path: &str,
+    account: Option<(Option<&str>, &str)>,
+) {
+    if path.is_empty() || !std::path::Path::new(path).is_dir() {
+        return;
+    }
+    let dir = match account {
+        None => None,
+        Some((Some(_), dir)) if !dir.is_empty() => Some(PathBuf::from(dir)),
+        Some(_) => return,
+    };
+    let mut trust = TrustFiles::user();
+    match provider {
+        "claude-code-cli" => {
+            if let Some(d) = dir {
+                trust.claude_json = d.join(".claude.json");
+            }
+            // Claude keys projects with forward slashes, on Windows too.
+            let key = if cfg!(windows) {
+                path.replace('\\', "/")
+            } else {
+                path.to_string()
+            };
+            trust.trust_claude(&key);
+        }
+        "codex" => {
+            if let Some(d) = dir {
+                trust.codex_toml = d.join("config.toml");
+            }
+            trust.trust_codex(path);
+        }
+        _ => {}
+    }
+}
+
 /// System cleanup: takes out the trust entries PromptOps added. Returns the
 /// files that changed.
 pub(crate) fn untrust_projects() -> Vec<PathBuf> {

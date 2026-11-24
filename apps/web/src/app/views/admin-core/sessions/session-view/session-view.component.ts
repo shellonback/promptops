@@ -136,7 +136,7 @@ import { FileDropZoneDirective } from '../../../../common/file-drop-zone.directi
 import { FeatureFlagService } from '@core/services/feature-flag.service';
 import { ConsentCheckService } from '@core/services/consent-check.service';
 import { AddNoteModalComponent } from '@components/add-note-modal/add-note-modal.component';
-import { ProjectBriefModalComponent } from '@components/project-brief-modal/project-brief-modal.component';
+import { ProjectBriefPanelComponent } from '../project-brief-panel/project-brief-panel.component';
 import { DevLinksModalComponent } from '@components/dev-links-modal/dev-links-modal.component';
 import { TodoModalComponent } from '@components/todo-modal/todo-modal.component';
 import { DesktopDownloadCtaComponent } from '@components/desktop-download-cta/desktop-download-cta.component';
@@ -156,6 +156,8 @@ import { FloorPlanService } from '../floor-plan/floor-plan.service';
 import { SessionWindowsService } from '../services/session-windows.service';
 import { sessionWindowId, tauri } from '@/app/detached/detached-window';
 import { FloorPlanViewComponent } from '../floor-plan/floor-plan-view.component';
+import { AgentsDashboardViewComponent } from '../agents-dashboard/agents-dashboard-view.component';
+import { AgentsDashboardService } from '../agents-dashboard/agents-dashboard.service';
 import { BuiltinPluginsService } from '../../plugins/builtin-plugins.service';
 import { ForwardPortsPanelComponent } from '../forward-ports-panel/forward-ports-panel.component';
 import { ForwardPortsService } from '@core/services/forward-ports.service';
@@ -178,6 +180,7 @@ function safeSetItem(key: string, value: string): void {
   standalone: true,
   imports: [
     FloorPlanViewComponent,
+    AgentsDashboardViewComponent,
     PluginSessionButtonsComponent,
     CommonModule,
     TranslateModule,
@@ -191,7 +194,7 @@ function safeSetItem(key: string, value: string): void {
     SessionAssetsPanelComponent,
     SessionCodeEditorComponent,
     AddNoteModalComponent,
-    ProjectBriefModalComponent,
+    ProjectBriefPanelComponent,
     DevLinksModalComponent,
     TodoModalComponent,
     TooltipDirective,
@@ -2418,6 +2421,14 @@ function safeSetItem(key: string, value: string): void {
       .welcome-grid { grid-template-columns: 1fr; gap: 12px; }
     }
 
+    /* ═══ PROJECT BRIEF VIEW ═══ */
+    .brief-view-pane {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
     /* ═══ IDE LAYOUT ═══ */
 
     .ide-layout {
@@ -4026,7 +4037,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
   @ViewChild('inlineEditorRef') inlineEditorRef?: SessionCodeEditorComponent;
   @ViewChild('addNoteModal') addNoteModal?: AddNoteModalComponent;
-  @ViewChild('projectBriefModal') projectBriefModal?: ProjectBriefModalComponent;
+  @ViewChild('briefPanel') briefPanel?: ProjectBriefPanelComponent;
   @ViewChild('devLinksModal') devLinksModal?: DevLinksModalComponent;
   @ViewChild('todoModal') todoModal?: TodoModalComponent;
 
@@ -4137,6 +4148,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   /** Integrated PromptOps plugins that can be turned off from Plugins (e.g. Browser). */
   protected builtins = inject(BuiltinPluginsService);
   protected floorPlan = inject(FloorPlanService);
+  protected agentsDashboard = inject(AgentsDashboardService);
   /** Sessions opened in their dedicated window: here the placeholder sits in place of the terminals. */
   protected sessionWindows = inject(SessionWindowsService);
   /**
@@ -4182,6 +4194,35 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     });
   });
 
+  /** "Go to terminal" from Agents Dashboard: opens the session and focuses that agent's terminal. */
+  private readonly agentsDashboardGotoEffect = effect(() => {
+    const req = this.agentsDashboard.pendingGoto();
+    if (!req) return;
+    untracked(() => {
+      this.agentsDashboard.pendingGoto.set(null);
+      void this.goToAgentTerminal(req.sessionId, req.paneId);
+    });
+  });
+
+  private async goToAgentTerminal(sessionId: string, paneId: string): Promise<void> {
+    await this.selectSession(sessionId);
+    // The roster and terminals of the session just opened arrive after the state change.
+    setTimeout(() => {
+      if (this.activeSessionId() !== sessionId) return;
+      this.focusedPaneId.set(paneId);
+      if (paneId.startsWith('sa:')) {
+        const saId = paneId.slice(3);
+        if (this.subAgentService.isBenched(saId)) return;
+        this.focusSubAgentForInput(saId);
+        this.activeSubAgentTab.set(saId);
+        this.ideTerminalTab.set(saId);
+      } else {
+        this.ideTerminalTab.set('main');
+      }
+      setTimeout(() => this.focusPaneTerminal(paneId), 250);
+    }, 350);
+  }
+
   /** Desk clicked in the floor plan: the session opens and the floor plan becomes a side panel. */
   async openFromFloorPlan(sessionId: string): Promise<void> {
     this.floorPlan.dock();
@@ -4219,14 +4260,38 @@ export class SessionViewComponent implements OnInit, OnDestroy {
   }
 
   /** Editor is active with the `code` layout, which covers Agents and Ports. */
-  saPanelTabActive(tab: 'agents' | 'ports' | 'editor'): boolean {
+  saPanelTabActive(tab: 'agents' | 'ports' | 'editor' | 'brief'): boolean {
+    if (this.briefView()) return tab === 'brief';
+    if (tab === 'brief') return false;
     const inEditor = this.currentLayoutMode() === 'code';
     return tab === 'editor' ? inEditor : !inEditor && this.saPanelTab() === tab;
   }
 
+  /** Brief tab: full-area view like Editor, over the session layout (which stays mounted). */
+  briefView = signal(false);
+
   /** Click on a tab: if it is already active it acts as a header (open/close), otherwise it switches view and opens. */
-  selectSaPanelTab(tab: 'agents' | 'ports' | 'editor', ev: Event, solo = false): void {
+  selectSaPanelTab(tab: 'agents' | 'ports' | 'editor' | 'brief', ev: Event, solo = false): void {
     ev.stopPropagation();
+    if (tab === 'brief') {
+      this.briefView.set(true);
+      return;
+    }
+    if (this.briefView()) {
+      // Leaving the Brief: back to the chosen view without toggling the accordion.
+      this.briefView.set(false);
+      const inCode = this.currentLayoutMode() === 'code';
+      if (tab === 'editor') {
+        if (!inCode) this.toggleLayoutMode();
+        return;
+      }
+      if (inCode) this.toggleLayoutMode();
+      this.saPanelTab.set(tab);
+      try { localStorage.setItem('po.saPanelTab', tab); } catch { /* storage blocked */ }
+      if (!solo && !this.subAgentsExpanded()) this.toggleSubAgentsAccordion();
+      this.nudgeLayoutForRefit(250);
+      return;
+    }
     const inEditor = this.currentLayoutMode() === 'code';
     if (tab === 'editor') {
       if (!inEditor) this.toggleLayoutMode();
@@ -4235,7 +4300,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     if (inEditor) {
       this.toggleLayoutMode();
       this.saPanelTab.set(tab);
-      try { localStorage.setItem('po.saPanelTab', tab); } catch { /* storage bloccato */ }
+      try { localStorage.setItem('po.saPanelTab', tab); } catch { /* storage blocked */ }
       if (!solo && !this.subAgentsExpanded()) this.toggleSubAgentsAccordion();
       else if (tab === 'agents') this.nudgeLayoutForRefit(250);
       return;
@@ -5371,6 +5436,8 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     // Full-screen floor plan: opening a session shrinks it to a side panel, and its notice turns off.
     this.floorPlan.dock();
     this.floorPlan.acknowledge(sessionId);
+    // Full-screen Agents Dashboard: opening a session closes it.
+    if (this.agentsDashboard.mode() !== 'off') this.agentsDashboard.close();
     if (sessionId === this.activeSessionId()) {
       // Active-but-parked (Tauri lazy landing): the early-return would make
       // the session unwakeable by click — wake it here instead.
@@ -6253,7 +6320,11 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     }
 
     const rel = this.toWorkspaceRelative(rawPath, cwd);
-    if (rel === null) return;
+    // Outside the workspace: only PDFs/images, as a read-only preview tab.
+    const externalAbs = rel === null && /^\/.+\.(pdf|png|jpe?g|gif|webp|bmp|ico|avif)$/i.test(rawPath.trim())
+      ? rawPath.trim()
+      : null;
+    if (rel === null && !externalAbs) return;
 
     const alreadyCode = this.currentLayoutMode() === 'code';
     if (!alreadyCode) this.toggleLayoutMode();
@@ -6265,7 +6336,8 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       if (!editor) return;
       editor.cwd = cwd;
       editor.sessionId = session.id;
-      void editor.openFile(rel);
+      if (externalAbs) void editor.openExternalPreview(externalAbs);
+      else void editor.openFile(rel!);
     }, alreadyCode ? 0 : 200);
   }
 
@@ -7276,15 +7348,6 @@ export class SessionViewComponent implements OnInit, OnDestroy {
       this.addNoteModal.sessionId = sessionId;
       this.addNoteModal.open();
     }
-  }
-
-  openProjectBriefModal(sessionId: string): void {
-    if (!this.projectBriefModal) return;
-    const session = this.sessions().find(s => s.id === sessionId) ?? this.activeSession();
-    this.projectBriefModal.workspacePath = session?.workspace?.path;
-    this.projectBriefModal.provider = session?.provider;
-    this.projectBriefModal.projectName = session?.workspace?.name || session?.name;
-    this.projectBriefModal.open();
   }
 
   openDevLinksModal(sessionId: string): void {

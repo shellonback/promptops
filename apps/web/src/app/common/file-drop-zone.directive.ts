@@ -10,7 +10,14 @@ import {
   inject,
 } from '@angular/core';
 
-function isLinux(): boolean {
+// The real OS is injected by Rust (lib.rs `init_script`) into
+// `window.__PROMPTOPS_OS__`: the WebKitGTK user agent claims to be Safari on macOS,
+// so on Linux a user-agent-only check answered "not Linux" and disabled the
+// text/uri-list fallback (file manager drops were silently ignored).
+// The user agent remains the fallback when the app runs outside Tauri (tests, browser).
+export function isLinux(): boolean {
+  const os = (window as { __PROMPTOPS_OS__?: string }).__PROMPTOPS_OS__;
+  if (os) return os === 'linux';
   return /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
 }
 
@@ -21,7 +28,7 @@ function isLinux(): boolean {
 export function fileUrisFromDrop(e: DragEvent): string[] {
   if (!isLinux()) return [];
   const list = e.dataTransfer?.getData('text/uri-list') || '';
-  return list
+  const fromUriList = list
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(l => l && !l.startsWith('#') && l.startsWith('file://'))
@@ -33,6 +40,13 @@ export function fileUrisFromDrop(e: DragEvent): string[] {
       }
     })
     .filter(p => p.startsWith('/'));
+  if (fromUriList.length) return fromUriList;
+  // WebKitGTK 2.5x lists text/uri-list but delivers it empty (it hides file://
+  // URLs from the page): Rust read the real paths from the GTK drag and the
+  // bridge exposes them through getDragPaths (linux_env::track_drag_paths).
+  if (!e.dataTransfer?.types?.includes('text/uri-list')) return [];
+  const bridge = (window as { promptops?: { getDragPaths?: () => string[] } }).promptops;
+  return (bridge?.getDragPaths?.() ?? []).filter(p => p.startsWith('/'));
 }
 
 /**

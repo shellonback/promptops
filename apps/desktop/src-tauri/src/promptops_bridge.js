@@ -174,18 +174,32 @@
   // synchronous at drop time and resolves by basename. '' if unknown.
   var lastDroppedPaths = [];
   var dragPathsInflight = false;
+  // Linux: WebKitGTK delivers file manager drops as text/uri-list (often without
+  // 'Files') and empties the file:// URLs: Rust reads the paths from the GTK drag.
+  var isLinuxOs = window.__PROMPTOPS_OS__ === 'linux';
   function refreshDragPaths(e) {
     var types = e && e.dataTransfer && e.dataTransfer.types;
-    if (!types || Array.prototype.indexOf.call(types, 'Files') < 0) return;
+    if (!types) return;
+    var osFiles = Array.prototype.indexOf.call(types, 'Files') >= 0 ||
+      (isLinuxOs && Array.prototype.indexOf.call(types, 'text/uri-list') >= 0);
+    if (!osFiles) return;
     if (dragPathsInflight) return;
     dragPathsInflight = true;
     invoke('drag_drop_paths').then(function (paths) {
       dragPathsInflight = false;
-      if (paths && paths.length) lastDroppedPaths = paths;
+      // Linux: the list from Rust is authoritative even when empty (no local files).
+      if (paths && (paths.length || isLinuxOs)) lastDroppedPaths = paths;
     }, function () { dragPathsInflight = false; });
   }
   window.addEventListener('dragenter', refreshDragPaths, true);
   window.addEventListener('dragover', refreshDragPaths, true);
+  // Linux: once the drop is over the paths are cleared (after the drop zones have
+  // read them), so a later drag cannot import the previous drag's files by mistake.
+  if (isLinuxOs) {
+    var clearDragPaths = function () { setTimeout(function () { lastDroppedPaths = []; }, 0); };
+    window.addEventListener('drop', clearDragPaths, true);
+    window.addEventListener('dragend', clearDragPaths, true);
+  }
 
   // Without the wry handler, a file dropped outside the drop zones would navigate
   // the webview to the file. We cancel the default ONLY for OS file drags, in
@@ -879,6 +893,9 @@
       }
       return '';
     },
+    // Absolute paths of the current file drag (Linux: fallback when
+    // text/uri-list arrives empty, see fileUrisFromDrop in the frontend).
+    getDragPaths: function () { return lastDroppedPaths.slice(); },
 
     // ── Presence signals ─────────────────────────────────────────────────
     onPresenceSystemAway: function (cb) { return on('presence:system-away', cb); },

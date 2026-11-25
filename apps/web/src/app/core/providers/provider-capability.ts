@@ -15,6 +15,7 @@ export type ProviderId =
   | 'kimi'
   | 'opencode'
   | 'kora'
+  | 'kodinncli'
   | 'promptops-cli'
   | 'generic-shell';
 

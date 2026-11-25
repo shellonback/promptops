@@ -38,6 +38,7 @@ const PROVIDERS: &[&str] = &[
     "kimi",
     "opencode",
     "kora",
+    "kodinncli",
     "promptops-cli",
     "generic-shell",
 ];

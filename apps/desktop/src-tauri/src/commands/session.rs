@@ -73,6 +73,7 @@ pub(crate) fn provider_command(provider: &str) -> Option<&'static str> {
         "opencode" => Some("opencode"),
         "muse" => Some("muse"),
         "kora" => Some("kora"),
+        "kodinncli" => Some("kodinn"),
         "promptops-cli" => Some("promptops-cli"),
         _ => None,
     }
@@ -5538,6 +5539,7 @@ pub(crate) fn native_auto_approve_flag(provider: &str) -> Option<&'static str> {
         // kora `-y` = per-tool "allow once" with an on-screen note: no
         // permission-mode switch, dialogs keep the user in charge.
         "kora" => Some("-y"),
+        "kodinncli" => Some("--dangerously-skip-permissions"),
         "promptops-cli" => Some("--yes"),
         _ => None,
     }
@@ -5719,6 +5721,7 @@ pub(crate) fn resume_by_id_flag(family: &str, id: &str) -> Option<String> {
         // kora: root-level `--resume <id>` (id or exact title; the id comes
         // from the session probe). Flags are position-independent.
         "kora" => Some(format!("--resume {id}")),
+        "kodinncli" => Some(format!("--resume {id}")),
         // antigravity: `--conversation <id>` (conversation_id from the JSON/hook).
         "antigravity" => Some(format!("--conversation {id}")),
         // muse: `resume` is a SUBCOMMAND (`muse resume <id>`), like codex.
@@ -8701,6 +8704,35 @@ mod tests {
         assert_eq!(resume_fragment("kora", None), "");
         // kora ids are `session-<unixms>-<hex>`: safe for a shell line.
         assert!(is_safe_session_id("session-1761900000-ab12cd34"));
+    }
+
+    #[test]
+    fn kodinncli_launch_and_resume_argv() {
+        use super::{
+            is_safe_session_id, model_flag, native_auto_approve_flag, provider_command,
+            provider_resumes_by_id, resume_by_id_flag, resume_fragment,
+        };
+        // Bare `kodinn` opens the terminal UI; the flags are position-independent.
+        assert_eq!(provider_command("kodinncli"), Some("kodinn"));
+        assert_eq!(
+            native_auto_approve_flag("kodinncli"),
+            Some("--dangerously-skip-permissions")
+        );
+        assert_eq!(model_flag("kodinncli"), None);
+        // Resume by id (the id comes from the `--sessions` probe); without an id
+        // there is no resume: kodinncli restarts clean, like hermes and kora.
+        assert!(provider_resumes_by_id("kodinncli"));
+        assert_eq!(
+            resume_by_id_flag("kodinncli", "01KZXC4F8N2Q7M5T9V3B6D1HWE").as_deref(),
+            Some("--resume 01KZXC4F8N2Q7M5T9V3B6D1HWE")
+        );
+        assert_eq!(
+            resume_fragment("kodinncli", Some("01KZXC4F8N2Q7M5T9V3B6D1HWE")),
+            "--resume 01KZXC4F8N2Q7M5T9V3B6D1HWE"
+        );
+        assert_eq!(resume_fragment("kodinncli", None), "");
+        // kodinncli ids are ULIDs: safe for a shell line.
+        assert!(is_safe_session_id("01KZXC4F8N2Q7M5T9V3B6D1HWE"));
     }
 }
 

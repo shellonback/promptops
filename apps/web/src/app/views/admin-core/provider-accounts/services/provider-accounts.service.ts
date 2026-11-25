@@ -16,6 +16,7 @@ export type ProviderId =
   | "kimi"
   | "opencode"
   | "kora"
+  | "kodinncli"
   | "promptops-cli"
   | "generic-shell";
 
@@ -50,6 +51,7 @@ export const PROVIDER_LABELS: Record<ProviderId, string> = {
   grok: "Grok",
   opencode: "OpenCode",
   kora: "Kora",
+  kodinncli: "KodinnCli",
   antigravity: "Antigravity",
   hermes: "Hermes",
   muse: "Muse Code",

@@ -1525,6 +1525,7 @@ fn provider_binary(provider: &str) -> String {
         "muse" => "muse".into(),
         "opencode" => "opencode".into(),
         "kora" => "kora".into(),
+        "kodinncli" => "kodinn".into(),
         "promptops-cli" => "promptops-cli".into(),
         // generic-shell runs raw commands → the default shell.
         "generic-shell" => default_shell(),
@@ -5984,6 +5985,7 @@ mod reasoning_effort_tests {
             "antigravity",
             "opencode",
             "kora",
+            "kodinncli",
             "zai",
             "kimi",
             "promptops-cli",

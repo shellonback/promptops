@@ -90,6 +90,7 @@ const AGENT_PROVIDERS: &[&str] = &[
     "opencode",
     "muse",
     "kora",
+    "kodinncli",
     "promptops-cli",
 ];
 /// Providers whose CLI, by default, asks for confirmation before writing files or
@@ -107,6 +108,7 @@ const GATED_PROVIDERS: &[&str] = &[
     "cursor",
     "muse",
     "kora",
+    "kodinncli",
     "promptops-cli",
 ];
 /// Raw shell: the "prompt" is a command executed without any permission.
@@ -1540,6 +1542,9 @@ mod tests {
         // switching away from another CLI, unlike the non-gated opencode above.
         assert!(check_provider("kora", Some("kora"), false).is_ok());
         assert!(check_provider("kora", Some("codex"), false).is_ok());
+        // kodinncli asks for confirmation by default: gated, like kora.
+        assert!(check_provider("kodinncli", Some("kodinncli"), false).is_ok());
+        assert!(check_provider("kodinncli", Some("codex"), false).is_ok());
         assert!(GATED_PROVIDERS.iter().all(|p| AGENT_PROVIDERS.contains(p)));
         // The raw shell doesn't pass even if it is the session's provider.
         assert_eq!(

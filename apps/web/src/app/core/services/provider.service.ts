@@ -177,6 +177,19 @@ const BROWSER_FALLBACK: ProviderCapability[] = [
     ui: { icon: 'ti-sparkles', accent: 'violet', badgeKey: 'PROVIDERS.BADGE.NEW' },
   },
   {
+    id: 'kodinncli', displayName: 'KodinnCli', tier: 'cloud',
+    requiresApiKey: false, offlineCapable: false,
+    cli: { command: 'kodinn', installHintKey: 'PROVIDERS.KODINNCLI.INSTALL_HINT', detectable: false },
+    capabilities: { reasoning: true, execution: true, longContext: false, toolUse: true },
+    suggestionWeights: { refactor: 0.75, debug: 0.8, planning: 0.8, explore: 0.85 },
+    i18n: {
+      bestForKey: 'PROVIDERS.KODINNCLI.BEST_FOR',
+      limitationsKey: 'PROVIDERS.KODINNCLI.LIMITATIONS',
+      microcopyKey: 'PROVIDERS.KODINNCLI.MICROCOPY',
+    },
+    ui: { icon: 'ti-terminal-2', accent: 'emerald', badgeKey: 'PROVIDERS.BADGE.NEW' },
+  },
+  {
     id: 'promptops-cli', displayName: 'PromptOps CLI', tier: 'local',
     requiresApiKey: false, offlineCapable: true,
     cli: { command: 'promptops-cli', installHintKey: 'PROVIDERS.PROMPTOPS_CLI.INSTALL_HINT', detectable: false },

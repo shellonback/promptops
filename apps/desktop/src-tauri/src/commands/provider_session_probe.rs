@@ -23,7 +23,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Does the provider have a probe? (≠ "has a resume": gemini has resume but not by-id)
 pub fn has_session_probe(provider: &str) -> bool {
-    matches!(provider, "grok" | "opencode" | "hermes" | "kora" | "codex")
+    matches!(provider, "grok" | "opencode" | "hermes" | "kora" | "kodinncli" | "codex")
 }
 
 /// Clock tolerance: the session may be born a moment before our
@@ -71,6 +71,7 @@ pub fn probe_provider_session_id_in_home(
             "opencode" => probe_opencode(cwd, spawned_at_ms),
             "hermes" => probe_hermes(cwd, spawned_at_ms),
             "kora" => probe_kora(cwd, spawned_at_ms),
+            "kodinncli" => probe_kodinncli(cwd, spawned_at_ms),
             "codex" => probe_codex(cwd, spawned_at_ms, provider_home),
             _ => None,
         };
@@ -373,6 +374,56 @@ fn parse_kora_sessions(out: &str, cwd: &str, spawned_at_ms: u128) -> Option<Stri
     best.map(|(id, _)| id)
 }
 
+/// kodinncli — `kodinn --sessions` prints THIS folder's sessions (the probe runs
+/// in the session's cwd) as plain tab-separated rows: `id 	 yyyy-MM-dd HH:mm
+/// (local) 	 tokens 	 title`. The folder is implicit, so no cwd filtering is
+/// needed; the minute-resolution local time ties a row to our spawn. The session
+/// is persisted at the first turn, so the probe finds it once the first prompt
+/// is sent — best-effort, like opencode/hermes/kora.
+fn probe_kodinncli(cwd: &str, spawned_at_ms: u128) -> Option<String> {
+    let out = run(cwd, Some("kodinncli"), "kodinn", &["--sessions"])?;
+    parse_kodinncli_sessions(&out, spawned_at_ms)
+}
+
+/// Pure core of `probe_kodinncli`, split out for tests.
+fn parse_kodinncli_sessions(out: &str, spawned_at_ms: u128) -> Option<String> {
+    use chrono::TimeZone;
+
+    // The listing shows minutes only: the row's real time is somewhere in
+    // `[minute, minute + 60s)`, so accept it when the END of that minute is not
+    // before the spawn (minus the usual skew).
+    const MINUTE_MS: u128 = 60_000;
+
+    let mut best: Option<(String, u128)> = None;
+    for line in out.lines() {
+        let mut cols = line.split('	');
+        let (Some(id), Some(stamp)) = (cols.next(), cols.next()) else {
+            continue;
+        };
+        let id = id.trim();
+        if id.is_empty() || !crate::commands::session::is_safe_session_id(id) {
+            continue;
+        }
+        let Ok(naive) = chrono::NaiveDateTime::parse_from_str(stamp.trim(), "%Y-%m-%d %H:%M")
+        else {
+            continue;
+        };
+        let Some(local) = chrono::Local.from_local_datetime(&naive).earliest() else {
+            continue;
+        };
+        let Ok(at) = u128::try_from(local.timestamp_millis()) else {
+            continue;
+        };
+        if at + MINUTE_MS + CLOCK_SKEW_MS < spawned_at_ms {
+            continue;
+        }
+        if best.as_ref().is_none_or(|(_, best_at)| at > *best_at) {
+            best = Some((id.to_string(), at));
+        }
+    }
+    best.map(|(id, _)| id)
+}
+
 /// hermes — `hermes sessions list` prints a table without cwd, but the ID CARRIES
 /// the timestamp (`20260614_124133_3491ac`): that is what ties it to our spawn.
 fn probe_hermes(cwd: &str, spawned_at_ms: u128) -> Option<String> {
@@ -634,6 +685,7 @@ mod tests {
         assert!(has_session_probe("opencode"));
         assert!(has_session_probe("hermes"));
         assert!(has_session_probe("kora"));
+        assert!(has_session_probe("kodinncli"));
         assert!(has_session_probe("codex"));
         assert!(!has_session_probe("gemini-cli"));
         assert!(!has_session_probe("claude-code-cli"));
@@ -668,6 +720,35 @@ mod tests {
         assert_eq!(parse_kora_sessions(&no_folders, cwd, spawned), None);
         // Junk in, nothing out.
         assert_eq!(parse_kora_sessions("not json", cwd, spawned), None);
+    }
+
+    #[test]
+    fn kodinncli_probe_keeps_the_newest_session_since_the_spawn() {
+        use chrono::TimeZone;
+        let fmt = |ms: u128| {
+            chrono::Local
+                .timestamp_millis_opt(ms as i64)
+                .single()
+                .unwrap()
+                .format("%Y-%m-%d %H:%M")
+                .to_string()
+        };
+        let spawned = now_ms();
+        let out = format!(
+            "01OLDOLD	{old}	10	old
+01OURSURS	{ours}	42	ours
+junk line
+	{ours}	1	no id
+",
+            old = fmt(spawned - 10 * 60_000),
+            ours = fmt(spawned + 1_000),
+        );
+        assert_eq!(
+            parse_kodinncli_sessions(&out, spawned).as_deref(),
+            Some("01OURSURS")
+        );
+        assert_eq!(parse_kodinncli_sessions("No sessions recorded in this folder.", spawned), None);
+        assert_eq!(parse_kodinncli_sessions("", spawned), None);
     }
 
     #[test]

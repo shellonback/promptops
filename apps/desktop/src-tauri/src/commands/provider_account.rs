@@ -34,7 +34,7 @@ use uuid::Uuid;
 // keys of the capabilities map; validation is done by looking at the map.
 // Canonical values (in order):
 //   claude-code-cli | codex | gemini-cli | antigravity | copilot | cursor |
-//   grok | hermes | muse | opencode | kora | promptops-cli | generic-shell
+//   grok | hermes | muse | opencode | kora | kodinncli | promptops-cli | generic-shell
 pub type ProviderType = String;
 
 // ===========================================================================
@@ -160,6 +160,18 @@ const CAPABILITIES: &[(&str, ProviderAccountCapability)] = &[
             env_var: Some("KORA_PROFILE_ROOT"),
             default_dir_name: "kora",
             default_cli_path: Some("~/.kora"),
+            support: "partial",
+        },
+    ),
+    (
+        // kodinncli honors `KODINNCLI_HOME` as the WHOLE data folder (encrypted
+        // settings, sessions, logs): a managed dir is a fully isolated profile,
+        // not only a config dir — hence "partial", like kora and opencode.
+        "kodinncli",
+        ProviderAccountCapability {
+            env_var: Some("KODINNCLI_HOME"),
+            default_dir_name: "kodinncli",
+            default_cli_path: Some("~/.config/KodinnCli"),
             support: "partial",
         },
     ),

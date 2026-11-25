@@ -7796,6 +7796,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     'zai': 'assets/providers/zai.svg',
     'kimi': 'assets/providers/kimi.svg',
     'kora': 'assets/providers/kora.svg',
+    'kodinncli': 'assets/providers/kodinncli.svg',
     'generic-shell': 'assets/providers/terminal.svg',
   };
   private static readonly PROVIDER_LABEL: Record<string, string> = {
@@ -7811,6 +7812,7 @@ export class SessionViewComponent implements OnInit, OnDestroy {
     'zai': 'Z.AI',
     'kimi': 'Kimi',
     'kora': 'Kora',
+    'kodinncli': 'KodinnCli',
     'generic-shell': 'Shell',
   };
   getProviderLogo(provider: string): string {

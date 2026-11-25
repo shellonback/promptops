@@ -685,6 +685,7 @@
     "Grok": "Grok",
     "Hermes": "Hermes",
     "Kora": "Kora",
+    "KodinnCli": "KodinnCli",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2501,6 +2502,12 @@
       "LIMITATIONS": "Richiede la CLI Kora e un backend configurato.",
       "MICROCOPY": "Usa la tua configurazione Kora. Modello ed effort si scelgono dentro la CLI.",
       "INSTALL_HINT": "Non rilevato. Installa: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
+    },
+    "KODINNCLI": {
+      "BEST_FOR": "L'unico agent di coding con motore di inferenza, compressione, privacy e modelli decisionali integrati — nel terminale.",
+      "LIMITATIONS": "Richiede l'app da terminale KodinnCli e un provider configurato.",
+      "MICROCOPY": "Usa la tua configurazione KodinnCli. Modello e livello di ragionamento si scelgono dentro la CLI.",
+      "INSTALL_HINT": "Non rilevato. Installa: npm install -g kodinncli"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Terminale puro — nessuna AI.",

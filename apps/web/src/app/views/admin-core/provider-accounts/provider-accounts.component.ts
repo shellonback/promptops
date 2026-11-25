@@ -36,6 +36,7 @@ const PROVIDER_ORDER: ProviderId[] = [
   "kimi",
   "opencode",
   "kora",
+  "kodinncli",
   "promptops-cli",
 ];
 
@@ -248,6 +249,7 @@ export class ProviderAccountsComponent implements OnInit {
       antigravity: "antigravity", copilot: "copilot", cursor: "cursor",
       grok: "grok", hermes: "hermes", muse: "muse", zai: "zai", kimi: "kimi",
       kora: "kora",
+      kodinncli: "kodinncli",
     };
     return `assets/providers/${logos[provider] ?? "terminal"}.svg`;
   }

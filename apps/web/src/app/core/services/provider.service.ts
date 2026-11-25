@@ -200,6 +200,18 @@ const BROWSER_FALLBACK: ProviderCapability[] = [
     },
     ui: { icon: 'ti-terminal-2', accent: 'slate' },
   },
+  {
+    id: 'kodinncli', displayName: 'KodinnCli', tier: 'cloud',
+    requiresApiKey: false, offlineCapable: false,
+    cli: { command: 'kodinn', installHintKey: 'PROVIDERS.KODINNCLI.INSTALL_HINT', detectable: false },
+    capabilities: { reasoning: true, execution: true, longContext: false, toolUse: true },
+    i18n: {
+      bestForKey: 'PROVIDERS.KODINNCLI.BEST_FOR',
+      limitationsKey: 'PROVIDERS.KODINNCLI.LIMITATIONS',
+      microcopyKey: 'PROVIDERS.KODINNCLI.MICROCOPY',
+    },
+    ui: { icon: 'ti-terminal-2', accent: 'emerald' },
+  },
 ];
 
 @Injectable({ providedIn: 'root' })

@@ -352,6 +352,7 @@ export class InjectAgentModalComponent {
       'zai': 'Z.AI',
       'kimi': 'Kimi',
       'kora': 'Kora',
+      'kodinncli': 'KodinnCli',
     };
     return map[this.provider()] ?? this.provider();
   });

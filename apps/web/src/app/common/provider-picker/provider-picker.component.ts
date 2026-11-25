@@ -361,6 +361,7 @@ export class ProviderPickerComponent implements OnInit {
     'kimi': 'assets/providers/kimi.svg',
     'opencode': 'assets/providers/terminal.svg',
     'kora': 'assets/providers/kora.svg',
+    'kodinncli': 'assets/providers/kodinncli.svg',
     'promptops-cli': 'assets/providers/terminal.svg',
     'generic-shell': 'assets/providers/terminal.svg',
   };

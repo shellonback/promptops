@@ -932,6 +932,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   'kimi': 'Kimi',
   'opencode': 'Opencode',
   'kora': 'Kora',
+  'kodinncli': 'KodinnCli',
   'promptops-cli': 'PromptOps CLI',
   'generic-shell': 'Shell',
 };

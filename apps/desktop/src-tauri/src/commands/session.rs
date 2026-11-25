@@ -73,6 +73,7 @@ pub(crate) fn provider_command(provider: &str) -> Option<&'static str> {
         "opencode" => Some("opencode"),
         "muse" => Some("muse"),
         "kora" => Some("kora"),
+        "kodinncli" => Some("kodinn"),
         "promptops-cli" => Some("promptops-cli"),
         _ => None,
     }
@@ -2756,8 +2757,7 @@ pub async fn session_switch_provider(
     use crate::commands::subagent::{
         exit_tui_with, paste_evidence_seen, paste_verification_enabled, sanitize_model_flag,
         settle_after_launch_with, shell_prompt_visible, startup_dialog_visible, tail_has_marker,
-        wait_launch_outcome_with, wait_startup_dialog_cleared, DialogWait, LaunchOutcome, BPM_END,
-        BPM_START,
+        wait_launch_outcome_with, wait_startup_dialog_cleared, DialogWait, LaunchOutcome,
     };
     let provider = request.provider.clone();
     if provider == "generic-shell" {
@@ -3005,7 +3005,7 @@ pub async fn session_switch_provider(
             return;
         }
         let profile = crate::commands::tui_injection::injection_profile(&provider);
-        let payload = format!("{BPM_START}{prompt}{BPM_END}");
+        let payload = crate::commands::subagent::paste_payload(&provider, &prompt);
         // Verified paste (claude family) with re-paste: Enter ONLY once the paste
         // is seen. A blind Enter on a dialog picks the default.
         let verify = paste_verification_enabled(&provider);
@@ -4987,14 +4987,37 @@ fn spawn_session_pty(
             pair.master.take_writer().map_err(|e| e.to_string())?,
         ));
         let rd_sink = sink.clone();
+        // KodinnCli on Windows: ConPTY (INHERIT_CURSOR) asks the host for the cursor
+        // position (ESC[6n, 4 bytes) and the shell stays mute until it is answered, so
+        // the launch line was typed into a dead terminal. If nothing else arrives soon
+        // after that request, answer it here. Other providers keep the old behavior.
+        let cpr_writer = (cfg!(windows) && provider == "kodinncli").then(|| writer.clone());
+        let more_output = Arc::new(std::sync::atomic::AtomicBool::new(false));
         std::thread::spawn(move || {
             // 64KB like terminal.rs: bigger reads = fewer syscalls/locks during
             // TUI redraw bursts.
             let mut buf = [0u8; 65536];
+            let mut first = true;
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
-                    Ok(n) => rd_sink.chunk(&buf[..n]),
+                    Ok(n) => {
+                        if let Some(w) = &cpr_writer {
+                            if first && &buf[..n] == b"\x1b[6n" {
+                                let (w, more) = (w.clone(), more_output.clone());
+                                std::thread::spawn(move || {
+                                    std::thread::sleep(std::time::Duration::from_millis(700));
+                                    if !more.load(std::sync::atomic::Ordering::Relaxed) {
+                                        let _ = w.lock().write_all(b"\x1b[1;1R");
+                                    }
+                                });
+                            } else if !first {
+                                more_output.store(true, std::sync::atomic::Ordering::Relaxed);
+                            }
+                        }
+                        first = false;
+                        rd_sink.chunk(&buf[..n])
+                    }
                 }
             }
             rd_sink.pump.mark_eof();
@@ -5538,6 +5561,7 @@ pub(crate) fn native_auto_approve_flag(provider: &str) -> Option<&'static str> {
         // kora `-y` = per-tool "allow once" with an on-screen note: no
         // permission-mode switch, dialogs keep the user in charge.
         "kora" => Some("-y"),
+        "kodinncli" => Some("--dangerously-skip-permissions"),
         "promptops-cli" => Some("--yes"),
         _ => None,
     }
@@ -5719,6 +5743,7 @@ pub(crate) fn resume_by_id_flag(family: &str, id: &str) -> Option<String> {
         // kora: root-level `--resume <id>` (id or exact title; the id comes
         // from the session probe). Flags are position-independent.
         "kora" => Some(format!("--resume {id}")),
+        "kodinncli" => Some(format!("--resume {id}")),
         // antigravity: `--conversation <id>` (conversation_id from the JSON/hook).
         "antigravity" => Some(format!("--conversation {id}")),
         // muse: `resume` is a SUBCOMMAND (`muse resume <id>`), like codex.
@@ -8701,6 +8726,35 @@ mod tests {
         assert_eq!(resume_fragment("kora", None), "");
         // kora ids are `session-<unixms>-<hex>`: safe for a shell line.
         assert!(is_safe_session_id("session-1761900000-ab12cd34"));
+    }
+
+    #[test]
+    fn kodinncli_launch_and_resume_argv() {
+        use super::{
+            is_safe_session_id, model_flag, native_auto_approve_flag, provider_command,
+            provider_resumes_by_id, resume_by_id_flag, resume_fragment,
+        };
+        // Bare `kodinn` opens the terminal UI; the flags are position-independent.
+        assert_eq!(provider_command("kodinncli"), Some("kodinn"));
+        assert_eq!(
+            native_auto_approve_flag("kodinncli"),
+            Some("--dangerously-skip-permissions")
+        );
+        assert_eq!(model_flag("kodinncli"), None);
+        // Resume by id (the id comes from the `--sessions` probe); without an id
+        // there is no resume: kodinncli restarts clean, like hermes and kora.
+        assert!(provider_resumes_by_id("kodinncli"));
+        assert_eq!(
+            resume_by_id_flag("kodinncli", "01KZXC4F8N2Q7M5T9V3B6D1HWE").as_deref(),
+            Some("--resume 01KZXC4F8N2Q7M5T9V3B6D1HWE")
+        );
+        assert_eq!(
+            resume_fragment("kodinncli", Some("01KZXC4F8N2Q7M5T9V3B6D1HWE")),
+            "--resume 01KZXC4F8N2Q7M5T9V3B6D1HWE"
+        );
+        assert_eq!(resume_fragment("kodinncli", None), "");
+        // kodinncli ids are ULIDs: safe for a shell line.
+        assert!(is_safe_session_id("01KZXC4F8N2Q7M5T9V3B6D1HWE"));
     }
 }
 

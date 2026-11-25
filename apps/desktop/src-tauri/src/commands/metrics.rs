@@ -2215,6 +2215,7 @@ fn provider_label(id: &str) -> String {
         "kimi" => "Kimi",
         "opencode" => "OpenCode",
         "kora" => "Kora",
+        "kodinncli" => "KodinnCli",
         "promptops-cli" => "PromptOps",
         "generic-shell" => "Shell",
         other => return other.to_string(),
@@ -2836,6 +2837,10 @@ fn resolve_pricing(provider: &str, model_hint: Option<&str>) -> ModelPricing {
         // kora is multi-provider inside its own CLI: usage is billed by the
         // configured backend, not per-token list price here → cost 0.
         ("kora", &[("kora", "Kora", 0.0, 0.0, 0.0, 0.0)]),
+        (
+            "kodinncli",
+            &[("kodinncli", "KodinnCli", 0.0, 0.0, 0.0, 0.0)],
+        ),
         ("zai", &[("glm", "Z.AI GLM", 0.0, 0.0, 0.0, 0.0)]),
         ("kimi", &[("kimi", "Kimi", 0.0, 0.0, 0.0, 0.0)]),
         (

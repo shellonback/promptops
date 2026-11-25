@@ -685,6 +685,7 @@
     "Grok": "Grok",
     "Hermes": "Hermes",
     "Kora": "Kora",
+    "KodinnCli": "KodinnCli",
     "Muse Code": "Muse Code",
     "ZAI": "Z.AI",
     "Kimi": "Kimi",
@@ -2501,6 +2502,12 @@
       "LIMITATIONS": "Kräver Kora CLI och en konfigurerad backend.",
       "MICROCOPY": "Använder din Kora-konfiguration. Modell och effort väljs i CLI:n.",
       "INSTALL_HINT": "Inte hittad. Installera: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
+    },
+    "KODINNCLI": {
+      "BEST_FOR": "Kodagent i terminalen med datamaskering och lokal inferens.",
+      "LIMITATIONS": "Kräver terminalappen KodinnCli och en konfigurerad leverantör.",
+      "MICROCOPY": "Använder din KodinnCli-konfiguration. Modell och tänkenivå väljs i CLI:t.",
+      "INSTALL_HINT": "Hittades inte. Installera: npm install -g kodinncli"
     },
     "GENERIC_SHELL": {
       "BEST_FOR": "Vanlig terminal — ingen AI.",

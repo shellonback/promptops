@@ -7,6 +7,12 @@ PromptOps Desktop, the hosted edition, have their own release notes.
 
 ### Added
 
+- KodinnCli as an agent provider: launch (`kodinn`), resume by session id
+  (`kodinn --resume <id>`, discovered by probing `kodinn --sessions` in the
+  session's folder) and auto-approve (`--dangerously-skip-permissions`). Model,
+  provider and thinking level stay inside KodinnCli's own CLI; an isolated
+  account profile maps to `KODINNCLI_HOME`. State degrades to PTY activity like
+  the other hookless CLIs.
 - Context management (off by default, in Settings): the main Claude
   session can keep `state.md` and `logbook.md` in
   `<workspace>/.promptops/sessions/<id>/`. Turn it on per workspace from the

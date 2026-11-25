@@ -139,6 +139,7 @@ const STUDIO_PROVIDERS: { id: string; label: string; binary: string; ready: RegE
   { id: 'muse', label: 'Muse Code', binary: 'muse', ready: null },
   { id: 'opencode', label: 'OpenCode', binary: 'opencode', ready: null },
   { id: 'kora', label: 'Kora', binary: 'kora', ready: null },
+  { id: 'kodinncli', label: 'KodinnCli', binary: 'kodinn', ready: null },
 ];
 const CLI_KEY = 'po.pluginStudio.cli';
 /** Model and effort only from known lists: they end up in a shell line. */

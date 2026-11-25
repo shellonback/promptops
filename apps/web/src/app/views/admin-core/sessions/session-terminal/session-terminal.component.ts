@@ -1180,9 +1180,16 @@ export class SessionTerminalComponent implements AfterViewInit, OnChanges, OnDes
     // Strip terminal auto-responses that xterm.js sends back (DA, CPR, DSR,
     // Focus In/Out). They may arrive concatenated in a single onData call.
     const TERM_RESPONSE_RE = /\x1b\[[\?>=]?[0-9;]*[cRnIO]/g;
+    // KodinnCli on Windows: its console driver does not read VT mouse reports, so the
+    // SGR reports (ESC[<btn;col;rowM) that xterm sends on every mouse move were typed
+    // into its input box as text. Drop them for that provider only.
+    const SGR_MOUSE_RE = /\x1b\[<\d+;\d+;\d+[Mm]/g;
     xterm.onData(async (data) => {
       if (gen !== this.setupGeneration) return;
-      const cleaned = data.replace(TERM_RESPONSE_RE, '');
+      let cleaned = data.replace(TERM_RESPONSE_RE, '');
+      if (cleaned && this.providerLimit.sessionProvider(sessionId) === 'kodinncli') {
+        cleaned = cleaned.replace(SGR_MOUSE_RE, '');
+      }
       if (!cleaned) return;
 
       const result = this.guard.processOutbound(cleaned);

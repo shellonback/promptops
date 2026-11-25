@@ -49,6 +49,22 @@ const DEFAULT_ROWS: u16 = 24;
 pub(crate) const BPM_START: &str = "\x1b[200~";
 pub(crate) const BPM_END: &str = "\x1b[201~";
 
+/// What gets written to the PTY to inject a prompt. KodinnCli does not understand the
+/// bracketed-paste markers (it typed the tail "[201~" into its input as text), so it
+/// gets the plain text on a single line; every other provider keeps the paste wrapper.
+pub(crate) fn paste_payload(provider: &str, prompt: &str) -> String {
+    if provider == "kodinncli" {
+        prompt
+            .split(['\r', '\n'])
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+    } else {
+        format!("{BPM_START}{prompt}{BPM_END}")
+    }
+}
+
 // ── Domain types (shared with the web UI) ─────────────────────────
 
 /// `SubAgentStatus`.
@@ -1378,7 +1394,7 @@ impl SubAgentManager {
         let profile = crate::commands::tui_injection::injection_profile(&provider);
         self.write_to(
             sub_agent_id,
-            &format!("{BPM_START}{prompt}{BPM_END}"),
+            &paste_payload(&provider, &prompt),
             false,
         )?;
         std::thread::sleep(std::time::Duration::from_millis(profile.enter_delay_ms));
@@ -2908,6 +2924,10 @@ pub(crate) fn do_spawn(
 
     spawn_mark(&sub_agent_id, "pty-ready");
 
+    // Cloned here, before `writer` moves into the entry below (see the CPR note at the pump).
+    let cpr_writer = (cfg!(windows) && request.provider.as_deref() == Some("kodinncli"))
+        .then(|| writer.clone());
+
     // Register the entry + index by parent BEFORE the pump starts: the pump
     // stops at its first read when it finds no entry ("destroyed"), so a
     // shell that printed before the insert used to leave a pane that never
@@ -2957,10 +2977,15 @@ pub(crate) fn do_spawn(
     // (graphical glitches). The flusher drains coalesced chunks at COALESCE pace.
     let pump_state = Arc::new(crate::commands::terminal::PumpState::default());
     let rd_state = pump_state.clone();
+    // KodinnCli on Windows: ConPTY asks the host for the cursor position (ESC[6n, 4 bytes)
+    // and the shell stays mute until it is answered (see the same fallback in session.rs).
+    // If nothing else arrives soon after that request, answer it here. Only for kodinncli.
+    let more_output = Arc::new(std::sync::atomic::AtomicBool::new(false));
     std::thread::spawn(move || {
         // 64KB like terminal.rs: fewer syscalls/locks on TUI redraw bursts.
         let mut buf = [0u8; 65536];
         let mut pty_exited = false;
+        let mut first = true;
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => {
@@ -2969,6 +2994,20 @@ pub(crate) fn do_spawn(
                 }
                 Ok(n) => {
                     let chunk = &buf[..n];
+                    if let Some(w) = &cpr_writer {
+                        if first && chunk == b"[6n" {
+                            let (w, more) = (w.clone(), more_output.clone());
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_millis(700));
+                                if !more.load(std::sync::atomic::Ordering::Relaxed) {
+                                    let _ = w.lock().write_all(b"[1;1R");
+                                }
+                            });
+                        } else if !first {
+                            more_output.store(true, std::sync::atomic::Ordering::Relaxed);
+                        }
+                    }
+                    first = false;
                     // Accumulate in the agent's buffer (replay on subagent:buffer).
                     let vt = {
                         let mut agents = pump_manager.agents.lock();
@@ -3393,7 +3432,7 @@ fn inject_prompt(
 
             // BPM paste: the TUI treats the text as a single paste (without it, an inner
             // \r would submit halfway).
-            let payload = format!("{}{}{}", BPM_START, prompt, BPM_END);
+            let payload = paste_payload(&provider, &prompt);
             // Writer cloned and agents lock released BEFORE the
             // write: a KB-sized paste can block until the TUI reads, and
             // the PTY reader needs the same lock to drain

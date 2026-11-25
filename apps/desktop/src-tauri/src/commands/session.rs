@@ -3006,7 +3006,7 @@ pub async fn session_switch_provider(
             return;
         }
         let profile = crate::commands::tui_injection::injection_profile(&provider);
-        let payload = format!("{BPM_START}{prompt}{BPM_END}");
+        let payload = crate::commands::subagent::paste_payload(&provider, &prompt);
         // Verified paste (claude family) with re-paste: Enter ONLY once the paste
         // is seen. A blind Enter on a dialog picks the default.
         let verify = paste_verification_enabled(&provider);
@@ -4988,14 +4988,37 @@ fn spawn_session_pty(
             pair.master.take_writer().map_err(|e| e.to_string())?,
         ));
         let rd_sink = sink.clone();
+        // KodinnCli on Windows: ConPTY (INHERIT_CURSOR) asks the host for the cursor
+        // position (ESC[6n, 4 bytes) and the shell stays mute until it is answered, so
+        // the launch line was typed into a dead terminal. If nothing else arrives soon
+        // after that request, answer it here. Other providers keep the old behaviour.
+        let cpr_writer = (cfg!(windows) && provider == "kodinncli").then(|| writer.clone());
+        let more_output = Arc::new(std::sync::atomic::AtomicBool::new(false));
         std::thread::spawn(move || {
             // 64KB like terminal.rs: bigger reads = fewer syscalls/locks during
             // TUI redraw bursts.
             let mut buf = [0u8; 65536];
+            let mut first = true;
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) | Err(_) => break,
-                    Ok(n) => rd_sink.chunk(&buf[..n]),
+                    Ok(n) => {
+                        if let Some(w) = &cpr_writer {
+                            if first && &buf[..n] == b"\x1b[6n" {
+                                let (w, more) = (w.clone(), more_output.clone());
+                                std::thread::spawn(move || {
+                                    std::thread::sleep(std::time::Duration::from_millis(700));
+                                    if !more.load(std::sync::atomic::Ordering::Relaxed) {
+                                        let _ = w.lock().write_all(b"\x1b[1;1R");
+                                    }
+                                });
+                            } else if !first {
+                                more_output.store(true, std::sync::atomic::Ordering::Relaxed);
+                            }
+                        }
+                        first = false;
+                        rd_sink.chunk(&buf[..n])
+                    }
                 }
             }
             rd_sink.pump.mark_eof();

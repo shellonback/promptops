@@ -694,11 +694,21 @@ export class SubAgentTerminalComponent implements OnInit, AfterViewInit, OnDestr
     // Strip terminal auto-responses that xterm.js sends back (DA, CPR, DSR,
     // Focus In/Out). They may arrive concatenated in a single onData call.
     const TERM_RESPONSE_RE = /\x1b\[[\?>=]?[0-9;]*[cRnIO]/g;
+    // KodinnCli on Windows does not read VT mouse reports: drop them for that provider only
+    // (they were typed into its input box as text).
+    const SGR_MOUSE_RE = /\x1b\[<\d+;\d+;\d+[Mm]/g;
     this.xterm.onData(async (data) => {
       // Belt-and-suspenders with disableStdin: never forward keystrokes while the
       // provider TUI is still booting, or they'd race the auto-prompt paste.
       if (this.isSpawning()) return;
-      const cleaned = data.replace(TERM_RESPONSE_RE, '');
+      let cleaned = data.replace(TERM_RESPONSE_RE, '');
+      if (
+        cleaned &&
+        this.subAgentService.activeSubAgents().find((a) => a.id === this.subAgentId)?.provider ===
+          'kodinncli'
+      ) {
+        cleaned = cleaned.replace(SGR_MOUSE_RE, '');
+      }
       if (!cleaned) return;
 
       const result = this.guard.processOutbound(cleaned);

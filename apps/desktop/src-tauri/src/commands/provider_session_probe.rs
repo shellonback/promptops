@@ -396,7 +396,7 @@ fn parse_kodinncli_sessions(out: &str, spawned_at_ms: u128) -> Option<String> {
 
     let mut best: Option<(String, u128)> = None;
     for line in out.lines() {
-        let mut cols = line.split('	');
+        let mut cols = line.split('\t');
         let (Some(id), Some(stamp)) = (cols.next(), cols.next()) else {
             continue;
         };

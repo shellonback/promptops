@@ -1394,7 +1394,7 @@ impl SubAgentManager {
         let profile = crate::commands::tui_injection::injection_profile(&provider);
         self.write_to(
             sub_agent_id,
-            &paste_payload(&provider, &prompt),
+            paste_payload(&provider, prompt).as_str(),
             false,
         )?;
         std::thread::sleep(std::time::Duration::from_millis(profile.enter_delay_ms));
@@ -2925,8 +2925,8 @@ pub(crate) fn do_spawn(
     spawn_mark(&sub_agent_id, "pty-ready");
 
     // Cloned here, before `writer` moves into the entry below (see the CPR note at the pump).
-    let cpr_writer = (cfg!(windows) && request.provider.as_deref() == Some("kodinncli"))
-        .then(|| writer.clone());
+    let cpr_writer =
+        (cfg!(windows) && request.provider.as_deref() == Some("kodinncli")).then(|| writer.clone());
 
     // Register the entry + index by parent BEFORE the pump starts: the pump
     // stops at its first read when it finds no entry ("destroyed"), so a
@@ -2995,12 +2995,12 @@ pub(crate) fn do_spawn(
                 Ok(n) => {
                     let chunk = &buf[..n];
                     if let Some(w) = &cpr_writer {
-                        if first && chunk == b"[6n" {
+                        if first && chunk == b"\x1b[6n" {
                             let (w, more) = (w.clone(), more_output.clone());
                             std::thread::spawn(move || {
                                 std::thread::sleep(std::time::Duration::from_millis(700));
                                 if !more.load(std::sync::atomic::Ordering::Relaxed) {
-                                    let _ = w.lock().write_all(b"[1;1R");
+                                    let _ = w.lock().write_all(b"\x1b[1;1R");
                                 }
                             });
                         } else if !first {

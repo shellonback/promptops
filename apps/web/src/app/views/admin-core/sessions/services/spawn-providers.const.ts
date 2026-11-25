@@ -15,9 +15,9 @@ export const SPAWN_PROVIDERS: ReadonlyArray<{ value: ProviderType; labelKey: str
   { value: 'kimi', labelKey: 'SESSIONS.Kimi' },
   { value: 'opencode', labelKey: 'SESSIONS.Opencode' },
   { value: 'kora', labelKey: 'SESSIONS.Kora' },
-  { value: 'kodinncli', labelKey: 'SESSIONS.KodinnCli' },
   { value: 'promptops-cli', labelKey: 'SESSIONS.PromptOps CLI' },
   { value: 'generic-shell', labelKey: 'SESSIONS.Generic Shell' },
+  { value: 'kodinncli', labelKey: 'SESSIONS.KodinnCli' },
 ];
 
 /** Provider logos (assets/providers/*.svg) — shared by the spawn chip and the limit modal. */

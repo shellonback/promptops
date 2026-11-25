@@ -2504,7 +2504,7 @@
       "INSTALL_HINT": "Inte hittad. Installera: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "KODINNCLI": {
-      "BEST_FOR": "Den enda kodagenten med inbyggd inferensmotor, komprimering, integritetsskydd och beslutsmodeller — i terminalen.",
+      "BEST_FOR": "Kodagent i terminalen med datamaskering och lokal inferens.",
       "LIMITATIONS": "Kräver terminalappen KodinnCli och en konfigurerad leverantör.",
       "MICROCOPY": "Använder din KodinnCli-konfiguration. Modell och tänkenivå väljs i CLI:t.",
       "INSTALL_HINT": "Hittades inte. Installera: npm install -g kodinncli"

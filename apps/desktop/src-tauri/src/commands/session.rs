@@ -2757,8 +2757,7 @@ pub async fn session_switch_provider(
     use crate::commands::subagent::{
         exit_tui_with, paste_evidence_seen, paste_verification_enabled, sanitize_model_flag,
         settle_after_launch_with, shell_prompt_visible, startup_dialog_visible, tail_has_marker,
-        wait_launch_outcome_with, wait_startup_dialog_cleared, DialogWait, LaunchOutcome, BPM_END,
-        BPM_START,
+        wait_launch_outcome_with, wait_startup_dialog_cleared, DialogWait, LaunchOutcome,
     };
     let provider = request.provider.clone();
     if provider == "generic-shell" {
@@ -4991,7 +4990,7 @@ fn spawn_session_pty(
         // KodinnCli on Windows: ConPTY (INHERIT_CURSOR) asks the host for the cursor
         // position (ESC[6n, 4 bytes) and the shell stays mute until it is answered, so
         // the launch line was typed into a dead terminal. If nothing else arrives soon
-        // after that request, answer it here. Other providers keep the old behaviour.
+        // after that request, answer it here. Other providers keep the old behavior.
         let cpr_writer = (cfg!(windows) && provider == "kodinncli").then(|| writer.clone());
         let more_output = Arc::new(std::sync::atomic::AtomicBool::new(false));
         std::thread::spawn(move || {

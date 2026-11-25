@@ -480,40 +480,6 @@ pub(crate) fn manifests() -> Vec<ProviderCapability> {
             },
         },
         ProviderCapability {
-            id: "kodinncli",
-            display_name: "KodinnCli",
-            tier: "cloud",
-            requires_api_key: false,
-            offline_capable: false,
-            cli: ProviderCli {
-                command: "kodinn",
-                install_hint_key: "PROVIDERS.KODINNCLI.INSTALL_HINT",
-                detectable: true,
-            },
-            capabilities: ProviderCapabilities {
-                reasoning: true,
-                execution: true,
-                long_context: false,
-                tool_use: true,
-            },
-            suggestion_weights: Some(SuggestionWeights {
-                refactor: 0.75,
-                debug: 0.8,
-                planning: 0.8,
-                explore: 0.85,
-            }),
-            i18n: ProviderI18n {
-                best_for_key: "PROVIDERS.KODINNCLI.BEST_FOR",
-                limitations_key: "PROVIDERS.KODINNCLI.LIMITATIONS",
-                microcopy_key: "PROVIDERS.KODINNCLI.MICROCOPY",
-            },
-            ui: ProviderUi {
-                icon: "ti-terminal-2",
-                accent: "emerald",
-                badge_key: Some("PROVIDERS.BADGE.NEW"),
-            },
-        },
-        ProviderCapability {
             id: "promptops-cli",
             display_name: "PromptOps CLI",
             tier: "local",
@@ -574,6 +540,35 @@ pub(crate) fn manifests() -> Vec<ProviderCapability> {
             ui: ProviderUi {
                 icon: "ti-terminal-2",
                 accent: "slate",
+                badge_key: None,
+            },
+        },
+        ProviderCapability {
+            id: "kodinncli",
+            display_name: "KodinnCli",
+            tier: "cloud",
+            requires_api_key: false,
+            offline_capable: false,
+            cli: ProviderCli {
+                command: "kodinn",
+                install_hint_key: "PROVIDERS.KODINNCLI.INSTALL_HINT",
+                detectable: true,
+            },
+            capabilities: ProviderCapabilities {
+                reasoning: true,
+                execution: true,
+                long_context: false,
+                tool_use: true,
+            },
+            suggestion_weights: None,
+            i18n: ProviderI18n {
+                best_for_key: "PROVIDERS.KODINNCLI.BEST_FOR",
+                limitations_key: "PROVIDERS.KODINNCLI.LIMITATIONS",
+                microcopy_key: "PROVIDERS.KODINNCLI.MICROCOPY",
+            },
+            ui: ProviderUi {
+                icon: "ti-terminal-2",
+                accent: "emerald",
                 badge_key: None,
             },
         },

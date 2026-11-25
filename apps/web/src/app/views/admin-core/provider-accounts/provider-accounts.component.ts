@@ -36,8 +36,8 @@ const PROVIDER_ORDER: ProviderId[] = [
   "kimi",
   "opencode",
   "kora",
-  "kodinncli",
   "promptops-cli",
+  "kodinncli",
 ];
 
 const DEFAULT_ACCOUNT_COLOR = "#737373";

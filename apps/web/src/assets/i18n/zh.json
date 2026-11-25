@@ -2504,7 +2504,7 @@
       "INSTALL_HINT": "未检测到。安装：curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "KODINNCLI": {
-      "BEST_FOR": "唯一内置推理引擎、压缩、隐私保护和决策模型的编程智能体——在终端中运行。",
+      "BEST_FOR": "终端编程代理，支持数据脱敏和本地推理。",
       "LIMITATIONS": "需要 KodinnCli 终端应用和已配置的提供商。",
       "MICROCOPY": "使用你的 KodinnCli 配置。模型和思考级别在 CLI 内选择。",
       "INSTALL_HINT": "未检测到。安装：npm install -g kodinncli"

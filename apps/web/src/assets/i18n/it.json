@@ -2504,7 +2504,7 @@
       "INSTALL_HINT": "Non rilevato. Installa: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "KODINNCLI": {
-      "BEST_FOR": "L'unico agent di coding con motore di inferenza, compressione, privacy e modelli decisionali integrati — nel terminale.",
+      "BEST_FOR": "Agent di coding da terminale con mascheramento dei dati e inferenza locale.",
       "LIMITATIONS": "Richiede l'app da terminale KodinnCli e un provider configurato.",
       "MICROCOPY": "Usa la tua configurazione KodinnCli. Modello e livello di ragionamento si scelgono dentro la CLI.",
       "INSTALL_HINT": "Non rilevato. Installa: npm install -g kodinncli"

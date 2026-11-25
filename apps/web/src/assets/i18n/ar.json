@@ -2504,7 +2504,7 @@
       "INSTALL_HINT": "لم يتم العثور عليه. التثبيت: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "KODINNCLI": {
-      "BEST_FOR": "وكيل البرمجة الوحيد الذي يضم محرك استدلال وضغطًا وخصوصية ونماذج قرار مدمجة — في الطرفية.",
+      "BEST_FOR": "وكيل برمجة في الطرفية مع إخفاء البيانات والاستدلال المحلي.",
       "LIMITATIONS": "يتطلب تطبيق الطرفية KodinnCli ومزوّدًا مُعدًّا.",
       "MICROCOPY": "يستخدم إعداد KodinnCli لديك. يُختار النموذج ومستوى التفكير داخل واجهة سطر الأوامر.",
       "INSTALL_HINT": "لم يُكتشَف. التثبيت: npm install -g kodinncli"

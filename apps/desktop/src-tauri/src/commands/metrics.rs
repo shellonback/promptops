@@ -2837,7 +2837,10 @@ fn resolve_pricing(provider: &str, model_hint: Option<&str>) -> ModelPricing {
         // kora is multi-provider inside its own CLI: usage is billed by the
         // configured backend, not per-token list price here → cost 0.
         ("kora", &[("kora", "Kora", 0.0, 0.0, 0.0, 0.0)]),
-        ("kodinncli", &[("kodinncli", "KodinnCli", 0.0, 0.0, 0.0, 0.0)]),
+        (
+            "kodinncli",
+            &[("kodinncli", "KodinnCli", 0.0, 0.0, 0.0, 0.0)],
+        ),
         ("zai", &[("glm", "Z.AI GLM", 0.0, 0.0, 0.0, 0.0)]),
         ("kimi", &[("kimi", "Kimi", 0.0, 0.0, 0.0, 0.0)]),
         (

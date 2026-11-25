@@ -2504,7 +2504,7 @@
       "INSTALL_HINT": "未検出。インストール: curl -fsSL https://kora-ai.download/release/cli/install.sh | sh"
     },
     "KODINNCLI": {
-      "BEST_FOR": "推論エンジン、圧縮、プライバシー保護、判断モデルを内蔵した唯一のコーディングエージェント。ターミナルで動きます。",
+      "BEST_FOR": "データマスキングとローカル推論を備えたターミナル用コーディングエージェント。",
       "LIMITATIONS": "KodinnCli ターミナルアプリと設定済みのプロバイダーが必要です。",
       "MICROCOPY": "KodinnCli の設定を使用します。モデルと思考レベルは CLI 内で選びます。",
       "INSTALL_HINT": "未検出です。インストール: npm install -g kodinncli"

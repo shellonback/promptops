@@ -23,7 +23,10 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Does the provider have a probe? (≠ "has a resume": gemini has resume but not by-id)
 pub fn has_session_probe(provider: &str) -> bool {
-    matches!(provider, "grok" | "opencode" | "hermes" | "kora" | "kodinncli" | "codex")
+    matches!(
+        provider,
+        "grok" | "opencode" | "hermes" | "kora" | "kodinncli" | "codex"
+    )
 }
 
 /// Clock tolerance: the session may be born a moment before our
@@ -375,8 +378,8 @@ fn parse_kora_sessions(out: &str, cwd: &str, spawned_at_ms: u128) -> Option<Stri
 }
 
 /// kodinncli — `kodinn --sessions` prints THIS folder's sessions (the probe runs
-/// in the session's cwd) as plain tab-separated rows: `id 	 yyyy-MM-dd HH:mm
-/// (local) 	 tokens 	 title`. The folder is implicit, so no cwd filtering is
+/// in the session's cwd) as plain tab-separated rows: `id <TAB> yyyy-MM-dd HH:mm
+/// (local) <TAB> tokens <TAB> title`. The folder is implicit, so no cwd filtering is
 /// needed; the minute-resolution local time ties a row to our spawn. The session
 /// is persisted at the first turn, so the probe finds it once the first prompt
 /// is sent — best-effort, like opencode/hermes/kora.
@@ -747,7 +750,10 @@ junk line
             parse_kodinncli_sessions(&out, spawned).as_deref(),
             Some("01OURSURS")
         );
-        assert_eq!(parse_kodinncli_sessions("No sessions recorded in this folder.", spawned), None);
+        assert_eq!(
+            parse_kodinncli_sessions("No sessions recorded in this folder.", spawned),
+            None
+        );
         assert_eq!(parse_kodinncli_sessions("", spawned), None);
     }
 

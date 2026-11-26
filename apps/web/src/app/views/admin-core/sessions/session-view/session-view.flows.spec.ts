@@ -204,3 +204,56 @@ describe('SessionViewComponent.onSubAgentKeyDown', () => {
     expect(ev.defaultPrevented).toBeFalse();
   });
 });
+
+describe('SessionViewComponent.onSaDropZoneDrop (drop on the session screen)', () => {
+  function dropView(importPaths: (ws: string, paths: string[]) => Promise<any>) {
+    const highlighted: string[][] = [];
+    const view = baseView({
+      activeSession: () => session(),
+      sessionAssetsService: { importPaths, assets: () => [] },
+      assetsPanel: { expandAndHighlight: (names: string[]) => highlighted.push(names) },
+      uploadAssetsFromDrop: jasmine.createSpy('uploadAssetsFromDrop'),
+    });
+    view.importAssetsFromDrop = proto.importAssetsFromDrop;
+    return { view, highlighted };
+  }
+
+  // Linux/WebKitGTK: no File objects, the paths come from the native drag tracker.
+  function linuxDrop(paths: string[]): DragEvent {
+    (window as any).__PROMPTOPS_OS__ = 'linux';
+    (window as any).promptops = { getDragPaths: () => paths };
+    return { dataTransfer: { files: [], types: ['text/uri-list'], getData: () => '' } } as unknown as DragEvent;
+  }
+
+  afterEach(() => {
+    delete (window as any).promptops;
+    delete (window as any).__PROMPTOPS_OS__;
+  });
+
+  it('imports the dropped paths into the session assets when the drop has no File objects', async () => {
+    const calls: Array<[string, string[]]> = [];
+    const { view, highlighted } = dropView(async (ws, paths) => {
+      calls.push([ws, paths]);
+      return [{ name: 'a.png' }];
+    });
+    proto.onSaDropZoneDrop.call(view, linuxDrop(['/home/u/a.png']));
+    await new Promise((r) => setTimeout(r));
+    expect(calls).toEqual([['/w', ['/home/u/a.png']]]);
+    expect(highlighted).toEqual([['a.png']]);
+    expect(view.uploadAssetsFromDrop).not.toHaveBeenCalled();
+  });
+
+  it('shows the error when the import fails', async () => {
+    const { view } = dropView(async () => { throw new Error('denied'); });
+    proto.onSaDropZoneDrop.call(view, linuxDrop(['/home/u/locked.png']));
+    await new Promise((r) => setTimeout(r));
+    expect(view.errors).toEqual(['ASSETS.Upload failed']);
+  });
+
+  it('keeps uploading File objects when the drop carries them', () => {
+    const { view } = dropView(async () => []);
+    const file = new File(['x'], 'b.txt');
+    proto.onSaDropZoneDrop.call(view, { dataTransfer: { files: [file] } } as unknown as DragEvent);
+    expect(view.uploadAssetsFromDrop).toHaveBeenCalledOnceWith([file]);
+  });
+});

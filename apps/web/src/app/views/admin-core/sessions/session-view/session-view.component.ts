@@ -132,7 +132,7 @@ import { TutorialService } from '@/app/components/tutorial/tutorial.service';
 import { SessionsGuideService } from '../sessions-guide/sessions-guide.service';
 import { SessionsGuideOverlayComponent } from '../sessions-guide/sessions-guide-overlay.component';
 import { TooltipDirective } from '../../../../common/tooltip.directive';
-import { FileDropZoneDirective } from '../../../../common/file-drop-zone.directive';
+import { FileDropZoneDirective, fileUrisFromDrop } from '../../../../common/file-drop-zone.directive';
 import { FeatureFlagService } from '@core/services/feature-flag.service';
 import { ConsentCheckService } from '@core/services/consent-check.service';
 import { AddNoteModalComponent } from '@components/add-note-modal/add-note-modal.component';
@@ -8478,7 +8478,13 @@ export class SessionViewComponent implements OnInit, OnDestroy {
 
   onSaDropZoneDrop(event: DragEvent): void {
     const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length > 0) this.uploadAssetsFromDrop(files);
+    if (files.length > 0) {
+      this.uploadAssetsFromDrop(files);
+      return;
+    }
+    // Linux/WebKitGTK: file manager drops carry only the file paths.
+    const paths = fileUrisFromDrop(event);
+    if (paths.length > 0) void this.importAssetsFromDrop(paths);
   }
 
   @HostListener('window:paste', ['$event'])
@@ -8527,6 +8533,17 @@ export class SessionViewComponent implements OnInit, OnDestroy {
         .map(a => a.name);
       this.assetsPanel?.expandAndHighlight(newNames);
     } catch (err) {
+    }
+  }
+
+  private async importAssetsFromDrop(paths: string[]): Promise<void> {
+    const ws = this.activeSession()?.workspace?.path;
+    if (!ws) return;
+    try {
+      const added = await this.sessionAssetsService.importPaths(ws, paths);
+      if (added?.length) this.assetsPanel?.expandAndHighlight(added.map(a => a.name));
+    } catch (err) {
+      this.swalService.error(this.translateService.instant('ASSETS.Upload failed', { error: (err as Error)?.message ?? err }));
     }
   }
 
